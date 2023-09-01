@@ -2,10 +2,10 @@
 
 ![nukedmd_logo](rtl/nuked-md/nukedmd_logo.png)
 
-[Original Nuked-MD repository] (https://github.com/nukeykt/Nuked-MD)
+[Original Nuked-MD repository](https://github.com/nukeykt/Nuked-MD-FPGA)
 
 ## Installing
-copy *.rbf to root of SD card. Put some ROMs (*.BIN/*.GEN/*.MD/*.SMS) into MegaDrive folder
+copy rbf to root of SD card. Put some ROMs (.BIN/.GEN/.MD/.SMS) into MegaDrive folder
 
 
 ## Hot Keys
@@ -14,7 +14,7 @@ copy *.rbf to root of SD card. Put some ROMs (*.BIN/*.GEN/*.MD/*.SMS) into MegaD
 * F3 - reset to EU(PAL)  region
 
 
-## Auto Region option
+## Auto Region option (Megadrive/Genesis carts only)
 There are 2 versions of region detection:
 
 1) File name extension:
@@ -29,7 +29,7 @@ The header may include several regions - the correct one will be selected depend
 
 ## Sega Master System
 
-Core supports SMS carts with the same compatibility level as original MegaDrive hardware.
+Core supports SMS carts with the same compatibility level as original MegaDrive hardware. Not all SMS carts are compatible with MD hardware.
 
 
 ## Additional features
