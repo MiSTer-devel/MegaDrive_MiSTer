@@ -1152,7 +1152,7 @@ wire snac_port1 = (status[63:62] == 1);
 assign PA_i = snac_port1 ? SNAC_IN : md_io_port1;
 
 wire snac_port2 = (status[63:62] == 2);
-assign PB_i = snac_port2 ? SNAC_IN : md_io_port1;
+assign PB_i = snac_port2 ? SNAC_IN : md_io_port2;
 
 wire snac_port3 = (status[63:62] == 3);
 assign PC_i = snac_port3 ? SNAC_IN : (PC_d | PC_o);
