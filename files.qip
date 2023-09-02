@@ -5,6 +5,7 @@ set_global_assignment -name VHDL_FILE rtl/bram.vhd
 set_global_assignment -name VERILOG_FILE rtl/ram_md.v
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/EEPROM_STM95.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/EEPROM_24CXX.sv
 set_global_assignment -name VERILOG_FILE rtl/audio_iir_filter.v
 set_global_assignment -name VERILOG_FILE rtl/genesis_lpf.v
 set_global_assignment -name VHDL_FILE rtl/CEGen.vhd

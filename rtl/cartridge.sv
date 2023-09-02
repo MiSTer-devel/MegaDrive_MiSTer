@@ -232,10 +232,15 @@ always_comb begin
 		sram_di   = cart_data_wr[7:0];
 		sram_wren = cart_lwr & ms_ram_cs;
 	end
-	else if (pier_quirk) begin
+	else if(pier_quirk) begin
 		sram_addr = m95_addr;
 		sram_di   = m95_di;
 		sram_wren = m95_rnw;
+	end
+	else if(eeprom_quirk) begin
+		sram_addr = eeprom_ram_a;
+		sram_di   = eeprom_ram_d;
+		sram_wren = eeprom_ram_we;
 	end
 	else begin
 		sram_addr = cart_addr[16:1];
@@ -346,9 +351,62 @@ wire md_sram_cs1 = cart_addr[23:21] == 1 && (md_bank_sram || (cart_addr >= rom_s
 wire md_sram_cs2 = (sram_quirk | sram00_quirk) && cart_addr == 'h100000;
 wire md_sram_cs  = ~cart_ms & (md_sram_cs1 | md_sram_cs2);
 
-// EEPROM (fake)
-wire        md_eeprom_cs = eeprom_quirk && cart_addr == 'h100000;
-wire [15:0] md_eeprom_data = 0;
+// EEPROM
+wire        md_eeprom_cs   = (eeprom_quirk[2:0] && (eeprom_bank || !eeprom_quirk[3])) && cart_addr[23:21] == 3'b001;
+wire [15:0] md_eeprom_data = {16{eeprom_sdao & eeprom_sdai}};
+
+reg         eeprom_sdai;
+wire        eeprom_sdao;
+reg         eeprom_scl;
+wire [14:0] eeprom_ram_a;
+wire  [7:0] eeprom_ram_d;
+wire        eeprom_ram_we;
+wire  [7:0] eeprom_ram_q;
+reg         eeprom_bank;
+always @(posedge clk) begin
+	reg old_lwr, old_uwr;
+	
+	old_lwr <= cart_lwr;
+	old_uwr <= cart_uwr;
+	
+	if(reset || !eeprom_quirk) begin
+		eeprom_bank <= 0;
+		eeprom_sdai <= 1;
+		eeprom_scl  <= 1;
+	end
+	else begin
+		if (cart_addr[23:21] == 3'b001 && cart_cs && ((cart_lwr & ~old_lwr) | (cart_uwr & ~old_uwr))) begin
+			if(cart_lwr & cart_uwr) eeprom_bank <= ~cart_data_wr[0];
+			case (eeprom_quirk)
+				4'b0001: if (cart_lwr) {eeprom_sdai,eeprom_scl} <= cart_data_wr[7:6];
+				4'b0010,
+				4'b0011: if (cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
+				4'b1011: if      ( cart_lwr & ~cart_uwr) eeprom_sdai <= cart_data_wr[0];
+							else if (~cart_lwr &  cart_uwr) eeprom_scl  <= cart_data_wr[8];
+				default: {eeprom_scl,eeprom_sdai} <= '1;//todo 4'b1100-4'b1101
+			endcase
+		end
+	end
+end
+
+EPPROM_24CXX e24cxx
+(
+	.clk(clk),
+	.rst(reset),
+	.en(md_eeprom_cs && cart_cs),
+	
+	.mode(eeprom_quirk[2:0] <= 3'b010 ? 2'd0    : 2'd1),
+	.mask(eeprom_quirk[2:0] <= 3'b010 ? 13'h07f : 13'h0ff),
+	
+	.sda_i(eeprom_sdai),
+	.sda_o(eeprom_sdao),
+	.scl(eeprom_scl),
+
+	.ram_addr(eeprom_ram_a),
+	.ram_d(eeprom_ram_d),
+	.ram_wr(eeprom_ram_we),
+	.ram_q(sram_q)
+);
 
 
 // PIER EEPROM
@@ -624,78 +682,103 @@ end
 
 //---------------------- Cart detect ---------------------------------------
 
-reg sram_quirk, sram00_quirk, fmbusy_quirk, eeprom_quirk, noram_quirk, pier_quirk, svp_quirk, schan_quirk;
+reg       sram_quirk, sram00_quirk, fmbusy_quirk, noram_quirk, pier_quirk, svp_quirk, schan_quirk;
+reg [3:0] eeprom_quirk;
+reg       realtec_quirk;
+reg [2:0] sf_quirk;
 
 always @(posedge clk) begin
-	reg [63:0] cart_id;
+	reg [87:0] cart_id;
+	reg [15:0] crc = 0;
+	reg [31:0] realtec_id = 0;
 	reg old_dl;
 	old_dl <= cart_dl;
 
 	if(~old_dl && cart_dl) begin
-		{sram_quirk,sram00_quirk,fmbusy_quirk,eeprom_quirk,noram_quirk,pier_quirk,svp_quirk,schan_quirk} <= 0;
+		{sram_quirk,sram00_quirk,fmbusy_quirk,noram_quirk,pier_quirk,svp_quirk,schan_quirk,eeprom_quirk,realtec_quirk,sf_quirk} <= 0;
 		gun_type <= 0;
 		gun_sensor_delay <= 8'd44;
 	end
 
 	if(cart_dl_wr & cart_dl & ~cart_ms) begin
-		if(cart_dl_addr == 'h182) cart_id[63:56] <=  cart_dl_data[15:8];
+		if(cart_dl_addr == 'h180) cart_id[87:72] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
+		if(cart_dl_addr == 'h182) cart_id[71:56] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h184) cart_id[55:40] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h186) cart_id[39:24] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h188) cart_id[23:08] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
-		if(cart_dl_addr == 'h18A) cart_id[07:00] <=  cart_dl_data[7:0];
-		if(cart_dl_addr == 'h18C) begin
-			     if(cart_id == "T-081276") sram_quirk   <= 1; // NFL Quarterback Club
-			else if(cart_id == "T-81406 ") sram_quirk   <= 1; // NBA Jam TE
-			else if(cart_id == "T-081586") sram_quirk   <= 1; // NFL Quarterback Club '96
-			else if(cart_id == "T-81576 ") sram_quirk   <= 1; // College Slam
-			else if(cart_id == "T-81476 ") sram_quirk   <= 1; // Frank Thomas Big Hurt Baseball
-			else if(cart_id == "MK-1215 ") eeprom_quirk <= 1; // Evander Real Deal Holyfield's Boxing
-			else if(cart_id == "G-4060  ") eeprom_quirk <= 1; // Wonder Boy
-			else if(cart_id == "00001211") eeprom_quirk <= 1; // Sports Talk Baseball
-			else if(cart_id == "MK-1228 ") eeprom_quirk <= 1; // Greatest Heavyweights
-			else if(cart_id == "G-5538  ") eeprom_quirk <= 1; // Greatest Heavyweights JP
-			else if(cart_id == "00004076") eeprom_quirk <= 1; // Honoo no Toukyuuji Dodge Danpei
-			else if(cart_id == "T-12046 ") eeprom_quirk <= 1; // Mega Man - The Wily Wars
-			else if(cart_id == "T-12053 ") eeprom_quirk <= 1; // Rockman Mega World
-			else if(cart_id == "G-4524  ") eeprom_quirk <= 1; // Ninja Burai Densetsu
-			else if(cart_id == "T-113016") noram_quirk  <= 1; // Puggsy fake ram check
-			else if(cart_id == "T-574023") pier_quirk   <= 1; // Pier Solar Reprint
-			else if(cart_id == "T-574013") pier_quirk   <= 1; // Pier Solar 1st Edition
-			else if(cart_id == "MK-1229 ") svp_quirk    <= 1; // Virtua Racing EU/US
-			else if(cart_id == "G-7001  ") svp_quirk    <= 1; // Virtua Racing JP
-			else if(cart_id == "T-35036 ") fmbusy_quirk <= 1; // Hellfire US
-			else if(cart_id == "T-25073 ") fmbusy_quirk <= 1; // Hellfire JP
-			else if(cart_id == "MK-1137-") fmbusy_quirk <= 1; // Hellfire EU
-			else if(cart_id == "G-4034  ") fmbusy_quirk <= 1; // DAISENPU/TWIN HAWK JP/EU
-			else if(cart_id == "T-68???-") schan_quirk  <= 1; // Game no Kanzume Otokuyou
-			else if(cart_id == " GM 0000") sram00_quirk <= 1; // Sonic 1 Remastered
+		if(cart_dl_addr == 'h18A) cart_id[07:00] <= cart_dl_data[7:0];
+		if(cart_dl_addr == 'h18E) crc <= {cart_dl_data[7:0],cart_dl_data[15:8]};
+		if(cart_dl_addr == 'h190) begin
+			     if(cart_id[63:0] == "T-081276") sram_quirk   <= 1;        // NFL Quarterback Club
+			else if(cart_id[63:0] == "T-81406 ") sram_quirk   <= 1;        // NBA Jam TE
+			else if(cart_id[63:0] == "T-081586") sram_quirk   <= 1;        // NFL Quarterback Club '96
+			else if(cart_id[63:0] == "T-81576 ") sram_quirk   <= 1;        // College Slam
+			else if(cart_id[63:0] == "T-81476 ") sram_quirk   <= 1;        // Frank Thomas Big Hurt Baseball
+			else if(cart_id[63:0] == "T-50446 ") eeprom_quirk <= 4'b0001; 	// John Madden Football 93
+			else if(cart_id[63:0] == "T-50516 ") eeprom_quirk <= 4'b0001; 	// John Madden Football 93 Championship Edition
+			else if(cart_id[63:0] == "T-50396 ") eeprom_quirk <= 4'b0001; 	// NHLPA Hockey 93
+			else if(cart_id[63:0] == "T-50176 ") eeprom_quirk <= 4'b0001; 	// Rings of Power
+			else if(cart_id[63:0] == "T-50606 ") eeprom_quirk <= 4'b0001; 	// Bill Walsh College Football
+			else if(cart_id[63:0] == "MK-1215 ") eeprom_quirk <= 4'b0010; 	// Evander Real Deal Holyfield's Boxing
+			else if(cart_id[63:0] == "G-4060  ") eeprom_quirk <= 4'b0010; 	// Wonder Boy
+			else if(cart_id[63:0] == "00001211") eeprom_quirk <= 4'b0010; 	// Sports Talk Baseball
+			else if(cart_id[63:0] == "MK-1228 ") eeprom_quirk <= 4'b0010; 	// Greatest Heavyweights
+			else if(cart_id[63:0] == "G-5538  ") eeprom_quirk <= 4'b0010; 	// Greatest Heavyweights JP
+			else if(cart_id[63:0] == "00004076") eeprom_quirk <= 4'b0010; 	// Honoo no Toukyuuji Dodge Danpei
+			else if(cart_id[63:0] == "T-12046 ") eeprom_quirk <= 4'b0010; 	// Mega Man - The Wily Wars 
+			else if(cart_id[63:0] == "T-12053 ") eeprom_quirk <= 4'b0010; 	// Rockman Mega World 
+			else if(cart_id[63:0] == "G-4524  ") eeprom_quirk <= 4'b0010; 	// Ninja Burai Densetsu
+			else if(cart_id[63:0] == "00054503") eeprom_quirk <= 4'b0010; 	// Game Toshokan
+			else if(cart_id[63:0] == "T-81033 ") eeprom_quirk <= 4'b0011; 	// NBA Jam (J)
+			else if(cart_id[63:0] == "T-081326") eeprom_quirk <= 4'b0011; 	// NBA Jam (U)(E)
+			else if(cart_id[63:0] == "T-081276") eeprom_quirk <= 4'b1011; 	// NFL Quarterback Club
+			else if(cart_id[63:0] == "T-81406 ") eeprom_quirk <= 4'b1011; 	// NBA Jam TE
+			else if(cart_id[63:0] == "T-081586") eeprom_quirk <= 4'b1100; 	// NFL Quarterback Club '96
+			else if(cart_id[63:0] == "T-81576 ") eeprom_quirk <= 4'b1101; 	// College Slam
+			else if(cart_id[63:0] == "T-81476 ") eeprom_quirk <= 4'b1101; 	// Frank Thomas Big Hurt Baseball
+			else if(cart_id[63:0] == "T-8104B ") eeprom_quirk <= 4'b1011; 	// NBA Jam TE (32X)
+			else if(cart_id[63:0] == "T-8102B ") eeprom_quirk <= 4'b1011; 	// NFL Quarterback Club (32X)
+			else if(cart_id[63:0] == "T-113016") noram_quirk  <= 1;        // Puggsy fake ram check
+			else if(cart_id[63:0] == "T-574023") pier_quirk   <= 1;        // Pier Solar Reprint
+			else if(cart_id[63:0] == "T-574013") pier_quirk   <= 1;        // Pier Solar 1st Edition
+			else if(cart_id[63:0] == "MK-1229 ") svp_quirk    <= 1;        // Virtua Racing EU/US
+			else if(cart_id[63:0] == "G-7001  ") svp_quirk    <= 1;        // Virtua Racing JP
+			else if(cart_id[63:0] == "T-35036 ") fmbusy_quirk <= 1;        // Hellfire US
+			else if(cart_id[63:0] == "T-25073 ") fmbusy_quirk <= 1;        // Hellfire JP
+			else if(cart_id[63:0] == "MK-1137-") fmbusy_quirk <= 1;        // Hellfire EU
+			else if(cart_id[63:0] == "G-4034  ") fmbusy_quirk <= 1;        // DAISENPU/TWIN HAWK JP/EU
+			else if(cart_id[63:0] == "T-68???-") schan_quirk  <= 1;        // Game no Kanzume Otokuyou
+			else if(cart_id[63:0] == " GM 0000") sram00_quirk <= 1;        // Sonic 1 Remastered
+			else if(cart_id[87:40] == "SF-001")  sf_quirk     <= {crc == 16'h3E08,2'b01}; // Beggar Prince (Unl), Beggar Prince rev 1 (Unl)
+			else if(cart_id[87:40] == "SF-002")  sf_quirk     <= {1'b1,2'b10}; // Legend of Wukong (Unl)
+			else if(cart_id[87:40] == "SF-004")  sf_quirk     <= {1'b1,2'b11}; // Star Odyssey (Unl)
 
 			// Lightgun device and timing offsets
-			if(cart_id == "MK-1533 ") begin						  // Body Count
+			if(cart_id[63:0] == "MK-1533 ") begin						  // Body Count
 				gun_type  <= 0;
 				gun_sensor_delay <= 8'd100;
 			end
-			else if(cart_id == "T-95096-") begin				  // Lethal Enforcers
+			else if(cart_id[63:0] == "T-95096-") begin				  // Lethal Enforcers
 				gun_type  <= 1;
 				gun_sensor_delay <= 8'd52;
 			end
-			else if(cart_id == "T-95136-") begin				  // Lethal Enforcers II
+			else if(cart_id[63:0] == "T-95136-") begin				  // Lethal Enforcers II
 				gun_type  <= 1;
 				gun_sensor_delay <= 8'd30;
 			end
-			else if(cart_id == "MK-1658 ") begin				  // Menacer 6-in-1
+			else if(cart_id[63:0] == "MK-1658 ") begin				  // Menacer 6-in-1
 				gun_type  <= 0;
 				gun_sensor_delay <= 8'd120;
 			end
-			else if(cart_id == "T-081156") begin				  // T2: The Arcade Game
+			else if(cart_id[63:0] == "T-081156") begin				  // T2: The Arcade Game
 				gun_type  <= 0;
 				gun_sensor_delay <= 8'd126;
 			end
-			else begin
-				gun_type  <= 0;
-				gun_sensor_delay <= 8'd44;
-			end
 		end
+
+		if(cart_dl_addr == 'h7E100) realtec_id[31:16] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
+		if(cart_dl_addr == 'h7E102) realtec_id[15: 0] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
+		if(cart_dl_addr == 'h7E104 && realtec_id == "SEGA") realtec_quirk <= 1; // Earth Defend, Funny World & Balloon Boy, Whac-a-Critter
 	end
 end
 
