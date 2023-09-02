@@ -294,7 +294,10 @@ always @(posedge clk) begin
 	end
 end
 
-wire [24:1] md_cart_addr = svp_dma ? (cart_addr - 1'd1) : md_bank_use ? {md_bank[cart_addr[21:19]], cart_addr[18:1]} : cart_addr;
+wire [24:1] md_cart_addr = svp_dma       ? (cart_addr - 1'd1) :
+                           realtec_quirk ? realtec_addr       :
+                           md_bank_use   ? {md_bank[cart_addr[21:19]], cart_addr[18:1]} :
+                                           cart_addr;
 
 
 // SVP
@@ -364,23 +367,18 @@ wire        eeprom_ram_we;
 wire  [7:0] eeprom_ram_q;
 reg         eeprom_bank;
 always @(posedge clk) begin
-	reg old_lwr, old_uwr;
-	
-	old_lwr <= cart_lwr;
-	old_uwr <= cart_uwr;
-	
 	if(reset || !eeprom_quirk) begin
 		eeprom_bank <= 0;
 		eeprom_sdai <= 1;
 		eeprom_scl  <= 1;
 	end
 	else begin
-		if (cart_addr[23:21] == 3'b001 && cart_cs && ((cart_lwr & ~old_lwr) | (cart_uwr & ~old_uwr))) begin
+		if(cart_addr[23:21] == 3'b001 && cart_cs && (cart_lwr | cart_uwr)) begin
 			if(cart_lwr & cart_uwr) eeprom_bank <= ~cart_data_wr[0];
 			case (eeprom_quirk)
-				4'b0001: if (cart_lwr) {eeprom_sdai,eeprom_scl} <= cart_data_wr[7:6];
+				4'b0001: if(cart_lwr) {eeprom_sdai,eeprom_scl} <= cart_data_wr[7:6];
 				4'b0010,
-				4'b0011: if (cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
+				4'b0011: if(cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
 				4'b1011: if      ( cart_lwr & ~cart_uwr) eeprom_sdai <= cart_data_wr[0];
 							else if (~cart_lwr &  cart_uwr) eeprom_scl  <= cart_data_wr[8];
 				default: {eeprom_scl,eeprom_sdai} <= '1;//todo 4'b1100-4'b1101
@@ -528,6 +526,39 @@ end
 
 // MK3U Trilogy 10MB version (13MB isn't compatible with real HW!)
 wire cart_cs_ext = ~cart_ms && (cart_addr[23:22] && cart_addr[23:20]<'hA) && (cart_addr < rom_sz);
+
+// Realtec
+reg [21:17] realtec_bank;
+reg   [4:0] realtec_mask;
+reg         realtec_boot;
+always @(posedge clk) begin
+	if (reset | ~realtec_quirk) begin
+		realtec_bank <= 0;
+		realtec_mask <= 0;
+		realtec_boot <= 1;
+	end
+	else begin
+		if (cart_addr[23:16] == 8'h40 && !cart_addr[11:1] && cart_uwr) begin
+			case(cart_addr[15:12])
+				4'h0: begin realtec_bank[21:20] <= cart_data_wr[2:1]; realtec_boot <= ~cart_data_wr[0]; end
+				4'h2: begin 
+					case (cart_data_wr[5:0])
+						6'd0,6'd1:                                      realtec_mask <= 5'b00000;
+						6'd2:                                           realtec_mask <= 5'b00001;
+						6'd3,6'd4:                                      realtec_mask <= 5'b00011;
+						6'd5,6'd6,6'd7,6'd8:                            realtec_mask <= 5'b00111;
+						6'd9,6'd10,6'd11,6'd12,6'd13,6'd14,6'd15,6'd16: realtec_mask <= 5'b01111;
+						default:                                        realtec_mask <= 5'b11111;
+					endcase
+				end
+				4'h4: begin realtec_bank[19:17] <= cart_data_wr[2:0]; end
+			endcase
+		end
+	end
+end
+
+wire [23:1] realtec_addr = realtec_boot ? {11'b00000111111,cart_addr[12:1]} : {2'b00,(cart_addr[21:17] & realtec_mask) + realtec_bank,cart_addr[16:1]};
+
 
 //---------------------- MS cart ---------------------------------------
 

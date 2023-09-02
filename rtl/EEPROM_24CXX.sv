@@ -46,12 +46,12 @@ module EPPROM_24CXX
 	end
 	wire sda_rise = (sda_old == 4'b0011);
 	wire sda_fall = (sda_old == 4'b1100);
-	wire sda_low  = (sda_old == 4'b0000);
-	wire sda_high = (sda_old == 4'b1111);
+	//wire sda_low  = (sda_old == 4'b0000);
+	//wire sda_high = (sda_old == 4'b1111);
 	
 	wire scl_rise = (scl_old == 4'b0011);
 	wire scl_fall = (scl_old == 4'b1100);
-	wire scl_low  = (scl_old == 4'b0000);
+	//wire scl_low  = (scl_old == 4'b0000);
 	wire scl_high = (scl_old == 4'b1111);
 	
 	reg       start = 0, stop = 0, cont = 0;
@@ -60,7 +60,7 @@ module EPPROM_24CXX
 	reg [7:0] din;
 	reg [7:0] dout;
 	reg       sack = 0;
-	reg       mack = 0;
+	//reg       mack = 0;
 	always @(posedge clk) begin
 		reg prestart;
 		
@@ -72,7 +72,7 @@ module EPPROM_24CXX
 			run <= 0;
 			bit_cnt <= 4'hF;
 			sack <= 0;
-			mack <= 0;
+			//mack <= 0;
 		end else begin
 			start <= 0;
 			stop <= 0;
@@ -91,7 +91,7 @@ module EPPROM_24CXX
 					stop <= 1;
 					run <= 0;
 					sack <= 0;
-					mack <= 0;
+					//mack <= 0;
 				end
 				
 				if ((scl_rise || scl_fall) && run) cont <= 1;
@@ -100,7 +100,7 @@ module EPPROM_24CXX
 					if (!bit_cnt[3]) begin
 						din[bit_cnt[2:0]] <= sda_i;
 					end else begin
-						mack <= sda_i;
+						//mack <= sda_i;
 					end
 				end else if (scl_fall && run) begin
 					bit_cnt <= bit_cnt - 4'h1;
@@ -120,7 +120,7 @@ module EPPROM_24CXX
 						1'b1;
 	
 	reg [12:0] addr;
-	reg        rw;
+	//reg        rw;
 	reg        write;
 	reg        read;
 	always @(posedge clk) begin
@@ -131,7 +131,7 @@ module EPPROM_24CXX
 		if (rst) begin
 			state <= IDLE;
 			addr <= '0;
-			rw <= 0;
+			//rw <= 0;
 			write <= 0;
 			read <= 0;
 		end else begin
@@ -153,7 +153,7 @@ module EPPROM_24CXX
 					ack_old <= sack;
 					if (!sack && ack_old) begin
 						addr[10:8] <= din[2:0];
-						rw <= din[0];
+						//rw <= din[0];
 						if (din[0]) begin
 							state <= READ;
 						end else begin
@@ -167,7 +167,7 @@ module EPPROM_24CXX
 					ack_old <= sack;
 					if (!sack && ack_old) begin
 						addr[6:0] <= din[7:1];
-						rw <= din[0];
+						//rw <= din[0];
 						if (din[0]) begin
 							read <= 1;
 							state <= READ;
