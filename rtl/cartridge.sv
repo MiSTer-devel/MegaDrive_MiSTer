@@ -180,7 +180,7 @@ assign cart_data_en = cart_oe & (cart_cs | svp_cs | data_en);
 wire   rom_data_req = (cart_cs | ms_rom_cs | cart_cs_ext) & ~svp_norom;
 
 reg data_en;
-always @(posedge clk_ram) data_en <= ms_rom_cs | ms_ram_cs | fm_det_cs | pier_eeprom_cs | cart_cs_ext;
+always @(posedge clk_ram) data_en <= ms_rom_cs | ms_ram_cs | fm_det_cs | pier_eeprom_cs | cart_cs_ext | sf_cs;
 
 reg  [24:1] rom_addr;
 reg         rom_req;
@@ -219,6 +219,7 @@ always @(posedge clk_ram) begin
 	if(md_eeprom_cs)   cart_data <= md_eeprom_data;
 	if(jcart_cs)       cart_data <= jcart_data;
 	if(svp_cs)         cart_data <= svp_data;
+	if(sf_cs)          cart_data <= sf_data;
 end
 
 wire [15:0] sram_addr;
@@ -241,6 +242,11 @@ always_comb begin
 		sram_addr = eeprom_ram_a;
 		sram_di   = eeprom_ram_d;
 		sram_wren = eeprom_ram_we;
+	end
+	else if(sf_quirk) begin
+		sram_addr = cart_addr[15:1];
+		sram_di   = cart_data_wr[7:0];
+		sram_wren = sf_sram_wr;
 	end
 	else begin
 		sram_addr = cart_addr[16:1];
@@ -296,6 +302,7 @@ end
 
 wire [24:1] md_cart_addr = svp_dma       ? (cart_addr - 1'd1) :
                            realtec_quirk ? realtec_addr       :
+                           sf_quirk      ? sf_rom_addr        :
                            md_bank_use   ? {md_bank[cart_addr[21:19]], cart_addr[18:1]} :
                                            cart_addr;
 
@@ -350,7 +357,7 @@ SVP svp
 reg [16:1] ram_rst_a;
 always @(posedge clk) ram_rst_a <= ram_rst_a + 1'd1;
 
-wire md_sram_cs1 = cart_addr[23:21] == 1 && (md_bank_sram || (cart_addr >= rom_sz && ~&cart_addr[20:19] && ~noram_quirk));
+wire md_sram_cs1 = cart_addr[23:21] == 1 && (md_bank_sram || (cart_addr >= rom_sz && ~&cart_addr[20:19])) && ~noram_quirk && !sf_quirk;
 wire md_sram_cs2 = (sram_quirk | sram00_quirk) && cart_addr == 'h100000;
 wire md_sram_cs  = ~cart_ms & (md_sram_cs1 | md_sram_cs2);
 
@@ -559,6 +566,65 @@ end
 
 wire [23:1] realtec_addr = realtec_boot ? {11'b00000111111,cart_addr[12:1]} : {2'b00,(cart_addr[21:17] & realtec_mask) + realtec_bank,cart_addr[16:1]};
 
+//SF-001,SF-002,SF-004 mappers
+wire        sf_cs     = sf_quirk && (sf_sram_en | cart_time);
+wire [15:0] sf_data   = cart_time ? (sf_quirk[1:0] == 2'd3 ? sf004_do : 16'h0000) : {8'hff,sram_q};
+
+reg   [7:0] sf001_bank_reg;
+reg   [7:0] sf002_bank_reg;
+reg         sf004_sram_reg;
+reg   [7:0] sf004_bank_reg;
+reg   [2:0] sf004_first_page;
+
+always @(posedge clk) begin
+	if(reset || !sf_quirk) begin
+		sf001_bank_reg <= 8'h00;
+		sf002_bank_reg <= 8'h00;
+		sf004_sram_reg <= 0;
+		sf004_bank_reg <= 8'h80;
+		sf004_first_page <= '0;
+	end
+	else if(cart_lwr && !cart_addr[23:16]) begin
+		
+		case(sf_quirk[1:0])
+
+			//sf-001 new rev
+			1: if(sf_quirk[2] && !sf001_bank_reg[5] && cart_addr[11:8] == 4'he) sf001_bank_reg <= cart_data_wr[7:0];
+
+			//sf-002
+			2: sf002_bank_reg <= cart_data_wr[7:0];
+
+			//sf-004
+			3: if (sf004_bank_reg[7]) begin
+					case (cart_addr[11:8])
+						4'hd: sf004_sram_reg <= cart_data_wr[7];
+						4'he: sf004_bank_reg <= cart_data_wr[7:0];
+						4'hf: sf004_first_page <= cart_data_wr[6:4];
+					endcase
+				end
+		endcase
+	end
+end
+
+wire [23:1] sf001_rom_a   = (sf001_bank_reg[7] && !cart_addr[21:18]) ? {6'b001110,cart_addr[17:1]} : {2'b00,cart_addr[21:1]};
+wire        sf001_sram_en = (cart_addr[23:20] == 4 && !sf_quirk[2]) || (cart_addr[23:18] == 6'b001111 && sf001_bank_reg[7]);
+
+wire [23:1] sf002_rom_a   = {2'b00,cart_addr[21] & ~sf002_bank_reg[7],cart_addr[20:1]};
+wire        sf002_sram_en = (cart_addr[23:18] == 6'b001111);
+						
+wire [23:1] sf004_rom_a   = (cart_addr[23:16] < 8'h14 && sf004_bank_reg[6]) ? {3'b000,sf004_first_page + cart_addr[20:18],cart_addr[17:1]} : {3'b000,sf004_first_page,cart_addr[17:1]};
+wire        sf004_sram_en = (cart_addr[23:20] == 2 && sf004_sram_reg);
+wire [15:0] sf004_do      = {8'hff,1'b0,sf004_first_page,4'b0000};
+
+wire        sf_sram_en    = sf_quirk[1:0] == 1 ? sf001_sram_en :
+                            sf_quirk[1:0] == 2 ? sf002_sram_en : 
+                                                 sf004_sram_en;
+
+wire [23:1] sf_rom_addr   = sf_quirk[1:0] == 1 ? sf001_rom_a : 
+                            sf_quirk[1:0] == 2 ? sf002_rom_a : 
+                                                 sf004_rom_a;
+
+wire        sf_sram_wr    = sf_sram_en & cart_lwr;
 
 //---------------------- MS cart ---------------------------------------
 
