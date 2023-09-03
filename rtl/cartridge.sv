@@ -365,8 +365,11 @@ wire md_sram_cs2 = (sram_quirk | sram00_quirk) && cart_addr == 'h100000;
 wire md_sram_cs  = ~cart_ms & (md_sram_cs1 | md_sram_cs2);
 
 // EEPROM
-wire        md_eeprom_cs   = (eeprom_quirk[2:0] && (eeprom_bank || !eeprom_quirk[3])) && cart_addr[23:21] == 3'b001;
+wire        md_eeprom_cs   = (eeprom_quirk[3:2] == 2'b01) ? jcart_ee : ((eeprom_quirk[2:0] && (eeprom_bank || cart_lwr || cart_uwr || !eeprom_quirk[3])) && cart_addr[23:21] == 3'b001);
 wire [15:0] md_eeprom_data = {16{eeprom_sdao & eeprom_sdai}};
+
+// jcart: read $380000-$3fffff, write $300000-$37ffff
+wire        jcart_ee = (cart_oe && cart_addr[23:19] == 5'b00111) | ((cart_lwr|cart_uwr) && cart_addr[23:19] == 5'b00110);
 
 reg         eeprom_sdai;
 wire        eeprom_sdao;
@@ -382,30 +385,32 @@ always @(posedge clk) begin
 		eeprom_sdai <= 1;
 		eeprom_scl  <= 1;
 	end
-	else begin
-		if(cart_addr[23:21] == 3'b001 && cart_cs && (cart_lwr | cart_uwr)) begin
-			if(cart_lwr & cart_uwr) eeprom_bank <= ~cart_data_wr[0];
-			case (eeprom_quirk)
-				4'b0001: if(cart_lwr) {eeprom_sdai,eeprom_scl} <= cart_data_wr[7:6];
-				4'b0010,
-				4'b0011: if(cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
-				4'b1011: if      ( cart_lwr & ~cart_uwr) eeprom_sdai <= cart_data_wr[0];
-							else if (~cart_lwr &  cart_uwr) eeprom_scl  <= cart_data_wr[8];
-				default: {eeprom_scl,eeprom_sdai} <= '1;//todo 4'b1100-4'b1101
-			endcase
-		end
+	else if(cart_addr[23:21] == 3'b001 && cart_cs && (cart_lwr | cart_uwr)) begin
+		if(cart_lwr & cart_uwr) eeprom_bank <= ~cart_data_wr[0];
+		casex (eeprom_quirk)
+			4'b0001: if(cart_lwr) {eeprom_sdai,eeprom_scl} <= cart_data_wr[7:6];
+			4'b0010,
+			4'b0011: if(cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
+			4'b1xxx: if      ( cart_lwr & ~cart_uwr) eeprom_sdai <= cart_data_wr[0];
+						else if (~cart_lwr &  cart_uwr) eeprom_scl  <= cart_data_wr[8];
+			4'b01xx: if(cart_addr[20:19] == 2'b10) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
+			default: {eeprom_scl,eeprom_sdai} <= '1;
+		endcase
 	end
 end
+
+//                                        C01     C01     C02     C16      C65       C08
+wire [12:0] eeprom_mask[8] = '{13'h00, 13'h7f, 13'h7f, 13'hff, 13'h7ff, 13'h1fff, 13'h3ff, 13'h00};
 
 EPPROM_24CXX e24cxx
 (
 	.clk(clk),
 	.rst(reset),
-	.en(md_eeprom_cs && cart_cs),
-	
-	.mode(eeprom_quirk[2:0] <= 3'b010 ? 2'd0    : 2'd1),
-	.mask(eeprom_quirk[2:0] <= 3'b010 ? 13'h07f : 13'h0ff),
-	
+	.en(1),
+
+	.mode((eeprom_quirk[2:0] <= 3'b010) ? 2'd0 : (eeprom_quirk[2:0] == 3'b101) ? 2'd2 : 2'd1),
+	.mask(eeprom_mask[eeprom_quirk[2:0]]),
+
 	.sda_i(eeprom_sdai),
 	.sda_o(eeprom_sdao),
 	.scl(eeprom_scl),
@@ -821,6 +826,7 @@ always @(posedge clk) begin
 	reg [15:0] crc = 0;
 	reg [15:0] crc_real = 0;
 	reg [31:0] realtec_id = 0;
+	reg [31:0] sp = 0;
 	reg old_dl;
 	old_dl <= cart_dl;
 
@@ -833,6 +839,8 @@ always @(posedge clk) begin
 	end
 
 	if(cart_dl_wr & cart_dl & ~cart_ms) begin
+		if(cart_dl_addr == 'h000) sp[31:16] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
+		if(cart_dl_addr == 'h002) sp[15:00] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h180) cart_id[87:72] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h182) cart_id[71:56] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h184) cart_id[55:40] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
@@ -846,30 +854,35 @@ always @(posedge clk) begin
 			else if(cart_id[63:0] == "T-081586") sram_quirk   <= 1;        // NFL Quarterback Club '96
 			else if(cart_id[63:0] == "T-81576 ") sram_quirk   <= 1;        // College Slam
 			else if(cart_id[63:0] == "T-81476 ") sram_quirk   <= 1;        // Frank Thomas Big Hurt Baseball
-			else if(cart_id[63:0] == "T-50446 ") eeprom_quirk <= 4'b0001; 	// John Madden Football 93
-			else if(cart_id[63:0] == "T-50516 ") eeprom_quirk <= 4'b0001; 	// John Madden Football 93 Championship Edition
-			else if(cart_id[63:0] == "T-50396 ") eeprom_quirk <= 4'b0001; 	// NHLPA Hockey 93
-			else if(cart_id[63:0] == "T-50176 ") eeprom_quirk <= 4'b0001; 	// Rings of Power
-			else if(cart_id[63:0] == "T-50606 ") eeprom_quirk <= 4'b0001; 	// Bill Walsh College Football
-			else if(cart_id[63:0] == "MK-1215 ") eeprom_quirk <= 4'b0010; 	// Evander Real Deal Holyfield's Boxing
-			else if(cart_id[63:0] == "G-4060  ") eeprom_quirk <= 4'b0010; 	// Wonder Boy
-			else if(cart_id[63:0] == "00001211") eeprom_quirk <= 4'b0010; 	// Sports Talk Baseball
-			else if(cart_id[63:0] == "MK-1228 ") eeprom_quirk <= 4'b0010; 	// Greatest Heavyweights
-			else if(cart_id[63:0] == "G-5538  ") eeprom_quirk <= 4'b0010; 	// Greatest Heavyweights JP
-			else if(cart_id[63:0] == "00004076") eeprom_quirk <= 4'b0010; 	// Honoo no Toukyuuji Dodge Danpei
-			else if(cart_id[63:0] == "T-12046 ") eeprom_quirk <= 4'b0010; 	// Mega Man - The Wily Wars 
-			else if(cart_id[63:0] == "T-12053 ") eeprom_quirk <= 4'b0010; 	// Rockman Mega World 
-			else if(cart_id[63:0] == "G-4524  ") eeprom_quirk <= 4'b0010; 	// Ninja Burai Densetsu
-			else if(cart_id[63:0] == "00054503") eeprom_quirk <= 4'b0010; 	// Game Toshokan
-			else if(cart_id[63:0] == "T-81033 ") eeprom_quirk <= 4'b0011; 	// NBA Jam (J)
-			else if(cart_id[63:0] == "T-081326") eeprom_quirk <= 4'b0011; 	// NBA Jam (U)(E)
-			else if(cart_id[63:0] == "T-081276") eeprom_quirk <= 4'b1011; 	// NFL Quarterback Club
-			else if(cart_id[63:0] == "T-81406 ") eeprom_quirk <= 4'b1011; 	// NBA Jam TE
-			else if(cart_id[63:0] == "T-081586") eeprom_quirk <= 4'b1100; 	// NFL Quarterback Club '96
-			else if(cart_id[63:0] == "T-81576 ") eeprom_quirk <= 4'b1101; 	// College Slam
-			else if(cart_id[63:0] == "T-81476 ") eeprom_quirk <= 4'b1101; 	// Frank Thomas Big Hurt Baseball
-			else if(cart_id[63:0] == "T-8104B ") eeprom_quirk <= 4'b1011; 	// NBA Jam TE (32X)
-			else if(cart_id[63:0] == "T-8102B ") eeprom_quirk <= 4'b1011; 	// NFL Quarterback Club (32X)
+
+			else if(cart_id[63:0] == "T-50446 ") eeprom_quirk <= 4'b0001; 	// X24C01 John Madden Football 93
+			else if(cart_id[63:0] == "T-50516 ") eeprom_quirk <= 4'b0001; 	// X24C01 John Madden Football 93 Championship Edition
+			else if(cart_id[63:0] == "T-50396 ") eeprom_quirk <= 4'b0001; 	// X24C01 NHLPA Hockey 93
+			else if(cart_id[63:0] == "T-50176 ") eeprom_quirk <= 4'b0001; 	// X24C01 Rings of Power
+			else if(cart_id[63:0] == "T-50606 ") eeprom_quirk <= 4'b0001; 	// X24C01 Bill Walsh College Football
+			else if(cart_id[63:0] == "MK-1215 ") eeprom_quirk <= 4'b0010; 	// X24C01 Evander Real Deal Holyfield's Boxing
+			else if(cart_id[63:0] == "G-4060  ") eeprom_quirk <= 4'b0010; 	// X24C01 Wonder Boy
+			else if(cart_id[63:0] == "00001211") eeprom_quirk <= 4'b0010; 	// X24C01 Sports Talk Baseball
+			else if(cart_id[63:0] == "MK-1228 ") eeprom_quirk <= 4'b0010; 	// X24C01 Greatest Heavyweights
+			else if(cart_id[63:0] == "G-5538  ") eeprom_quirk <= 4'b0010; 	// X24C01 Greatest Heavyweights JP
+			else if(cart_id[63:0] == "00004076") eeprom_quirk <= 4'b0010; 	// X24C01 Honoo no Toukyuuji Dodge Danpei
+			else if(cart_id[63:0] == "T-12046 ") eeprom_quirk <= 4'b0010; 	// X24C01 Mega Man - The Wily Wars 
+			else if(cart_id[63:0] == "T-12053 ") eeprom_quirk <= 4'b0010; 	// X24C01 Rockman Mega World 
+			else if(cart_id[63:0] == "G-4524  ") eeprom_quirk <= 4'b0010; 	// X24C01 Ninja Burai Densetsu
+			else if(cart_id[63:0] == "00054503") eeprom_quirk <= 4'b0010; 	// X24C01 Game Toshokan
+			else if(cart_id[63:0] == "T-81033 ") eeprom_quirk <= 4'b0011; 	// 24C02 NBA Jam (J)
+			else if(cart_id[63:0] == "T-081326") eeprom_quirk <= 4'b0011; 	// 24C02 NBA Jam (U)(E)
+			else if(cart_id[63:0] == "T-081276") eeprom_quirk <= 4'b1011; 	// 24C02 NFL Quarterback Club
+			else if(cart_id[63:0] == "T-81406 ") eeprom_quirk <= 4'b1011; 	// 24C02? NBA Jam TE
+			else if(cart_id[63:0] == "T-8104B ") eeprom_quirk <= 4'b1011; 	// 24C02 NBA Jam TE (32X)
+			else if(cart_id[63:0] == "T-8102B ") eeprom_quirk <= 4'b1011; 	// 24C02? NFL Quarterback Club (32X)
+			else if(cart_id[63:0] == "T-081586") eeprom_quirk <= 4'b1100; 	// 24C16 NFL Quarterback Club '96
+			else if(cart_id[63:0] == "T-81576 ") eeprom_quirk <= 4'b1101; 	// 24C65 College Slam
+			else if(cart_id[63:0] == "T-81476 ") eeprom_quirk <= 4'b1101; 	// 24C65 Frank Thomas Big Hurt Baseball
+			else if(sp=="DNLD" && crc == 'h168B) eeprom_quirk <= 4'b0110;  // 24C08 JCART Micro Machines Military
+			else if(sp=="DNLD" && crc == 'h165E) eeprom_quirk <= 4'b0100;  // 24C16 JCART Micro Machines Turbo Tournament 96
+			else if(cart_id[63:0] == "T-120096") eeprom_quirk <= 4'b0100;  // 24C16 JCART Micro Machines 2 - Turbo Tournament
+
 			else if(cart_id[63:0] == "T-113016") noram_quirk  <= 1;        // Puggsy fake ram check
 			else if(cart_id[63:0] == "T-574023") pier_quirk   <= 1;        // Pier Solar Reprint
 			else if(cart_id[63:0] == "T-574013") pier_quirk   <= 1;        // Pier Solar 1st Edition
