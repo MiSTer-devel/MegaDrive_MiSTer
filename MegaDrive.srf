@@ -19,6 +19,23 @@
 { "" "" "" "Ignored create_generated_clock at sys_top.sdc(16): Argument <targets> is an empty collection" {  } {  } 0 332049 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "Ignored filter at sys_top.sdc(37): VID_CLK could not be matched with a clock" {  } {  } 0 332174 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "LOCKED port on the PLL is not properly connected on instance \"pll_audio:pll_audio\|pll_audio_0002:pll_audio_inst\|altera_pll:altera_pll_i\|general\[0\].gpll\". The LOCKED port on the PLL should be connected when the FBOUTCLK port is connected. Although it is unnecessary to connect the LOCKED signal, any logic driven off of an output clock of the PLL will not know when the PLL is locked and ready." {  } {  } 0 21300 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at ym7101.v(242): object \"w17\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at ym7101.v(568): object \"w262\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at sys/video_mixer.sv(17): MESSAGE_ON or MESSAGE_OFF directive cannot process the non-HDL message ID 12161." {  } {  } 0 10720 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at ym3438_fsm.v(30): object \"fsm_cnt\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL assignment warning at ym3438_io.v(215): truncated value with size 32 to match size of target (26)" {  } {  } 0 10230 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at ym3438_eg.v(830): object \"lfo_sh1\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at ym6045.v(195): object \"w92\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at 68k.v(321): object \"w295\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at 68k.v(1053): object \"as_l3\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at 68k.v(1056): object \"uds_l3\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Net \"ucode.data_a\" at 68k.v(575) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Net \"ucode.waddr_a\" at 68k.v(575) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Net \"ncode.data_a\" at 68k.v(576) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Net \"ncode.waddr_a\" at 68k.v(576) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Net \"ucode.we_a\" at 68k.v(575) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Net \"ncode.we_a\" at 68k.v(576) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Variable or input pin \"outclock\" is defined but never used." {  } {  } 0 287013 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "*" {  } {  } 0 21074 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "*" {  } {  } 0 276020 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "*" {  } {  } 0 276027 "" 0 0 "Design Software" 0 -1 0 ""}

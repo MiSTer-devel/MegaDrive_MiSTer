@@ -1178,12 +1178,12 @@ always @(posedge clk_sys) begin
 	if(downloading && img_mounted && !img_readonly) bk_ena <= 1;
 
 	old_change <= bk_change;
-	if (~old_change & bk_change & ~OSD_STATUS) sav_pending <= status[13];
+	if (~old_change & bk_change & ~OSD_STATUS) sav_pending <= 1;
 	else if (bk_state) sav_pending <= 0;
 end
 
 wire bk_load    = status[16];
-wire bk_save    = status[17] | (sav_pending & OSD_STATUS);
+wire bk_save    = status[17] | (sav_pending & OSD_STATUS & status[13]);
 reg  bk_loading = 0;
 reg  bk_state   = 0;
 
