@@ -180,7 +180,7 @@ assign cart_data_en = cart_oe & (cart_cs | svp_cs | data_en);
 wire   rom_data_req = (cart_cs | ms_rom_cs | cart_cs_ext) & ~svp_norom;
 
 reg data_en;
-always @(posedge clk_ram) data_en <= ms_rom_cs | ms_ram_cs | fm_det_cs | pier_eeprom_cs | cart_cs_ext | sf_cs;
+always @(posedge clk_ram) data_en <= ms_rom_cs | ms_ram_cs | fm_det_cs | pier_eeprom_cs | cart_cs_ext | sf_cs | chk_cs;
 
 reg  [24:1] rom_addr;
 reg         rom_req;
@@ -220,6 +220,7 @@ always @(posedge clk_ram) begin
 	if(jcart_cs)       cart_data <= jcart_data;
 	if(svp_cs)         cart_data <= svp_data;
 	if(sf_cs)          cart_data <= sf_data;
+	if(chk_cs)         cart_data <= chk_data;
 end
 
 wire [15:0] sram_addr;
@@ -275,6 +276,8 @@ assign save_do     = dram_q;
 assign save_change = sram_wren & ~svp_quirk;
 
 //---------------------- MD cart ---------------------------------------
+
+wire [23:0] md_addr = {cart_addr,1'b0};
 
 reg [5:0] md_bank[8] = '{0,1,2,3,4,5,6,7};
 reg       md_bank_sram = 0;
@@ -626,6 +629,34 @@ wire [23:1] sf_rom_addr   = sf_quirk[1:0] == 1 ? sf001_rom_a :
 
 wire        sf_sram_wr    = sf_sram_en & cart_lwr;
 
+//Simple check
+reg         chk_cs;
+reg  [15:0] chk_data;
+
+always @(posedge clk) begin
+	chk_cs <= 0;
+	case(chk_quirk)
+		1: if(md_addr == 'h400000) begin
+				chk_data <= 'h9000;
+				chk_cs <= 1;
+			end
+			else if(md_addr == 'h401000) begin
+				chk_data <= 'hd300;
+				chk_cs <= 1;
+			end
+
+		2: if(md_addr == 'hA13000) begin
+				chk_data <= 'h0a;
+				chk_cs <= 1;
+			end
+
+		3: if(md_addr == 'hA13000) begin
+				chk_data <= 'h1c;
+				chk_cs <= 1;
+			end
+	endcase
+end
+
 //---------------------- MS cart ---------------------------------------
 
 wire [15:0] ms_addr = cart_addr[16:1];
@@ -721,7 +752,7 @@ always_comb begin
 	if(rom_mask[24:16]) begin
 		if(mapper_msx) begin
 			case(ms_addr[15:13])
-				2,3,4,5: ms_cart_addr[20:13] <= ms_bank[ms_addr[14:13] - 2'd2];
+				2,3,4,5: ms_cart_addr[20:13] = ms_bank[ms_addr[14:13] - 2'd2];
 				default:;
 			endcase
 		end
@@ -783,18 +814,22 @@ reg       sram_quirk, sram00_quirk, fmbusy_quirk, noram_quirk, pier_quirk, svp_q
 reg [3:0] eeprom_quirk;
 reg       realtec_quirk;
 reg [2:0] sf_quirk;
+reg [3:0] chk_quirk;
 
 always @(posedge clk) begin
 	reg [87:0] cart_id;
 	reg [15:0] crc = 0;
+	reg [15:0] crc_real = 0;
 	reg [31:0] realtec_id = 0;
 	reg old_dl;
 	old_dl <= cart_dl;
 
 	if(~old_dl && cart_dl) begin
-		{sram_quirk,sram00_quirk,fmbusy_quirk,noram_quirk,pier_quirk,svp_quirk,schan_quirk,eeprom_quirk,realtec_quirk,sf_quirk} <= 0;
+		{sram_quirk,sram00_quirk,fmbusy_quirk,noram_quirk,pier_quirk,svp_quirk,schan_quirk,eeprom_quirk,realtec_quirk,sf_quirk,chk_quirk} <= '0;
 		gun_type <= 0;
 		gun_sensor_delay <= 8'd44;
+		crc_real <= 0;
+		crc <= 0;
 	end
 
 	if(cart_dl_wr & cart_dl & ~cart_ms) begin
@@ -876,6 +911,15 @@ always @(posedge clk) begin
 		if(cart_dl_addr == 'h7E100) realtec_id[31:16] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h7E102) realtec_id[15: 0] <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h7E104 && realtec_id == "SEGA") realtec_quirk <= 1; // Earth Defend, Funny World & Balloon Boy, Whac-a-Critter
+		
+		if(cart_dl_addr[24:9]) crc_real <= crc_real + {cart_dl_data[7:0],cart_dl_data[15:8]};
+	end
+	
+	if(~cart_dl) begin
+		if(crc == 'h0000 && crc_real == 'h7037) chk_quirk <= 1; // Ma Jiang Qing Ren - Ji Ma Jiang Zhi
+		if(crc == 'h0000 && crc_real == 'h3b95) chk_quirk <= 1; // Super Majon Club
+		if(crc == 'hffff && crc_real == 'h0474) chk_quirk <= 2; // Super Mario 2 1998
+		if(crc == 'h2020 && crc_real == 'hb4eb) chk_quirk <= 3; // Super Mario World
 	end
 end
 
