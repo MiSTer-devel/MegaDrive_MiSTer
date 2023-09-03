@@ -201,7 +201,7 @@ always @(posedge clk) begin
 		// Justifier
 		jgunsel <= gdi[5];
 		jgunen <= gdi[4];
-		jdo[5:3] = {jgunsel, jgunen, 1'b0};
+		jdo[5:3] <= {jgunsel, jgunen, 1'b0};
 		if(~jgunen) begin
 			if(~jgunsel) begin
 				// Blue gun

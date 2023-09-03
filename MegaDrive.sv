@@ -454,8 +454,8 @@ always @(posedge clk_sys) begin
 	reg     has_bootrom = 0;
 	reg     last_rst = 0;
 
-	if (RESET) last_rst = 0;
-	if (status[0]) last_rst = 1;
+	if (RESET) last_rst <= 0;
+	if (status[0]) last_rst <= 1;
 
 	if (cart_download & ioctl_wr & status[0]) has_bootrom <= 1;
 

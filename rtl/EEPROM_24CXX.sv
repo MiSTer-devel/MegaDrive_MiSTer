@@ -145,7 +145,7 @@ module EPPROM_24CXX
 				IDLE: begin
 					if (start) begin
 						state <= mode == 2'd0 ? ADR_7BIT : ADR_DEV;
-						dbg_last_state = IDLE;
+						dbg_last_state <= IDLE;
 					end
 				end
 				
@@ -160,7 +160,7 @@ module EPPROM_24CXX
 							state <= ADR_8BIT;
 						end
 					end
-					dbg_last_state = ADR_DEV;
+					dbg_last_state <= ADR_DEV;
 				end
 				
 				ADR_7BIT: begin
@@ -175,7 +175,7 @@ module EPPROM_24CXX
 							state <= WRITE;
 						end
 					end
-					dbg_last_state = ADR_7BIT;
+					dbg_last_state <= ADR_7BIT;
 				end
 				
 				ADR_8BIT: begin
@@ -184,7 +184,7 @@ module EPPROM_24CXX
 						addr[7:0] <= din[7:0];
 						state <= START_CHK;
 					end
-					dbg_last_state = ADR_8BIT;
+					dbg_last_state <= ADR_8BIT;
 				end
 				
 				START_CHK: begin
@@ -201,7 +201,7 @@ module EPPROM_24CXX
 //							state <= READ;
 //						end
 					end
-					dbg_last_state = READ;
+					dbg_last_state <= READ;
 				end
 				
 				WRITE: begin
@@ -210,7 +210,7 @@ module EPPROM_24CXX
 						write <= 1;
 //						state <= WRITE;
 					end
-					dbg_last_state = WRITE;
+					dbg_last_state <= WRITE;
 				end
 			endcase
 			
