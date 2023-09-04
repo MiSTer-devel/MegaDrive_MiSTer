@@ -881,7 +881,8 @@ video_mixer #(.LINE_LENGTH(400), .GAMMA(1)) video_mixer
 audio_cond audio_cond
 (
 	.clk(clk_sys),
-	.reset(sys_reset | ~clk_en | dma_z80_req),
+	.reset(sys_reset),
+	.mute(~clk_en | dma_z80_req),
 
 	.lpf_mode(status[15:14]),
 	.fm_mode(status[11]),

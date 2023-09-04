@@ -21,6 +21,7 @@ module audio_cond
 (
 	input         clk,
 	input         reset,
+	input         mute,
 
 	input   [1:0] lpf_mode,
 	input         fm_mode,
@@ -104,20 +105,20 @@ CEGen fltce
 	.CE(ce_flt)
 );
 
-wire [15:0] psg_amp = {PSG[14:0],1'b0};
+wire [15:0] psg_amp = PSG + PSG[15:1];
 
-// 16KHz 3tap
+// 8KHz 2tap
 IIR_filter
 #(
 	.use_params(1),
 	.stereo(0),
-	.coeff_x (0.00000196127763820275),
-	.coeff_x0(3),
-	.coeff_x1(3),
-	.coeff_x2(1),
-	.coeff_y0(-2.98576693221237388087),
-	.coeff_y1( 2.97178560537265656905),
-	.coeff_y2(-0.98601726216917595647) 
+	.coeff_x (0.00007018646608858092),
+	.coeff_x0(2),
+	.coeff_x1(1),
+	.coeff_x2(0),
+	.coeff_y0(-1.98992552008492529225),
+	.coeff_y1( 0.98997601394542067421),
+	.coeff_y2(0) 
 )
 psg_iir
 (
@@ -147,6 +148,7 @@ always @(posedge clk) begin
 	pre_lpf_r <= ^ar[15:14] ? {ar[15],{15{ar[14]}}} : {ar[14:0], 1'b0};
 end
 
+wire [15:0] audio_l, audio_r;
 genesis_lpf lpf_left
 (
 	.clk(clk),
@@ -154,7 +156,7 @@ genesis_lpf lpf_left
 
 	.lpf_mode(lpf_mode),
 	.in(pre_lpf_l),
-	.out(AUDIO_L)
+	.out(audio_l)
 );
 
 genesis_lpf lpf_right
@@ -164,7 +166,10 @@ genesis_lpf lpf_right
 
 	.lpf_mode(lpf_mode),
 	.in(pre_lpf_r),
-	.out(AUDIO_R)
+	.out(audio_r)
 );
+
+assign AUDIO_L = mute ? 16'd0 : audio_l;
+assign AUDIO_R = mute ? 16'd0 : audio_r;
 
 endmodule
