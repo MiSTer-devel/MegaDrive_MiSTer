@@ -223,7 +223,7 @@ always @(posedge clk_ram) begin
 	if(chk_cs)         cart_data <= chk_data;
 end
 
-wire [15:0] sram_addr;
+wire [16:0] sram_addr;
 wire  [7:0] sram_di;
 wire  [7:0] sram_q;
 wire        sram_wren;
@@ -256,24 +256,48 @@ always_comb begin
 	end
 end
 
-wire [15:0] dram_q;
+reg [16:1] ram_rst_a;
+always @(posedge clk) ram_rst_a <= ram_rst_a + 1'd1;
+
+wire [15:0] sram2_addr;
+wire [15:0] sram2_di;
+wire [15:0] sram2_q;
+wire        sram2_wren;
+
+always_comb begin
+	if(cart_dl) begin
+		sram2_addr = ram_rst_a;
+		sram2_di   = sram00_quirk ? 16'h0000 : 16'hFFFF;
+		sram2_wren = 1;
+	end
+	else if(svp_quirk) begin
+		sram2_addr = svp_dram_a;
+		sram2_di   = svp_dram_do;
+		sram2_wren = svp_dram_we;
+	end
+	else begin
+		sram2_addr = save_addr;
+		sram2_di   = save_di;
+		sram2_wren = save_wr;
+	end
+end
 
 dpram_dif #(17,8,16,16) ram
 (
 	.clock(clk),
 	.address_a(sram_addr),
 	.data_a(sram_di),
-	.wren_a(sram_wren & ~svp_quirk),
+	.wren_a(sram_wren),
 	.q_a(sram_q),
 
-	.address_b(cart_dl ? ram_rst_a : svp_quirk ? svp_dram_a : save_addr),
-	.data_b(cart_dl ? (sram00_quirk ? 16'h0000 : 16'hFFFF) : svp_quirk ? svp_dram_do : save_di),
-	.wren_b(cart_dl | (svp_quirk ? svp_dram_we : save_wr)),
-	.q_b(dram_q)
+	.address_b(sram2_addr),
+	.data_b(sram2_di),
+	.wren_b(sram2_wren),
+	.q_b(sram2_q)
 );
 
-assign save_do     = dram_q;
-assign save_change = sram_wren & ~svp_quirk;
+assign save_do     = sram2_q;
+assign save_change = sram_wren;
 
 //---------------------- MD cart ---------------------------------------
 
@@ -351,21 +375,16 @@ SVP svp
 	.ROM_ACK(rom2_ack),
 
 	.DRAM_A(svp_dram_a),
-	.DRAM_DI(dram_q),
+	.DRAM_DI(sram2_q),
 	.DRAM_DO(svp_dram_do),
 	.DRAM_WE(svp_dram_we)
 );
 
 // SRAM
-reg [16:1] ram_rst_a;
-always @(posedge clk) ram_rst_a <= ram_rst_a + 1'd1;
-
-wire md_sram_cs1 = cart_addr[23:21] == 1 && (md_bank_sram || (cart_addr >= rom_sz && ~&cart_addr[20:19])) && ~noram_quirk && !sf_quirk;
-wire md_sram_cs2 = (sram_quirk | sram00_quirk) && cart_addr == 'h100000;
-wire md_sram_cs  = ~cart_ms & (md_sram_cs1 | md_sram_cs2);
+wire md_sram_cs = ~cart_ms && (cart_addr[23:21] == 1) && (md_bank_sram || (cart_addr >= rom_sz && ~&cart_addr[20:19])) && ~noram_quirk && !sf_quirk && ~svp_quirk;
 
 // EEPROM
-wire        md_eeprom_cs   = (eeprom_quirk[3:2] == 2'b01) ? jcart_ee : ((eeprom_quirk[2:0] && (eeprom_bank || cart_lwr || cart_uwr || !eeprom_quirk[3])) && cart_addr[23:21] == 3'b001);
+wire        md_eeprom_cs   = (eeprom_quirk[3:2] == 2'b01) ? jcart_ee : ((eeprom_quirk[2:0] && ((eeprom_bank & ~cart_addr[20]) || !eeprom_quirk[3])) && cart_addr[23:21] == 3'b001);
 wire [15:0] md_eeprom_data = {16{eeprom_sdao & eeprom_sdai}};
 
 // jcart: read $380000-$3fffff, write $300000-$37ffff
@@ -386,21 +405,21 @@ always @(posedge clk) begin
 		eeprom_scl  <= 1;
 	end
 	else if(cart_addr[23:21] == 3'b001 && cart_cs && (cart_lwr | cart_uwr)) begin
-		if(cart_lwr & cart_uwr) eeprom_bank <= ~cart_data_wr[0];
 		casex (eeprom_quirk)
 			4'b0001: if(cart_lwr) {eeprom_sdai,eeprom_scl} <= cart_data_wr[7:6];
 			4'b0010,
 			4'b0011: if(cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
-			4'b1xxx: if      ( cart_lwr & ~cart_uwr) eeprom_sdai <= cart_data_wr[0];
-						else if (~cart_lwr &  cart_uwr) eeprom_scl  <= cart_data_wr[8];
+			4'b1xxx:      if (~cart_addr[20] &  cart_lwr & ~cart_uwr) eeprom_sdai <= cart_data_wr[0];
+						else if (~cart_addr[20] & ~cart_lwr &  cart_uwr) eeprom_scl  <= cart_data_wr[8];
+						else if (~cart_addr[20] &  cart_lwr &  cart_uwr) eeprom_bank <= ~cart_data_wr[0];
 			4'b01xx: if(cart_addr[20:19] == 2'b10) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
 			default: {eeprom_scl,eeprom_sdai} <= '1;
 		endcase
 	end
 end
 
-//                                        C01     C01     C02     C16      C65       C08
-wire [12:0] eeprom_mask[8] = '{13'h00, 13'h7f, 13'h7f, 13'hff, 13'h7ff, 13'h1fff, 13'h3ff, 13'h00};
+//                                        C01     C01     C02     C16      C65       C08      C04
+wire [12:0] eeprom_mask[8] = '{13'h00, 13'h7f, 13'h7f, 13'hff, 13'h7ff, 13'h1fff, 13'h3ff, 13'h1ff};
 
 EPPROM_24CXX e24cxx
 (
@@ -815,7 +834,7 @@ end
 
 //---------------------- Cart detect ---------------------------------------
 
-reg       sram_quirk, sram00_quirk, fmbusy_quirk, noram_quirk, pier_quirk, svp_quirk, schan_quirk;
+reg       sram00_quirk, fmbusy_quirk, noram_quirk, pier_quirk, svp_quirk, schan_quirk;
 reg [3:0] eeprom_quirk;
 reg       realtec_quirk;
 reg [2:0] sf_quirk;
@@ -831,7 +850,7 @@ always @(posedge clk) begin
 	old_dl <= cart_dl;
 
 	if(~old_dl && cart_dl) begin
-		{sram_quirk,sram00_quirk,fmbusy_quirk,noram_quirk,pier_quirk,svp_quirk,schan_quirk,eeprom_quirk,realtec_quirk,sf_quirk,chk_quirk} <= '0;
+		{sram00_quirk,fmbusy_quirk,noram_quirk,pier_quirk,svp_quirk,schan_quirk,eeprom_quirk,realtec_quirk,sf_quirk,chk_quirk} <= '0;
 		gun_type <= 0;
 		gun_sensor_delay <= 8'd44;
 		crc_real <= 0;
@@ -849,13 +868,7 @@ always @(posedge clk) begin
 		if(cart_dl_addr == 'h18A) cart_id[07:00] <= cart_dl_data[7:0];
 		if(cart_dl_addr == 'h18E) crc <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h190) begin
-			     if(cart_id[63:0] == "T-081276") sram_quirk   <= 1;        // NFL Quarterback Club
-			else if(cart_id[63:0] == "T-81406 ") sram_quirk   <= 1;        // NBA Jam TE
-			else if(cart_id[63:0] == "T-081586") sram_quirk   <= 1;        // NFL Quarterback Club '96
-			else if(cart_id[63:0] == "T-81576 ") sram_quirk   <= 1;        // College Slam
-			else if(cart_id[63:0] == "T-81476 ") sram_quirk   <= 1;        // Frank Thomas Big Hurt Baseball
-
-			else if(cart_id[63:0] == "T-50446 ") eeprom_quirk <= 4'b0001; 	// X24C01 John Madden Football 93
+			     if(cart_id[63:0] == "T-50446 ") eeprom_quirk <= 4'b0001; 	// X24C01 John Madden Football 93
 			else if(cart_id[63:0] == "T-50516 ") eeprom_quirk <= 4'b0001; 	// X24C01 John Madden Football 93 Championship Edition
 			else if(cart_id[63:0] == "T-50396 ") eeprom_quirk <= 4'b0001; 	// X24C01 NHLPA Hockey 93
 			else if(cart_id[63:0] == "T-50176 ") eeprom_quirk <= 4'b0001; 	// X24C01 Rings of Power
@@ -873,9 +886,7 @@ always @(posedge clk) begin
 			else if(cart_id[63:0] == "T-81033 ") eeprom_quirk <= 4'b0011; 	// 24C02 NBA Jam (J)
 			else if(cart_id[63:0] == "T-081326") eeprom_quirk <= 4'b0011; 	// 24C02 NBA Jam (U)(E)
 			else if(cart_id[63:0] == "T-081276") eeprom_quirk <= 4'b1011; 	// 24C02 NFL Quarterback Club
-			else if(cart_id[63:0] == "T-81406 ") eeprom_quirk <= 4'b1011; 	// 24C02? NBA Jam TE
-			else if(cart_id[63:0] == "T-8104B ") eeprom_quirk <= 4'b1011; 	// 24C02 NBA Jam TE (32X)
-			else if(cart_id[63:0] == "T-8102B ") eeprom_quirk <= 4'b1011; 	// 24C02? NFL Quarterback Club (32X)
+			else if(cart_id[63:0] == "T-81406 ") eeprom_quirk <= 4'b1111; 	// 24C04 NBA Jam TE
 			else if(cart_id[63:0] == "T-081586") eeprom_quirk <= 4'b1100; 	// 24C16 NFL Quarterback Club '96
 			else if(cart_id[63:0] == "T-81576 ") eeprom_quirk <= 4'b1101; 	// 24C65 College Slam
 			else if(cart_id[63:0] == "T-81476 ") eeprom_quirk <= 4'b1101; 	// 24C65 Frank Thomas Big Hurt Baseball
