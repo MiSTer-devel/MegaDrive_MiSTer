@@ -105,7 +105,7 @@ CEGen fltce
 	.CE(ce_flt)
 );
 
-wire [15:0] psg_amp = PSG + PSG[15:1];
+wire [15:0] psg_amp = {PSG[14:0],1'b0};
 
 // 8KHz 2tap
 IIR_filter
