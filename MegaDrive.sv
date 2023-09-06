@@ -566,6 +566,8 @@ wire        res_z80;
 
 wire        VCLK, ZCLK;
 
+wire        vdp_dma_oe_early;
+
 md_board md_board
 (
 	.MCLK2(clk_md),
@@ -658,7 +660,9 @@ md_board md_board
 	.dma_68k_req(dma_68k_req),
 	.dma_z80_req(dma_z80_req),
 	.dma_z80_ack(dma_z80_ack),
-	.res_z80(res_z80)
+	.res_z80(res_z80),
+
+	.vdp_dma_oe_early(vdp_dma_oe_early)
 );
 
 dpram #(15,16) ram_68k
@@ -734,7 +738,7 @@ cartridge cartridge
 	.cart_data_en(cart_data_en),
 	.cart_data_wr(cart_data_wr),
 	.cart_cs(cart_cs),
-	.cart_oe(cart_oe),
+	.cart_oe(cart_oe | vdp_dma_oe_early),
 	.cart_lwr(cart_lwr),
 	.cart_uwr(cart_uwr),
 	.cart_time(cart_time),
