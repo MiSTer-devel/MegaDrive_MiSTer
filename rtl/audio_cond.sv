@@ -112,7 +112,7 @@ IIR_filter
 #(
 	.use_params(1),
 	.stereo(0),
-	.coeff_x (0.00009),
+	.coeff_x (0.0000943),
 	.coeff_x0(2),
 	.coeff_x1(1),
 	.coeff_x2(0),
