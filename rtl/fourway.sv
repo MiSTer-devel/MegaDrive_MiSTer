@@ -101,7 +101,7 @@ module fourway
 	input  [6:0] port2_dir
 );
 
-wire [6:0] porta_out, portb_out, portc_out, portd_out;
+wire [6:0] player[4];
 
 pad_io pad1
 (
@@ -123,7 +123,7 @@ pad_io pad1
 	.P_Y(P1_Y),
 	.P_Z(P1_Z),
 
-	.port_out(porta_out),
+	.port_out(player[0]),
 	.port_in(port1_in),
 	.port_dir(port1_dir)
 );
@@ -148,7 +148,7 @@ pad_io pad2
 	.P_Y(P2_Y),
 	.P_Z(P2_Z),
 
-	.port_out(portb_out),
+	.port_out(player[1]),
 	.port_in(port1_in),
 	.port_dir(port1_dir)
 );
@@ -173,7 +173,7 @@ pad_io pad3
 	.P_Y(P3_Y),
 	.P_Z(P3_Z),
 
-	.port_out(portc_out),
+	.port_out(player[2]),
 	.port_in(port1_in),
 	.port_dir(port1_dir)
 );
@@ -198,18 +198,12 @@ pad_io pad4
 	.P_Y(P4_Y),
 	.P_Z(P4_Z),
 
-	.port_out(portd_out),
+	.port_out(player[3]),
 	.port_in(port1_in),
 	.port_dir(port1_dir)
 );
 
-wire [2:0] n = ~port2_dir[6:4] & port2_in[6:4];
-assign port1_out = (n == 0) ? porta_out :
-                   (n == 1) ? portb_out :
-                   (n == 2) ? portc_out :
-                   (n == 3) ? portd_out :
-                   7'h70;
-
-assign port2_out = (~port2_dir & port2_in);
+assign port2_out = port2_dir | port2_in;
+assign port1_out = port2_out[6] ? 7'h70 : player[port2_out[5:4]];
 
 endmodule

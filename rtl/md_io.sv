@@ -210,8 +210,8 @@ pad_io input2
 always_comb begin
 	case(MULTITAP)
 		0: {port2_out,port1_out} = {port2_pad, port1_pad};
-		1: {port2_out,port1_out} = {port2_fw, port1_fw };
-		2: {port2_out,port1_out} = {port2_pad, SMS ? port_ms : port1_tp };
+		1: {port2_out,port1_out} = {port2_fw,  port1_fw };
+		2: {port2_out,port1_out} = {port2_pad, SMS ? port_ms : port1_tp};
 		3: {port2_out,port1_out} = {port2_tp,  port1_pad};
 	endcase
 end
