@@ -868,31 +868,34 @@ always @(posedge clk) begin
 		if(cart_dl_addr == 'h18A) cart_id[07:00] <= cart_dl_data[7:0];
 		if(cart_dl_addr == 'h18E) crc <= {cart_dl_data[7:0],cart_dl_data[15:8]};
 		if(cart_dl_addr == 'h190) begin
-			     if(cart_id[63:0] == "T-50446 ") eeprom_quirk <= 4'b0001; 	// X24C01 John Madden Football 93
-			else if(cart_id[63:0] == "T-50516 ") eeprom_quirk <= 4'b0001; 	// X24C01 John Madden Football 93 Championship Edition
-			else if(cart_id[63:0] == "T-50396 ") eeprom_quirk <= 4'b0001; 	// X24C01 NHLPA Hockey 93
-			else if(cart_id[63:0] == "T-50176 ") eeprom_quirk <= 4'b0001; 	// X24C01 Rings of Power
-			else if(cart_id[63:0] == "T-50606 ") eeprom_quirk <= 4'b0001; 	// X24C01 Bill Walsh College Football
-			else if(cart_id[63:0] == "MK-1215 ") eeprom_quirk <= 4'b0010; 	// X24C01 Evander Real Deal Holyfield's Boxing
-			else if(cart_id[63:0] == "G-4060  ") eeprom_quirk <= 4'b0010; 	// X24C01 Wonder Boy
-			else if(cart_id[63:0] == "00001211") eeprom_quirk <= 4'b0010; 	// X24C01 Sports Talk Baseball
-			else if(cart_id[63:0] == "MK-1228 ") eeprom_quirk <= 4'b0010; 	// X24C01 Greatest Heavyweights
-			else if(cart_id[63:0] == "G-5538  ") eeprom_quirk <= 4'b0010; 	// X24C01 Greatest Heavyweights JP
-			else if(cart_id[63:0] == "00004076") eeprom_quirk <= 4'b0010; 	// X24C01 Honoo no Toukyuuji Dodge Danpei
-			else if(cart_id[63:0] == "T-12046 ") eeprom_quirk <= 4'b0010; 	// X24C01 Mega Man - The Wily Wars 
-			else if(cart_id[63:0] == "T-12053 ") eeprom_quirk <= 4'b0010; 	// X24C01 Rockman Mega World 
-			else if(cart_id[63:0] == "G-4524  ") eeprom_quirk <= 4'b0010; 	// X24C01 Ninja Burai Densetsu
-			else if(cart_id[63:0] == "00054503") eeprom_quirk <= 4'b0010; 	// X24C01 Game Toshokan
-			else if(cart_id[63:0] == "T-81033 ") eeprom_quirk <= 4'b0011; 	// 24C02 NBA Jam (J)
-			else if(cart_id[63:0] == "T-081326") eeprom_quirk <= 4'b0011; 	// 24C02 NBA Jam (U)(E)
-			else if(cart_id[63:0] == "T-081276") eeprom_quirk <= 4'b1011; 	// 24C02 NFL Quarterback Club
-			else if(cart_id[63:0] == "T-81406 ") eeprom_quirk <= 4'b1111; 	// 24C04 NBA Jam TE
-			else if(cart_id[63:0] == "T-081586") eeprom_quirk <= 4'b1100; 	// 24C16 NFL Quarterback Club '96
-			else if(cart_id[63:0] == "T-81576 ") eeprom_quirk <= 4'b1101; 	// 24C65 College Slam
-			else if(cart_id[63:0] == "T-81476 ") eeprom_quirk <= 4'b1101; 	// 24C65 Frank Thomas Big Hurt Baseball
+			     if(cart_id[63:0] == "T-50446 ") eeprom_quirk <= 4'b0001;  // X24C01 John Madden Football 93
+			else if(cart_id[63:0] == "T-50516 ") eeprom_quirk <= 4'b0001;  // X24C01 John Madden Football 93 Championship Edition
+			else if(cart_id[63:0] == "T-50396 ") eeprom_quirk <= 4'b0001;  // X24C01 NHLPA Hockey 93
+			else if(cart_id[63:0] == "T-50176 ") eeprom_quirk <= 4'b0001;  // X24C01 Rings of Power
+			else if(cart_id[63:0] == "T-50606 ") eeprom_quirk <= 4'b0001;  // X24C01 Bill Walsh College Football
+			else if(cart_id[63:0] == "MK-1215 ") eeprom_quirk <= 4'b0010;  // X24C01 Evander Real Deal Holyfield's Boxing
+			else if(cart_id[63:0] == "G-4060  ") eeprom_quirk <= 4'b0010;  // X24C01 Wonder Boy
+			else if(cart_id[63:0] == "00001211") eeprom_quirk <= 4'b0010;  // X24C01 Sports Talk Baseball
+			else if(cart_id[63:0] == "MK-1228 ") eeprom_quirk <= 4'b0010;  // X24C01 Greatest Heavyweights
+			else if(cart_id[63:0] == "G-5538  ") eeprom_quirk <= 4'b0010;  // X24C01 Greatest Heavyweights JP
+			else if(cart_id[63:0] == "PR-1993 ") eeprom_quirk <= 4'b0010;  // X24C01 Greatest Heavyweights (prototype)
+			else if(cart_id[63:0] == "00004076") eeprom_quirk <= 4'b0010;  // X24C01 Honoo no Toukyuuji Dodge Danpei
+			else if(cart_id[63:0] == "T-12046 ") eeprom_quirk <= 4'b0010;  // X24C01 Mega Man - The Wily Wars 
+			else if(cart_id[63:0] == "T-12053 ") eeprom_quirk <= 4'b0010;  // X24C01 Rockman Mega World 
+			else if(cart_id[63:0] == "G-4524  ") eeprom_quirk <= 4'b0010;  // X24C01 Ninja Burai Densetsu
+			else if(cart_id[63:0] == "00054503") eeprom_quirk <= 4'b0010;  // X24C01 Game Toshokan
+			else if(cart_id[63:0] == "T-81033 ") eeprom_quirk <= 4'b0011;  // 24C02 NBA Jam (J)
+			else if(cart_id[63:0] == "T-081326") eeprom_quirk <= 4'b0011;  // 24C02 NBA Jam (U)(E)
+			else if(cart_id[63:0] == "T-081276") eeprom_quirk <= 4'b1011;  // 24C02 NFL Quarterback Club
+			else if(cart_id[63:0] == "T-81406 ") eeprom_quirk <= 4'b1111;  // 24C04 NBA Jam TE
+			else if(cart_id[63:0] == "T-081586") eeprom_quirk <= 4'b1100;  // 24C16 NFL Quarterback Club '96
+			else if(cart_id[63:0] == "T-81576 ") eeprom_quirk <= 4'b1101;  // 24C65 College Slam
+			else if(cart_id[63:0] == "T-81476 ") eeprom_quirk <= 4'b1101;  // 24C65 Frank Thomas Big Hurt Baseball
+			else if(cart_id[63:0] == "T-120106") eeprom_quirk <= 4'b0110;  // 24C08 Brian Lara Cricket
 			else if(sp=="DNLD" && crc == 'h168B) eeprom_quirk <= 4'b0110;  // 24C08 JCART Micro Machines Military
 			else if(sp=="DNLD" && crc == 'h165E) eeprom_quirk <= 4'b0100;  // 24C16 JCART Micro Machines Turbo Tournament 96
 			else if(cart_id[63:0] == "T-120096") eeprom_quirk <= 4'b0100;  // 24C16 JCART Micro Machines 2 - Turbo Tournament
+			else if(cart_id[63:0] == "T-120146") eeprom_quirk <= 4'b0101;  // 24C65 Brian Lara Cricket 96 / Shane Warne Cricket
 
 			else if(cart_id[63:0] == "T-113016") noram_quirk  <= 1;        // Puggsy fake ram check
 			else if(cart_id[63:0] == "T-574023") pier_quirk   <= 1;        // Pier Solar Reprint
