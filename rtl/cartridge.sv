@@ -62,33 +62,8 @@ module cartridge
 	output            save_change,
 
 	input             jcart_en,
-	input             jcart_mode,
-
-	input             P3_UP,
-	input             P3_DOWN,
-	input             P3_LEFT,
-	input             P3_RIGHT,
-	input             P3_A,
-	input             P3_B,
-	input             P3_C,
-	input             P3_START,
-	input             P3_MODE,
-	input             P3_X,
-	input             P3_Y,
-	input             P3_Z,
-
-	input             P4_UP,
-	input             P4_DOWN,
-	input             P4_LEFT,
-	input             P4_RIGHT,
-	input             P4_A,
-	input             P4_B,
-	input             P4_C,
-	input             P4_START,
-	input             P4_MODE,
-	input             P4_X,
-	input             P4_Y,
-	input             P4_Z,
+	input      [15:0] jcart_data,
+	output reg        jcart_th,
 
 	output reg        gun_type,
 	output reg  [7:0] gun_sensor_delay,
@@ -96,7 +71,9 @@ module cartridge
 	output            ym2612_quirk,
 
 	input             fm_en,
-	output     [13:0] fm_audio
+	output     [13:0] fm_audio,
+
+	output     [23:0] md_addr
 );
 
 sdram sdram
@@ -301,7 +278,7 @@ assign save_change = sram_wren;
 
 //---------------------- MD cart ---------------------------------------
 
-wire [23:0] md_addr = {cart_addr,1'b0};
+assign    md_addr = {cart_addr,1'b0};
 
 reg [5:0] md_bank[8] = '{0,1,2,3,4,5,6,7};
 reg       md_bank_sram = 0;
@@ -381,14 +358,23 @@ SVP svp
 );
 
 // SRAM
-wire md_sram_cs = ~cart_ms && (cart_addr[23:21] == 1) && (md_bank_sram || (cart_addr >= rom_sz && ~&cart_addr[20:19])) && ~noram_quirk && !sf_quirk && ~svp_quirk;
+wire md_sram_cs = ~cart_ms && (cart_addr[23:21] == 1) && (md_bank_sram || (cart_addr >= rom_sz && ~&cart_addr[20:19])) && ~noram_quirk;
 
 // EEPROM
-wire        md_eeprom_cs   = (eeprom_quirk[3:2] == 2'b01) ? jcart_ee : ((eeprom_quirk[2:0] && ((eeprom_bank & ~cart_addr[20]) || !eeprom_quirk[3])) && cart_addr[23:21] == 3'b001);
-wire [15:0] md_eeprom_data = {16{eeprom_sdao & eeprom_sdai}};
+wire        md_eeprom_cs   = (eeprom_quirk[3:2] == 2'b01) ? (cart_addr[23:19] == 5'b00111) : (eeprom_quirk[2:0] && ((eeprom_bank & ~cart_addr[20]) || !eeprom_quirk[3]) && cart_addr[23:21] == 3'b001);
+wire [15:0] md_eeprom_data;
 
-// jcart: read $380000-$3fffff, write $300000-$37ffff
-wire        jcart_ee = (cart_oe && cart_addr[23:19] == 5'b00111) | ((cart_lwr|cart_uwr) && cart_addr[23:19] == 5'b00110);
+always_comb begin
+	md_eeprom_data = 0;
+	casex(eeprom_quirk)
+		4'b0001: md_eeprom_data[7] = eeprom_sda;
+		4'b0010: md_eeprom_data[0] = eeprom_sda;
+		4'b0011: md_eeprom_data[1] = eeprom_sda;
+		4'b01xx: md_eeprom_data[7] = eeprom_sda;
+		4'b1xxx: md_eeprom_data[0] = eeprom_sda;
+		default:;
+	endcase
+end
 
 reg         eeprom_sdai;
 wire        eeprom_sdao;
@@ -407,16 +393,17 @@ always @(posedge clk) begin
 	else if(cart_addr[23:21] == 3'b001 && cart_cs && (cart_lwr | cart_uwr)) begin
 		casex (eeprom_quirk)
 			4'b0001: if(cart_lwr) {eeprom_sdai,eeprom_scl} <= cart_data_wr[7:6];
-			4'b0010,
+			4'b0010: if(cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
 			4'b0011: if(cart_lwr) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
+			4'b01xx: if(cart_addr[20:19] == 2'b10) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
 			4'b1xxx:      if (~cart_addr[20] &  cart_lwr & ~cart_uwr) eeprom_sdai <= cart_data_wr[0];
 						else if (~cart_addr[20] & ~cart_lwr &  cart_uwr) eeprom_scl  <= cart_data_wr[8];
 						else if (~cart_addr[20] &  cart_lwr &  cart_uwr) eeprom_bank <= ~cart_data_wr[0];
-			4'b01xx: if(cart_addr[20:19] == 2'b10) {eeprom_scl,eeprom_sdai} <= cart_data_wr[1:0];
-			default: {eeprom_scl,eeprom_sdai} <= '1;
 		endcase
 	end
 end
+
+wire eeprom_sda = {eeprom_sdao & eeprom_sdai};
 
 //                                        C01     C01     C02     C16      C65       C08      C04
 wire [12:0] eeprom_mask[8] = '{13'h00, 13'h7f, 13'h7f, 13'hff, 13'h7ff, 13'h1fff, 13'h3ff, 13'h1ff};
@@ -496,61 +483,6 @@ always @(posedge clk) begin
 end
 
 //JCART multitap
-wire [15:0] jcart_data;
-reg         jcart_th;
-
-pad_io jcart_l
-(
-	.clk(clk),
-	.reset(reset),
-
-	.MODE(jcart_mode),
-
-	.P_UP(P3_UP),
-	.P_DOWN(P3_DOWN),
-	.P_LEFT(P3_LEFT),
-	.P_RIGHT(P3_RIGHT),
-	.P_A(P3_A),
-	.P_B(P3_B),
-	.P_C(P3_C),
-	.P_START(P3_START),
-	.P_MODE(P3_MODE),
-	.P_X(P3_X),
-	.P_Y(P3_Y),
-	.P_Z(P3_Z),
-
-	.port_in({jcart_th,6'd0}),
-	.port_dir(7'b0111111),
-	.port_out(jcart_data[6:0])
-);
-
-pad_io jcart_u
-(
-	.clk(clk),
-	.reset(reset),
-
-	.MODE(jcart_mode),
-
-	.P_UP(P4_UP),
-	.P_DOWN(P4_DOWN),
-	.P_LEFT(P4_LEFT),
-	.P_RIGHT(P4_RIGHT),
-	.P_A(P4_A),
-	.P_B(P4_B),
-	.P_C(P4_C),
-	.P_START(P4_START),
-	.P_MODE(P4_MODE),
-	.P_X(P4_X),
-	.P_Y(P4_Y),
-	.P_Z(P4_Z),
-
-	.port_in({jcart_th,6'd0}),
-	.port_dir(7'b0111111),
-	.port_out(jcart_data[14:8])
-);
-
-assign jcart_data[15] = 0;
-assign jcart_data[7] = 0;
 wire   jcart_cs = ~cart_ms && jcart_en && (cart_addr == 'h1C7FFF || cart_addr == 'h1FFFFF) && cart_addr >= rom_sz;
 
 always @(posedge clk) begin
@@ -940,6 +872,8 @@ always @(posedge clk) begin
 		if(cart_dl_addr == 'h7E104 && realtec_id == "SEGA") realtec_quirk <= 1; // Earth Defend, Funny World & Balloon Boy, Whac-a-Critter
 		
 		if(cart_dl_addr[24:9]) crc_real <= crc_real + {cart_dl_data[7:0],cart_dl_data[15:8]};
+		
+		if(sf_quirk || svp_quirk || eeprom_quirk || pier_quirk) noram_quirk <= 1;
 	end
 	
 	if(~cart_dl) begin

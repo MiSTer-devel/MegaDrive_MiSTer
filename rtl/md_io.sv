@@ -102,6 +102,9 @@ module md_io
 	input  [2:0] MOUSE_OPT,
 	input [24:0] MOUSE,
 
+	output[15:0] jcart_data,
+	input        jcart_th,
+
 	output [6:0] port1_out,
 	input  [6:0] port1_in,
 	input  [6:0] port1_dir,
@@ -206,6 +209,59 @@ pad_io input2
 	.port_in(port2_in),
 	.port_dir(port2_dir)
 );
+
+pad_io jcart_l
+(
+	.clk(clk),
+	.reset(reset),
+
+	.MODE(MODE),
+
+	.P_UP(P3_UP),
+	.P_DOWN(P3_DOWN),
+	.P_LEFT(P3_LEFT),
+	.P_RIGHT(P3_RIGHT),
+	.P_A(P3_A),
+	.P_B(P3_B),
+	.P_C(P3_C),
+	.P_START(P3_START),
+	.P_MODE(P3_MODE),
+	.P_X(P3_X),
+	.P_Y(P3_Y),
+	.P_Z(P3_Z),
+
+	.port_in({jcart_th,6'd0}),
+	.port_dir(7'b0111111),
+	.port_out(jcart_data[6:0])
+);
+
+pad_io jcart_u
+(
+	.clk(clk),
+	.reset(reset),
+
+	.MODE(MODE),
+
+	.P_UP(P4_UP),
+	.P_DOWN(P4_DOWN),
+	.P_LEFT(P4_LEFT),
+	.P_RIGHT(P4_RIGHT),
+	.P_A(P4_A),
+	.P_B(P4_B),
+	.P_C(P4_C),
+	.P_START(P4_START),
+	.P_MODE(P4_MODE),
+	.P_X(P4_X),
+	.P_Y(P4_Y),
+	.P_Z(P4_Z),
+
+	.port_in({jcart_th,6'd0}),
+	.port_dir(7'b0111111),
+	.port_out(jcart_data[14:8])
+);
+
+assign jcart_data[7]  = 0;
+assign jcart_data[15] = 0;
 
 always_comb begin
 	case(MULTITAP)

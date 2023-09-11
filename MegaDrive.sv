@@ -716,13 +716,23 @@ wire        ym2612_quirk;
 
 cartridge cartridge
 (
-	.*,
-
 	.clk(clk_sys),
 	.clk_ram(clk_ram),
 	.reset(sys_reset),
 	.reset_sdram(~pll_locked),
 
+	.SDRAM_CLK(SDRAM_CLK),
+	.SDRAM_CKE(SDRAM_CKE),
+	.SDRAM_A(SDRAM_A),
+	.SDRAM_BA(SDRAM_BA),
+	.SDRAM_DQ(SDRAM_DQ),
+	.SDRAM_DQML(SDRAM_DQML),
+	.SDRAM_DQMH(SDRAM_DQMH),
+	.SDRAM_nCS(SDRAM_nCS),
+	.SDRAM_nCAS(SDRAM_nCAS),
+	.SDRAM_nRAS(SDRAM_nRAS),
+	.SDRAM_nWE(SDRAM_nWE),
+	
 	.cart_dl(cart_download),
 	.cart_dl_addr(ioctl_addr),
 	.cart_dl_data(ioctl_data),
@@ -749,32 +759,9 @@ cartridge cartridge
 	.save_change(bk_change),
 
 	.jcart_en(status[39]),
-	.jcart_mode(status[5]),
-	.P3_UP(joystick_2[3]),
-	.P3_DOWN(joystick_2[2]),
-	.P3_LEFT(joystick_2[1]),
-	.P3_RIGHT(joystick_2[0]),
-	.P3_A(joystick_2[4]),
-	.P3_B(joystick_2[5]),
-	.P3_C(joystick_2[6]),
-	.P3_START(joystick_2[7]),
-	.P3_MODE(joystick_2[8]),
-	.P3_X(joystick_2[9]),
-	.P3_Y(joystick_2[10]),
-	.P3_Z(joystick_2[11]),
-	.P4_UP(joystick_3[3]),
-	.P4_DOWN(joystick_3[2]),
-	.P4_LEFT(joystick_3[1]),
-	.P4_RIGHT(joystick_3[0]),
-	.P4_A(joystick_3[4]),
-	.P4_B(joystick_3[5]),
-	.P4_C(joystick_3[6]),
-	.P4_START(joystick_3[7]),
-	.P4_MODE(joystick_3[8]),
-	.P4_X(joystick_3[9]),
-	.P4_Y(joystick_3[10]),
-	.P4_Z(joystick_3[11]),
-
+	.jcart_data(jcart_data),
+	.jcart_th(jcart_th),
+	
 	.gun_type(gun_type),
 	.gun_sensor_delay(gun_sensor_delay),
 
@@ -999,6 +986,9 @@ wire [11:0] joy1 = status[4] ? joystick_0[11:0] : joystick_1[11:0];
 
 wire [6:0] md_io_port1, md_io_port2;
 
+wire [15:0] jcart_data;
+wire        jcart_th;
+
 md_io md_io
 (
 	.clk(clk_sys),
@@ -1083,6 +1073,9 @@ md_io md_io
 
 	.MOUSE(ps2_mouse),
 	.MOUSE_OPT(status[20:18]),
+
+	.jcart_data(jcart_data),
+	.jcart_th(jcart_th),
 
 	.port1_out(md_io_port1),
 	.port1_in(PA_o  | {7{snac_port1}}),
