@@ -36,6 +36,8 @@
 { "" "" "" "Net \"ucode.we_a\" at 68k.v(575) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "Net \"ncode.we_a\" at 68k.v(576) has no driver or initial value, using a default initial value '0'" {  } {  } 0 10030 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "Variable or input pin \"outclock\" is defined but never used." {  } {  } 0 287013 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at ym7101.v(243): object \"w17\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
+{ "" "" "" "Verilog HDL or VHDL warning at ym7101.v(569): object \"w262\" assigned a value but never read" {  } {  } 0 10036 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "*" {  } {  } 0 21074 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "*" {  } {  } 0 276020 "" 0 0 "Design Software" 0 -1 0 ""}
 { "" "" "" "*" {  } {  } 0 276027 "" 0 0 "Design Software" 0 -1 0 ""}

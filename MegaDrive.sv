@@ -252,7 +252,6 @@ localparam CONF_STR = {
 	"P2-;",
 	"P2O[4],Swap Joysticks,No,Yes;",
 	"P2O[5],6 Buttons Mode,No,Yes;",
-	//"P2O[59],Swap Buttons for SMS,Yes,No;",
 	"P2O[39:37],Multitap,Disabled,4-Way,TeamPlayer: Port1,TeamPlayer: Port2,J-Cart;",
 	"P2-;",
 	"P2O[19:18],Mouse,None,Port1,Port2;",
@@ -264,7 +263,7 @@ localparam CONF_STR = {
 	"P2-;",
 	"P2O[63:62],SNAC,Off,Port 1,Port 2,Port 3;",
 
-	"- ;",
+	"-;",
 	"O[61],Pause When OSD is Open,No,Yes;",
 	"R[0],Reset;",
 	"J1,A,B,C,Start,Mode,X,Y,Z;",
@@ -995,7 +994,7 @@ md_io md_io
 	.reset(sys_reset),
 
 	.MODE(status[5]),
-	.SMS(cart_ms /*& ~status[59]*/),
+	.SMS(cart_ms),
 	.MULTITAP(cart_ms ? {|status[39:37], 1'b0} : status[38:37]),
 
 	.P1_UP(joy0[3]),
