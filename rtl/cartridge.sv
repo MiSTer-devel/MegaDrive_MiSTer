@@ -159,7 +159,7 @@ assign cart_data_en = cart_oe & (cart_cs | svp_cs | data_en);
 reg data_en;
 always @(posedge clk_ram) data_en <= ms_rom_cs | ms_ram_cs | fm_det_cs | pier_eeprom_cs | cart_cs_ext | sf_cs | chk_cs;
 
-wire rom_data_req = (cart_cs | ms_rom_cs | cart_cs_ext) & ~svp_norom;
+wire rom_data_req = cart_cs | ms_rom_cs | cart_cs_ext;
 wire sdram_rd     = svp_quirk ? cart_oe : cart_oe_early;
 
 reg  [24:1] rom_addr;
@@ -307,17 +307,15 @@ always @(posedge clk) begin
 	end
 end
 
-wire [24:1] md_cart_addr = svp_dma       ? (cart_addr - 1'd1) :
-                           realtec_quirk ? realtec_addr       :
+wire [24:1] md_cart_addr = realtec_quirk ? realtec_addr       :
                            sf_quirk      ? sf_rom_addr        :
                            md_bank_use   ? {md_bank[cart_addr[21:19]], cart_addr[18:1]} :
-                                           cart_addr;
+                                           cart_addr - svp_dma;
 
 
 // SVP
 wire        svp_dma = svp_quirk & cart_dma;
 wire        svp_cs  = svp_quirk & ~svp_dtack_n;
-wire        svp_norom = svp_quirk && (cart_addr[23:20] >= 3);
 
 wire [20:1] rom2_a;
 wire [15:0] rom2_data;
