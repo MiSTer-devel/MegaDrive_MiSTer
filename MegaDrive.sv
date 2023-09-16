@@ -521,7 +521,7 @@ wire        JAP = !status[7:6];
 
 wire [15:0] cart_data;
 wire [23:1] cart_addr;
-wire        cart_cs, cart_oe, cart_oe_early, cart_lwr, cart_uwr, cart_data_en, cart_dtack, cart_time, cart_dma;
+wire        cart_cs, cart_oe, cart_lwr, cart_uwr, cart_data_en, cart_dtack, cart_time, cart_dma;
 wire [15:0] cart_data_wr;
 
 wire        vdp_hclk1;
@@ -606,13 +606,14 @@ md_board md_board
 	.cart_data_en(cart_data_en),
 	.cart_data_wr(cart_data_wr),
 	.cart_cs(cart_cs),
-	.cart_oe(cart_oe),
-	.vdp_dma_oe_early(cart_oe_early),
+	//.cart_oe(cart_oe),
+	.vdp_dma_oe_early(cart_oe),
 	.cart_lwr(cart_lwr),
 	.cart_uwr(cart_uwr),
 	.cart_time(cart_time),
 	.cart_m3_pause(joystick_0[7] | joystick_1[7] | joystick_2[7] | joystick_3[7] | joystick_4[7]),
-	.cart_dma(cart_dma),
+	//.cart_dma(cart_dma),
+	.vdp_dma(cart_dma),
 	.ext_dtack(cart_dtack),
 	.pal(PAL),
 	.jap(JAP),
@@ -745,7 +746,6 @@ cartridge cartridge
 	.cart_data_wr(cart_data_wr),
 	.cart_cs(cart_cs),
 	.cart_oe(cart_oe),
-	.cart_oe_early(cart_oe_early),
 	.cart_lwr(cart_lwr),
 	.cart_uwr(cart_uwr),
 	.cart_time(cart_time),

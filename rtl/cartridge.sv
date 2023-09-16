@@ -48,7 +48,6 @@ module cartridge
 	input      [15:0] cart_data_wr,
 	input             cart_cs,
 	input             cart_oe,
-	input             cart_oe_early,
 	input             cart_lwr,
 	input             cart_uwr,
 	input             cart_time,
@@ -160,7 +159,7 @@ reg data_en;
 always @(posedge clk_ram) data_en <= ms_rom_cs | ms_ram_cs | fm_det_cs | pier_eeprom_cs | cart_cs_ext | sf_cs | chk_cs;
 
 wire rom_data_req = cart_cs | ms_rom_cs | cart_cs_ext;
-wire sdram_rd     = svp_quirk ? cart_oe : cart_oe_early;
+wire sdram_rd     = cart_oe;
 
 reg  [24:1] rom_addr;
 reg         rom_req;
