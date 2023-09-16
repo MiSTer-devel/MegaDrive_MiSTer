@@ -521,7 +521,7 @@ wire        JAP = !status[7:6];
 
 wire [15:0] cart_data;
 wire [23:1] cart_addr;
-wire        cart_cs, cart_oe, cart_lwr, cart_uwr, cart_data_en, cart_dtack, cart_time, cart_dma;
+wire        cart_cs, cart_oe, cart_oe_early, cart_lwr, cart_uwr, cart_data_en, cart_dtack, cart_time, cart_dma;
 wire [15:0] cart_data_wr;
 
 wire        vdp_hclk1;
@@ -606,8 +606,8 @@ md_board md_board
 	.cart_data_en(cart_data_en),
 	.cart_data_wr(cart_data_wr),
 	.cart_cs(cart_cs),
-	//.cart_oe(cart_oe),
-	.vdp_dma_oe_early(cart_oe),
+	.cart_oe(cart_oe),
+	.vdp_dma_oe_early(cart_oe_early),
 	.cart_lwr(cart_lwr),
 	.cart_uwr(cart_uwr),
 	.cart_time(cart_time),
@@ -745,6 +745,7 @@ cartridge cartridge
 	.cart_data_wr(cart_data_wr),
 	.cart_cs(cart_cs),
 	.cart_oe(cart_oe),
+	.cart_oe_early(cart_oe_early),
 	.cart_lwr(cart_lwr),
 	.cart_uwr(cart_uwr),
 	.cart_time(cart_time),

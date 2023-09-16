@@ -48,6 +48,7 @@ module cartridge
 	input      [15:0] cart_data_wr,
 	input             cart_cs,
 	input             cart_oe,
+	input             cart_oe_early,
 	input             cart_lwr,
 	input             cart_uwr,
 	input             cart_time,
@@ -154,10 +155,12 @@ end
 
 assign cart_dtack   = svp_cs | dtack_ext;
 assign cart_data_en = cart_oe & (cart_cs | svp_cs | data_en);
-wire   rom_data_req = (cart_cs | ms_rom_cs | cart_cs_ext) & ~svp_norom;
 
 reg data_en;
 always @(posedge clk_ram) data_en <= ms_rom_cs | ms_ram_cs | fm_det_cs | pier_eeprom_cs | cart_cs_ext | sf_cs | chk_cs;
+
+wire rom_data_req = (cart_cs | ms_rom_cs | cart_cs_ext) & ~svp_norom;
+wire sdram_rd     = svp_quirk ? cart_oe : cart_oe_early;
 
 reg  [24:1] rom_addr;
 reg         rom_req;
@@ -167,9 +170,9 @@ reg         rom_rd;
 reg         dtack_ext;
 
 always @(posedge clk_ram) begin
-	reg oe_old, we_old;
+	reg rd_old, we_old;
 	
-	if(~cart_oe) dtack_ext <= 0;
+	if(~sdram_rd) dtack_ext <= 0;
 
 	if(rom_req == rom_ack) begin
 		if(rom_rd) begin
@@ -180,11 +183,11 @@ always @(posedge clk_ram) begin
 	end
 
 	we_old <= rom_we;
-	oe_old <= cart_oe;
-	if((~oe_old & cart_oe & rom_data_req) || (~we_old & rom_we)) begin
+	rd_old <= sdram_rd;
+	if((~rd_old & sdram_rd & rom_data_req) || (~we_old & rom_we)) begin
 		rom_addr <= (cart_ms ? ms_cart_addr : md_cart_addr) & rom_mask[24:1];
 		rom_req <= ~rom_req;
-		rom_rd <= cart_oe;
+		rom_rd <= sdram_rd;
 	end
 
 	if(ms_boot_cs)     cart_data <= ms_boot_data;
