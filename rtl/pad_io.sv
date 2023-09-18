@@ -55,24 +55,12 @@ module pad_io
 	input  [6:0] port_dir
 );
 
-assign port_out = (~port_dir & port_in) | (port_dir & (GUN_EN ? gdata : MOUSE_EN ? {2'b00,mdata} : {1'b1, ~pdata}));
+assign port_out = (~port_dir & port_in) | (port_dir & (GUN_EN ? gdata : MOUSE_EN ? {2'b00,mdata} : {1'b1, pdata}));
 
 // GAMEPAD ------------------------------------------------------
 
-reg  [1:0] JCNT;
-wire [5:0] pdata;
-
-always_comb begin
-	if(SMS)             pdata[5:0] = {P_B,P_A,P_RIGHT,P_LEFT,P_DOWN,P_UP}; 
-	else if(TH)
-		if (JCNT != 3)   pdata[5:0] = {P_C,P_B,P_RIGHT,P_LEFT,P_DOWN,P_UP};
-		else             pdata[5:0] = {P_C,P_B,P_MODE,P_X,P_Y,P_Z};
-	else if (JCNT < 2)  pdata[5:0] = {P_START,P_A,2'b11,P_DOWN,P_UP};
-	else if (JCNT == 2) pdata[5:0] = {P_START,P_A,4'b1111};
-	else                pdata[5:0] = {P_START,P_A,4'b0000};
-end
-
-reg TH;
+reg       TH;
+reg [1:0] JCNT;
 always @(posedge clk) begin
 	reg [19:0] JTMR;
 	reg [10:0] FLTMR;
@@ -98,6 +86,18 @@ always @(posedge clk) begin
 		if(~&JTMR) JTMR <= JTMR + 1'd1;
 		if(THd & ~TH) JTMR <= 0;
 	end
+end
+
+wire [5:0] pdata;
+always @(posedge clk) begin
+	priority casex({SMS,JCNT,TH})
+		4'b1XXX: pdata <= { ~P_B,     ~P_A, ~P_RIGHT, ~P_LEFT, ~P_DOWN, ~P_UP}; 
+		4'b0100: pdata <= { ~P_START, ~P_A,   1'b0,     1'b0,    1'b0,   1'b0};
+		4'b0110: pdata <= { ~P_START, ~P_A,   1'b1,     1'b1,    1'b1,   1'b1};
+		4'b0111: pdata <= { ~P_C,     ~P_B, ~P_MODE,  ~P_X,    ~P_Y,    ~P_Z };
+		4'b0XX1: pdata <= { ~P_C,     ~P_B, ~P_RIGHT, ~P_LEFT, ~P_DOWN, ~P_UP};
+		4'b0XX0: pdata <= { ~P_START, ~P_A,   1'b0,     1'b0,  ~P_DOWN, ~P_UP};
+	endcase
 end
 
 // MOUSE ------------------------------------------------------

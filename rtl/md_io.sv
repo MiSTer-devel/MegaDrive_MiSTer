@@ -105,13 +105,13 @@ module md_io
 	output[15:0] jcart_data,
 	input        jcart_th,
 
-	output [6:0] port1_out,
-	input  [6:0] port1_in,
-	input  [6:0] port1_dir,
+	output reg [6:0] port1_out,
+	input      [6:0] port1_in,
+	input      [6:0] port1_dir,
 
-	output [6:0] port2_out,
-	input  [6:0] port2_in,
-	input  [6:0] port2_dir
+	output reg [6:0] port2_out,
+	input      [6:0] port2_in,
+	input      [6:0] port2_dir
 );
 
 wire [6:0] port1_fw,port2_fw;
@@ -263,12 +263,12 @@ pad_io jcart_u
 assign jcart_data[7]  = 0;
 assign jcart_data[15] = 0;
 
-always_comb begin
+always @(posedge clk) begin
 	case(MULTITAP)
-		0: {port2_out,port1_out} = {port2_pad, port1_pad};
-		1: {port2_out,port1_out} = {port2_fw,  port1_fw };
-		2: {port2_out,port1_out} = {port2_pad, SMS ? port_ms : port1_tp};
-		3: {port2_out,port1_out} = {port2_tp,  port1_pad};
+		0: {port2_out,port1_out} <= {port2_pad, port1_pad};
+		1: {port2_out,port1_out} <= {port2_fw,  port1_fw };
+		2: {port2_out,port1_out} <= {port2_pad, SMS ? port_ms : port1_tp};
+		3: {port2_out,port1_out} <= {port2_tp,  port1_pad};
 	endcase
 end
 

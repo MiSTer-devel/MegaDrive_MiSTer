@@ -101,7 +101,8 @@ module fourway
 	input  [6:0] port2_dir
 );
 
-wire [6:0] player[4];
+wire [6:0] player_out[4];
+reg  [6:0] player_dir[4];
 
 pad_io pad1
 (
@@ -123,9 +124,9 @@ pad_io pad1
 	.P_Y(P1_Y),
 	.P_Z(P1_Z),
 
-	.port_out(player[0]),
+	.port_out(player_out[0]),
 	.port_in(port1_in),
-	.port_dir(port1_dir)
+	.port_dir(player_dir[0])
 );
 
 pad_io pad2
@@ -148,9 +149,9 @@ pad_io pad2
 	.P_Y(P2_Y),
 	.P_Z(P2_Z),
 
-	.port_out(player[1]),
+	.port_out(player_out[1]),
 	.port_in(port1_in),
-	.port_dir(port1_dir)
+	.port_dir(player_dir[1])
 );
 
 pad_io pad3
@@ -173,9 +174,9 @@ pad_io pad3
 	.P_Y(P3_Y),
 	.P_Z(P3_Z),
 
-	.port_out(player[2]),
+	.port_out(player_out[2]),
 	.port_in(port1_in),
-	.port_dir(port1_dir)
+	.port_dir(player_dir[2])
 );
 
 pad_io pad4
@@ -198,12 +199,20 @@ pad_io pad4
 	.P_Y(P4_Y),
 	.P_Z(P4_Z),
 
-	.port_out(player[3]),
+	.port_out(player_out[3]),
 	.port_in(port1_in),
-	.port_dir(port1_dir)
+	.port_dir(player_dir[3])
 );
 
 assign port2_out = port2_dir | port2_in;
-assign port1_out = port2_out[6] ? 7'h70 : player[port2_out[5:4]];
+assign port1_out = n[2] ? 7'h7C : player_out[n[1:0]];
+
+reg [2:0] n;
+always @(posedge clk) if(!port2_out[1:0]) n <= port2_out[6:4];
+
+always_comb begin
+	player_dir = '{7'h7F, 7'h7F, 7'h7F, 7'h7F};
+	player_dir[n[1:0]] = port1_dir;
+end
 
 endmodule
