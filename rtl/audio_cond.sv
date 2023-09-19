@@ -2,19 +2,19 @@
 // audio_cond.sv
 //
 // Copyright (c) 2023 Alexey Melnikov
-// 
-// This source file is free software: you can redistribute it and/or modify 
-// it under the terms of the GNU General Public License as published 
-// by the Free Software Foundation, either version 3 of the License, or 
-// (at your option) any later version. 
-// 
+//
+// This source file is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published
+// by the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
 // This source file is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of 
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License 
-// along with this program.  If not, see <http://www.gnu.org/licenses/>. 
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
 
 module audio_cond
@@ -45,7 +45,7 @@ always @(posedge clk) begin
 	reg [13:0] MOL3_s,MOR3_s,MOL2_s,MOR2_s;
 	reg [13:0] fm_l,fm_r;
 	reg        clk_d1, clk_d2, clk_d3, sel23_d1, sel23_d2;
-	
+
 	MOL3_s <= {{6{~MOL[8]}},MOL[7:0]};
 	MOR3_s <= {{6{~MOR[8]}},MOR[7:0]};
 	MOL2_s <= {{5{MOL_2612[9]}},MOL_2612[8:0]} + {{5{MOL_2612[9]}},MOL_2612[8:0]} + {{5{MOL_2612[9]}},MOL_2612[8:0]};
@@ -93,60 +93,22 @@ genesis_fm_lpf fm_lpf_r
 	.out(md_fm_lpf_r)
 );
 
-wire ce_flt;
-CEGen fltce
-(
-	.CLK(clk),
-	.RST_N(~reset),
+wire [15:0] fm_select_l = ((lpf_mode == 2'b01)) ? md_fm_lpf_l : md_fm_l;
+wire [15:0] fm_select_r = ((lpf_mode == 2'b01)) ? md_fm_lpf_r : md_fm_r;
+// wire [15:0] psg_amp = PSG + PSG[15:1]; // maybe not needed anymore?
+wire [15:0] pre_lpf_l,pre_lpf_r;
 
-	.IN_CLK(53693175),
-	.OUT_CLK(7056000),
-
-	.CE(ce_flt)
-);
-
-wire [15:0] psg_amp = PSG + PSG[15:1];
-
-// 8KHz 2tap
-IIR_filter
-#(
-	.use_params(1),
-	.stereo(0),
-	.coeff_x (0.0000943),
-	.coeff_x0(2),
-	.coeff_x1(1),
-	.coeff_x2(0),
-	.coeff_y0(-1.98992552008492529225),
-	.coeff_y1( 0.98997601394542067421),
-	.coeff_y2(0) 
-)
-psg_iir
+audio_resampler #(.IW(16)) audio_resampler
 (
 	.clk(clk),
 	.reset(reset),
-
-	.ce(ce_flt),
-	.sample_ce(1),
-
-	.input_l(psg_amp),
-	.output_l(psg)
+	.psg_in(PSG),            //       223722Hz incoming sample rate
+	.smsfm_in(sms_fm_audio), //        49715Hz incoming sample rate
+	.fm_l_in(fm_select_l),   //        53267Hz incoming sample rate
+	.fm_r_in(fm_select_r),   //        53267Hz incoming sample rate
+	.snd_l_out(pre_lpf_l),   // synced 53267Hz outgoing sample rate interpolated to Master Clock
+	.snd_r_out(pre_lpf_r)    // synced 53267Hz outgoing sample rate interpolated to Master Clock
 );
-
-wire [15:0] psg;
-
-reg [15:0] pre_lpf_l,pre_lpf_r;
-always @(posedge clk) begin
-	reg [15:0] sms_fm;
-	reg [15:0] al,ar;
-
-	sms_fm <= ^sms_fm_audio[13:12] ? {{2{sms_fm_audio[13]}}, {12{sms_fm_audio[12]}}, 2'b00} : {sms_fm_audio[12],sms_fm_audio[12:0], 2'b00};
-
-	al <= ((lpf_mode == 1) ? md_fm_lpf_l : md_fm_l) + sms_fm + ((lpf_mode == 3) ? psg_amp : psg);
-	ar <= ((lpf_mode == 1) ? md_fm_lpf_r : md_fm_r) + sms_fm + ((lpf_mode == 3) ? psg_amp : psg);
-
-	pre_lpf_l <= ^al[15:14] ? {al[15],{15{al[14]}}} : {al[14:0], 1'b0};
-	pre_lpf_r <= ^ar[15:14] ? {ar[15],{15{ar[14]}}} : {ar[14:0], 1'b0};
-end
 
 wire [15:0] audio_l, audio_r;
 genesis_lpf lpf_left

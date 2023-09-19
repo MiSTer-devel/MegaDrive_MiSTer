@@ -7,8 +7,11 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/sdram.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/EEPROM_STM95.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/EEPROM_24CXX.sv
 set_global_assignment -name VERILOG_FILE rtl/audio_iir_filter.v
-set_global_assignment -name VERILOG_FILE rtl/genesis_lpf.v
-set_global_assignment -name VHDL_FILE rtl/CEGen.vhd
+set_global_assignment -name VERILOG_FILE rtl/audio_genesis_lpf.v
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/audio_resampler.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/audio_cic_filter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/audio_comb_filter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/cegen.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cheatcodes.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/audio_cond.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/video_cond.sv
