@@ -432,7 +432,7 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 wire [1:0] gun_mode = status[41:40];
 wire       gun_btn_mode = status[42];
 
-wire cart_download = ioctl_download & (ioctl_index[4:0] == 1 || ioctl_index[4:0] == 2);
+wire cart_download = ioctl_download & ((ioctl_index[7:6] == 1 &&ioctl_index[5:0] == 0) || ioctl_index[4:0] == 1 || ioctl_index[4:0] == 2);
 wire code_download = ioctl_download & &ioctl_index;
 wire tmss_download = ioctl_download & !ioctl_index;
 
