@@ -81,22 +81,22 @@ module audio_resampler #(
 logic cen240psg, cen48psg, cen144psg, cen1008psg, cen1080sms, cen72sms, cen504sms, cen1008sms, cen252fm, cen63fm, cen9fm, cen1008; // cen# = divider value
 
 // PSG Clocks
-cegen #(.CNT_DIV( 240)) cegen240psg  (.clk(clk), .reset(reset), .cen(cen240psg), ); // Incoming PSG sample rate     ( 53693136Hz / 240 =  223722Hz )
-cegen #(.CNT_DIV(  48)) cegen48psg   (.clk(clk), .reset(reset), .cen(cen48psg),  ); // First PSG Interpolation rate (   223722Hz * 5   = 1118610Hz )
-cegen #(.CNT_DIV( 144)) cegen144psg  (.clk(clk), .reset(reset), .cen(cen144psg), ); // First PSG Decimation rate    (  1118610Hz / 3   =  372870Hz )
+cegen #(.CNT_DIV( 240)) cegen240psg  (.clk(clk), .reset(reset), .cen(cen240psg)  ); // Incoming PSG sample rate     ( 53693136Hz / 240 =  223722Hz )
+cegen #(.CNT_DIV(  48)) cegen48psg   (.clk(clk), .reset(reset), .cen(cen48psg)   ); // First PSG Interpolation rate (   223722Hz * 5   = 1118610Hz )
+cegen #(.CNT_DIV( 144)) cegen144psg  (.clk(clk), .reset(reset), .cen(cen144psg)  ); // First PSG Decimation rate    (  1118610Hz / 3   =  372870Hz )
 // cegen #(.CNT_DIV(1008)) cegen1008psg (.clk(clk), .reset(reset), .cen(cen1008psg),); // Second PSG Decimation rate   (   372870Hz / 7   =   53267Hz )
 
 // SMS FM Clocks
-cegen #(.CNT_DIV(1080)) cegen1080sms (.clk(clk), .reset(reset), .cen(cen1080sms),); // SMS FM Incoming sample rate   ( 53693136Hz / 72 =  49715Hz )
-cegen #(.CNT_DIV(  72)) cegen72sms   (.clk(clk), .reset(reset), .cen(cen72sms),  ); // SMS FM Interpolation rate     (    49715Hz * 15 = 745725Hz )
-cegen #(.CNT_DIV( 504)) cegen504sms  (.clk(clk), .reset(reset), .cen(cen504sms), ); // SMS FM First Decimation rate  (   745725Hz / 7  = 106532Hz )
+cegen #(.CNT_DIV(1080)) cegen1080sms (.clk(clk), .reset(reset), .cen(cen1080sms) ); // SMS FM Incoming sample rate   ( 53693136Hz / 72 =  49715Hz )
+cegen #(.CNT_DIV(  72)) cegen72sms   (.clk(clk), .reset(reset), .cen(cen72sms)   ); // SMS FM Interpolation rate     (    49715Hz * 15 = 745725Hz )
+cegen #(.CNT_DIV( 504)) cegen504sms  (.clk(clk), .reset(reset), .cen(cen504sms)  ); // SMS FM First Decimation rate  (   745725Hz / 7  = 106532Hz )
 // cegen #(.CNT_DIV(1008)) cegen1008sms (.clk(clk), .reset(reset), .cen(cen1008sms),); // SMS FM Second Decimation rate (   106532Hz / 2  =  53266Hz )
 
 // MD FM Clocks
-cegen #(.CNT_DIV(1008)) cegen1008fm  (.clk(clk), .reset(reset), .cen(cen1008),   ); // Incoming FM Sample rate          (   372870Hz / 7 =    53267Hz )
-cegen #(.CNT_DIV( 252)) cegen252fm   (.clk(clk), .reset(reset), .cen(cen252fm),  ); // First FM+PSG Interpolation rate  (    53267Hz * 4 =   213068Hz )
-cegen #(.CNT_DIV(  63)) cegen63fm    (.clk(clk), .reset(reset), .cen(cen63fm),   ); // Second FM+PSG Interpolation rate (   852272Hz * 4 =  5965904Hz )
-cegen #(.CNT_DIV(   9)) cegen9fm     (.clk(clk), .reset(reset), .cen(cen9fm),    ); // Third FM+PSG Interpolation rate  (  5965904Hz * 9 = 53693136Hz )
+cegen #(.CNT_DIV(1008)) cegen1008fm  (.clk(clk), .reset(reset), .cen(cen1008)    ); // Incoming FM Sample rate          (   372870Hz / 7 =    53267Hz )
+cegen #(.CNT_DIV( 252)) cegen252fm   (.clk(clk), .reset(reset), .cen(cen252fm)   ); // First FM+PSG Interpolation rate  (    53267Hz * 4 =   213068Hz )
+cegen #(.CNT_DIV(  63)) cegen63fm    (.clk(clk), .reset(reset), .cen(cen63fm)    ); // Second FM+PSG Interpolation rate (   852272Hz * 4 =  5965904Hz )
+cegen #(.CNT_DIV(   9)) cegen9fm     (.clk(clk), .reset(reset), .cen(cen9fm)     ); // Third FM+PSG Interpolation rate  (  5965904Hz * 9 = 53693136Hz )
 
 // Interpolation/decimation stages
 // Then jotego sets up the interpolation/decimation stages. He expanded psg and fm by 1 bit (probably overflow prevention)
