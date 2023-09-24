@@ -469,7 +469,7 @@ end
 
 ///////////////////////////////////////////////////
 
-wire reset = RESET | status[0] | buttons[1] | region_set_rst;
+wire reset = RESET | status[0] | buttons[1] | region_set_rst | bk_loading;
 
 reg sys_reset;
 always @(posedge clk_sys) sys_reset <= reset|cart_download;
