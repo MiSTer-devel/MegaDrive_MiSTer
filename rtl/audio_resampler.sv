@@ -65,19 +65,17 @@ cegen #(.CNT_DIV(  63)) cegen63fm    (.clk(clk), .reset(reset), .cen(cen63fm)   
 cegen #(.CNT_DIV(   9)) cegen9fm     (.clk(clk), .reset(reset), .cen(cen9fm)    );  // Third FM+PSG Interpolation rate  (  5965904Hz * 9 = 53693136Hz )
 
 
-// Interpolation/decimation stages
-
 // MD and SMS PSG alignment to MD FM sample rate
 logic signed [IW-1:0] psg1, psg2, psg3;
 
 // Interpolate PSG by a factor of 5 with 2 stages and a filter depth of 4
-audio_cic_filter #(.TYPE(0),  .CALCW(IW+2),  .IW(IW),            .STAGES(2),          .DEPTH(4),       .RATE(5)      )
+audio_cic_filter #(.TYPE(0),  .CALCW(IW+4),  .IW(IW),            .STAGES(1),          .DEPTH(1),       .RATE(5)      )
 interpolate_psg1  (.clk(clk), .reset(reset), .cen_in(cen240psg), .cen_out(cen48psg),  .snd_in(psg_in), .snd_out(psg1));
 // Decimate PSG by a factor of 3 with 3 stages and a filter depth of 2
-audio_cic_filter #(.TYPE(1),  .CALCW(IW+1),  .IW(IW),            .STAGES(3),          .DEPTH(2),       .RATE(3)      )
+audio_cic_filter #(.TYPE(1),  .CALCW(IW+4),  .IW(IW),            .STAGES(1),          .DEPTH(1),       .RATE(3)      )
 decimate_psg1     (.clk(clk), .reset(reset), .cen_in(cen48psg),  .cen_out(cen144psg), .snd_in(psg1),   .snd_out(psg2));
 // Decimate PSG by a factor of 7 with 1 stage and a filter depth of 1 (aligned with FM sample rate)
-audio_cic_filter #(.TYPE(1),  .CALCW(IW+1),  .IW(IW),            .STAGES(1),          .DEPTH(1),       .RATE(7)      )
+audio_cic_filter #(.TYPE(1),  .CALCW(IW+2),  .IW(IW),            .STAGES(1),          .DEPTH(1),       .RATE(7)      )
 decimate_psg2     (.clk(clk), .reset(reset), .cen_in(cen144psg), .cen_out(cen1008),   .snd_in(psg2),   .snd_out(psg3));
 
 
@@ -85,13 +83,13 @@ decimate_psg2     (.clk(clk), .reset(reset), .cen_in(cen144psg), .cen_out(cen100
 logic signed [IW-1:0] smsfm1, smsfm2, smsfm3;
 
 // Interpolate SMS FM by a factor of 15 with ? stages and a filter depth of ?
-audio_cic_filter #(.TYPE(0),  .CALCW(IW+2),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(15)       )
+audio_cic_filter #(.TYPE(0),  .CALCW(IW+4),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(15)       )
 interpolate_smsfm (.clk(clk), .reset(reset), .cen_in(cen1080sms), .cen_out(cen72sms),  .snd_in(smsfm_in), .snd_out(smsfm1));
 // Decimate SMS FM by a factor of 7 with ? stages and a filter depth of ?
-audio_cic_filter #(.TYPE(1),  .CALCW(IW+1),  .IW(IW),             .STAGES(3),          .DEPTH(2),         .RATE(7)        )
+audio_cic_filter #(.TYPE(1),  .CALCW(IW+4),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(7)        )
 decimate_smsfm1   (.clk(clk), .reset(reset), .cen_in(cen72sms),   .cen_out(cen504sms), .snd_in(smsfm1),   .snd_out(smsfm2));
 // Decimate SMS FM by a factor of 2 with ? stages and a filter depth of ?
-audio_cic_filter #(.TYPE(1),  .CALCW(IW+1),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(2)        )
+audio_cic_filter #(.TYPE(1),  .CALCW(IW+2),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(2)        )
 decimate_smsfm2   (.clk(clk), .reset(reset), .cen_in(cen504sms),  .cen_out(cen1008),   .snd_in(smsfm2),   .snd_out(smsfm3));
 
 

@@ -39,17 +39,38 @@ module audio_cond
 	output [15:0] AUDIO_R
 );
 
-// same as how nukey handles it but without psg
-wire [8:0] MOL_s = MOL - 9'h100;
-wire [8:0] MOR_s = MOR - 9'h100;
+reg  [15:0] md_fm_l, md_fm_r;
+always @(posedge clk) begin
+	reg [13:0] out_l, out_r;
+	reg [13:0] MOL3_s,MOR3_s,MOL2_s,MOR2_s;
+	reg [13:0] fm_l,fm_r;
+	reg        clk_d1, clk_d2, clk_d3, sel23_d1, sel23_d2;
+	
+	MOL3_s <= {{6{~MOL[8]}},MOL[7:0]};
+	MOR3_s <= {{6{~MOR[8]}},MOR[7:0]};
+	MOL2_s <= {{5{MOL_2612[9]}},MOL_2612[8:0]} + {{5{MOL_2612[9]}},MOL_2612[8:0]} + {{5{MOL_2612[9]}},MOL_2612[8:0]};
+	MOR2_s <= {{5{MOR_2612[9]}},MOR_2612[8:0]} + {{5{MOR_2612[9]}},MOR_2612[8:0]} + {{5{MOR_2612[9]}},MOR_2612[8:0]};
+	fm_l   <= fm_mode ? MOL3_s : MOL2_s;
+	fm_r   <= fm_mode ? MOR3_s : MOR2_s;
 
-wire [15:0] md_fm_3438_l = {MOL_s[8], MOL_s,6'h0};
-wire [15:0] md_fm_3438_r = {MOR_s[8], MOR_s,6'h0};
-wire [15:0] md_fm_2612_l = {MOL_2612[9], MOL_2612,5'h0} + {{2{MOL_2612[9]}}, MOL_2612,4'h0};
-wire [15:0] md_fm_2612_r = {MOR_2612[9], MOR_2612,5'h0} + {{2{MOR_2612[9]}}, MOR_2612,4'h0};
+	clk_d1 <= fm_clk1;
+	clk_d2 <= clk_d1;
 
-wire [15:0] md_fm_l = fm_mode ? md_fm_3438_l : md_fm_2612_l;
-wire [15:0] md_fm_r = fm_mode ? md_fm_3438_r : md_fm_2612_r;
+	sel23_d1 <= fm_sel23;
+	sel23_d2 <= sel23_d1;
+
+	clk_d3 <= clk_d2;
+	if(clk_d3 & ~clk_d2) begin
+		out_l <= out_l + fm_l;
+		out_r <= out_r + fm_r;
+		if(sel23_d2) begin
+			md_fm_l <= {out_l + fm_l,2'b00};
+			md_fm_r <= {out_r + fm_r,2'b00};
+			out_l <= 0;
+			out_r <= 0;
+		end
+	end
+end
 
 wire [15:0] md_fm_lpf_l;
 wire [15:0] md_fm_lpf_r;
@@ -74,7 +95,6 @@ genesis_fm_lpf fm_lpf_r
 
 wire [15:0] fm_select_l = ((lpf_mode == 2'b01)) ? md_fm_lpf_l : md_fm_l;
 wire [15:0] fm_select_r = ((lpf_mode == 2'b01)) ? md_fm_lpf_r : md_fm_r;
-// wire signed [10:0] psg_adjust = PSG_SND - (PSG_SND >>> 5); // Way that the genesis core adjusted volume before
 
 wire [15:0] pre_lpf_l, pre_lpf_r;
 
