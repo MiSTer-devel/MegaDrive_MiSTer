@@ -78,7 +78,7 @@ module audio_resampler #(
 );
 
 // Clock Generation
-logic cen240psg, cen48psg, cen144psg, cen1008psg, cen1080sms, cen72sms, cen504sms, cen1008sms, cen252fm, cen63fm, cen9fm, cen1008fm; // cen# = divider value
+logic cen240psg, cen48psg, cen144psg, cen1008psg, cen1080sms, cen72sms, cen504sms, cen1008sms, cen252fm, cen63fm, cen9fm, cen1008; // cen# = divider value
 
 // PSG Clocks
 cegen #(.CNT_DIV( 240)) cegen240psg  (.clk(clk), .reset(reset), .cen(cen240psg), ); // Incoming PSG sample rate     ( 53693136Hz / 240 =  223722Hz )
