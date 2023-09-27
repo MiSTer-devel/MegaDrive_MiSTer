@@ -30,15 +30,15 @@ module audio_comb_filter #(
     parameter DEPTH = 1   // Depth of comb filter
 )
 (
-    input  logic                 clk,
-    input  logic                 reset,
-    input  logic                 cen,
-    input  logic signed [IW-1:0] snd_in,
-    output logic signed [IW-1:0] snd_out
+    input  logic          clk,
+    input  logic          reset,
+    input  logic          cen,
+    input  logic [IW-1:0] snd_in,
+    output logic [IW-1:0] snd_out
 );
 
-logic signed [IW-1:0] prev;
-logic signed [IW-1:0] mem[0:DEPTH-1];
+logic [IW-1:0] prev;
+logic [IW-1:0] mem[0:DEPTH-1];
 assign prev = mem[DEPTH-1];
 
 // DEPTH-delay stage

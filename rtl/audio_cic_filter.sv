@@ -35,12 +35,12 @@ module audio_cic_filter #(
     parameter RATE   = 2   // How many zeros to stuff in interpolation (0 is invalid!)
 )
 (
-    input  logic                 clk,     // master clock
-    input  logic                 reset,   // active-high reset
-    input  logic                 cen_in,  // incoming sample rate
-    input  logic                 cen_out, // what the target sample rate should be
-    input  logic signed [IW-1:0] snd_in,  // signed audio in
-    output logic signed [IW-1:0] snd_out  // signed audio out
+    input  logic          clk,     // master clock
+    input  logic          reset,   // active-high reset
+    input  logic          cen_in,  // incoming sample rate
+    input  logic          cen_out, // what the target sample rate should be
+    input  logic [IW-1:0] snd_in,  // signed audio in
+    output logic [IW-1:0] snd_out  // signed audio out
 );
 
 localparam WDIFF = CALCW - IW;
@@ -48,7 +48,7 @@ localparam WDIFF = CALCW - IW;
 logic cen_select;
 assign cen_select = (TYPE == 0) ? cen_in : cen_out;
 
-logic signed [CALCW-1:0] inter6, integ_op, comb_op;
+logic [CALCW-1:0] inter6, integ_op, comb_op;
 
 logic [CALCW-1:0] comb_data[0:STAGES];
 assign comb_data[0] = (TYPE == 0) ? {{WDIFF{snd_in[IW-1]}}, snd_in} : inter6;

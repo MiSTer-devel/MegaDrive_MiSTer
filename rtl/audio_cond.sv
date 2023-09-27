@@ -45,7 +45,7 @@ always @(posedge clk) begin
 	reg [13:0] MOL3_s,MOR3_s,MOL2_s,MOR2_s;
 	reg [13:0] fm_l,fm_r;
 	reg        clk_d1, clk_d2, clk_d3, sel23_d1, sel23_d2;
-	
+
 	MOL3_s <= {{6{~MOL[8]}},MOL[7:0]};
 	MOR3_s <= {{6{~MOR[8]}},MOR[7:0]};
 	MOL2_s <= {{5{MOL_2612[9]}},MOL_2612[8:0]} + {{5{MOL_2612[9]}},MOL_2612[8:0]} + {{5{MOL_2612[9]}},MOL_2612[8:0]};
@@ -72,8 +72,8 @@ always @(posedge clk) begin
 	end
 end
 
-wire [15:0] md_fm_lpf_l;
-wire [15:0] md_fm_lpf_r;
+reg [15:0] md_fm_lpf_l;
+reg [15:0] md_fm_lpf_r;
 
 genesis_fm_lpf fm_lpf_l
 (
@@ -96,21 +96,21 @@ genesis_fm_lpf fm_lpf_r
 wire [15:0] fm_select_l = ((lpf_mode == 2'b01)) ? md_fm_lpf_l : md_fm_l;
 wire [15:0] fm_select_r = ((lpf_mode == 2'b01)) ? md_fm_lpf_r : md_fm_r;
 
-wire [15:0] pre_lpf_l, pre_lpf_r;
+reg [15:0] pre_lpf_l, pre_lpf_r;
 
 audio_resampler #(.IW(16)) audio_resampler
 (
 	.clk(clk),
 	.reset(reset),
-	.psg_in(PSG),            //       223722Hz incoming sample rate
-	.smsfm_in(sms_fm_audio), //        49715Hz incoming sample rate
-	.fm_l_in(fm_select_l),   //        53267Hz incoming sample rate
-	.fm_r_in(fm_select_r),   //        53267Hz incoming sample rate
-	.snd_l_out(pre_lpf_l),   // synced 53267Hz outgoing sample rate interpolated to Master Clock
-	.snd_r_out(pre_lpf_r)    // synced 53267Hz outgoing sample rate interpolated to Master Clock
+	.psg_in(PSG),                     //       223722Hz incoming sample rate
+	.smsfm_in({sms_fm_audio, 2'b00}), //        49715Hz incoming sample rate
+	.fm_l_in(fm_select_l),            //        53267Hz incoming sample rate
+	.fm_r_in(fm_select_r),            //        53267Hz incoming sample rate
+	.snd_l_out(pre_lpf_l),            // synced 53267Hz outgoing sample rate interpolated to Master Clock
+	.snd_r_out(pre_lpf_r)             // synced 53267Hz outgoing sample rate interpolated to Master Clock
 );
 
-wire [15:0] audio_l, audio_r;
+reg [15:0] audio_l, audio_r;
 genesis_lpf lpf_left
 (
 	.clk(clk),

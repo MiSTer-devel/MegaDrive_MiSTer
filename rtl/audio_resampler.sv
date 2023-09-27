@@ -33,18 +33,18 @@ module audio_resampler #(
     parameter IW = 16 // Input width of signals and coefficients
 )
 (
-    input  logic                 clk,       // Input clock
-    input  logic                 reset,     // Active-high reset
-    input  logic signed [IW-1:0] psg_in,    // PSG
-    input  logic signed [IW-1:0] smsfm_in,  // Sega Master System FM
-    input  logic signed [IW-1:0] fm_l_in,   // FM synth Left
-    input  logic signed [IW-1:0] fm_r_in,   // FM synth right
-    output logic signed [IW-1:0] snd_l_out, // IW-bit output sound left channel
-    output logic signed [IW-1:0] snd_r_out  // IW-bit output sound right channel
+    input  logic          clk,       // Input clock
+    input  logic          reset,     // Active-high reset
+    input  logic [IW-1:0] psg_in,    // PSG
+    input  logic [IW-1:0] smsfm_in,  // Sega Master System FM
+    input  logic [IW-1:0] fm_l_in,   // FM synth Left
+    input  logic [IW-1:0] fm_r_in,   // FM synth right
+    output logic [IW-1:0] snd_l_out, // IW-bit output sound left channel
+    output logic [IW-1:0] snd_r_out  // IW-bit output sound right channel
 );
 
-// Clock Generation
-logic cen240psg, cen48psg, cen144psg, cen1080sms, cen72sms, cen504sms, cen252fm, cen63fm, cen9fm, cen1008; // cen# = divider value
+// Clock Generation - Real mclk is 53693175 but fractional division won't be used
+logic cen240psg, cen48psg, cen144psg, cen1080sms, cen216sms, cen72sms, cen504sms, cen252fm, cen63fm, cen9fm, cen1008; // cen# = divider value
 
 // PSG Clocks
 cegen #(.CNT_DIV( 240)) cegen240psg  (.clk(clk), .reset(reset), .cen(cen240psg) );     // Incoming PSG sample rate     ( 53693136Hz / 240 =  223722Hz )
@@ -54,25 +54,26 @@ cegen #(.CNT_DIV( 144)) cegen144psg  (.clk(clk), .reset(reset), .cen(cen144psg) 
 
 // SMS FM Clocks
 cegen #(.CNT_DIV(1080)) cegen1080sms (.clk(clk), .reset(reset), .cen(cen1080sms));     // SMS FM Incoming sample rate   ( 53693136Hz / 72 =  49715Hz )
-cegen #(.CNT_DIV(  72)) cegen72sms   (.clk(clk), .reset(reset), .cen(cen72sms)  );     // SMS FM Interpolation rate     (    49715Hz * 15 = 745725Hz )
+cegen #(.CNT_DIV( 216)) cegen216sms  (.clk(clk), .reset(reset), .cen(cen216sms) );     // SMS FM 1st Interpolation rate (    49715Hz * 5  = 248575Hz )
+cegen #(.CNT_DIV(  72)) cegen72sms   (.clk(clk), .reset(reset), .cen(cen72sms)  );     // SMS FM 2nd Interpolation rate (   248575HZ * 3  = 745725Hz )
 cegen #(.CNT_DIV( 504)) cegen504sms  (.clk(clk), .reset(reset), .cen(cen504sms) );     // SMS FM First Decimation rate  (   745725Hz / 7  = 106532Hz )
 // cegen #(.CNT_DIV(1008)) cegen1008sms (.clk(clk), .reset(reset), .cen(cen1008sms),); // SMS FM Second Decimation rate (   106532Hz / 2  =  53266Hz )
 
 // MD FM Clocks
-cegen #(.CNT_DIV(1008)) cegen1008fm  (.clk(clk), .reset(reset), .cen(cen1008)   );  // Incoming FM Sample rate          (   372870Hz / 7 =    53267Hz )
-cegen #(.CNT_DIV( 252)) cegen252fm   (.clk(clk), .reset(reset), .cen(cen252fm)  );  // First FM+PSG Interpolation rate  (    53267Hz * 4 =   213068Hz )
-cegen #(.CNT_DIV(  63)) cegen63fm    (.clk(clk), .reset(reset), .cen(cen63fm)   );  // Second FM+PSG Interpolation rate (   852272Hz * 4 =  5965904Hz )
-cegen #(.CNT_DIV(   9)) cegen9fm     (.clk(clk), .reset(reset), .cen(cen9fm)    );  // Third FM+PSG Interpolation rate  (  5965904Hz * 9 = 53693136Hz )
+cegen #(.CNT_DIV(1008)) cegen1008fm  (.clk(clk), .reset(reset), .cen(cen1008)   );     // Incoming FM Sample rate          (   372870Hz / 7 =    53267Hz )
+cegen #(.CNT_DIV( 252)) cegen252fm   (.clk(clk), .reset(reset), .cen(cen252fm)  );     // First FM+PSG Interpolation rate  (    53267Hz * 4 =   213068Hz )
+cegen #(.CNT_DIV(  63)) cegen63fm    (.clk(clk), .reset(reset), .cen(cen63fm)   );     // Second FM+PSG Interpolation rate (   852272Hz * 4 =  5965904Hz )
+cegen #(.CNT_DIV(   9)) cegen9fm     (.clk(clk), .reset(reset), .cen(cen9fm)    );     // Third FM+PSG Interpolation rate  (  5965904Hz * 9 = 53693136Hz )
 
 
 // MD and SMS PSG alignment to MD FM sample rate
-logic signed [IW-1:0] psg1, psg2, psg3;
+logic [IW-1:0] psg1, psg2, psg3;
 
 // Interpolate PSG by a factor of 5 with 2 stages and a filter depth of 4
-audio_cic_filter #(.TYPE(0),  .CALCW(IW+4),  .IW(IW),            .STAGES(1),          .DEPTH(1),       .RATE(5)      )
+audio_cic_filter #(.TYPE(0),  .CALCW(IW+4),  .IW(IW),            .STAGES(2),          .DEPTH(4),       .RATE(5)      )
 interpolate_psg1  (.clk(clk), .reset(reset), .cen_in(cen240psg), .cen_out(cen48psg),  .snd_in(psg_in), .snd_out(psg1));
 // Decimate PSG by a factor of 3 with 3 stages and a filter depth of 2
-audio_cic_filter #(.TYPE(1),  .CALCW(IW+4),  .IW(IW),            .STAGES(1),          .DEPTH(1),       .RATE(3)      )
+audio_cic_filter #(.TYPE(1),  .CALCW(IW+4),  .IW(IW),            .STAGES(3),          .DEPTH(2),       .RATE(3)      )
 decimate_psg1     (.clk(clk), .reset(reset), .cen_in(cen48psg),  .cen_out(cen144psg), .snd_in(psg1),   .snd_out(psg2));
 // Decimate PSG by a factor of 7 with 1 stage and a filter depth of 1 (aligned with FM sample rate)
 audio_cic_filter #(.TYPE(1),  .CALCW(IW+2),  .IW(IW),            .STAGES(1),          .DEPTH(1),       .RATE(7)      )
@@ -80,24 +81,27 @@ decimate_psg2     (.clk(clk), .reset(reset), .cen_in(cen144psg), .cen_out(cen100
 
 
 // SMS FM Alignment to MD FM sample rate
-logic signed [IW-1:0] smsfm1, smsfm2, smsfm3;
+logic [IW-1:0] smsfm1, smsfm2, smsfm3, smsfm4;
 
-// Interpolate SMS FM by a factor of 15 with ? stages and a filter depth of ?
-audio_cic_filter #(.TYPE(0),  .CALCW(IW+4),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(15)       )
-interpolate_smsfm (.clk(clk), .reset(reset), .cen_in(cen1080sms), .cen_out(cen72sms),  .snd_in(smsfm_in), .snd_out(smsfm1));
+// Interpolate SMS FM by a factor of 5 with ? stages and a filter depth of ?
+audio_cic_filter #(.TYPE(0),  .CALCW(IW+1),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(5)        )
+interpolate_smsfm1(.clk(clk), .reset(reset), .cen_in(cen1080sms), .cen_out(cen216sms), .snd_in(smsfm_in), .snd_out(smsfm1));
+// Interpolate SMS FM by a factor of 3 with ? stages and a filter depth of ?
+audio_cic_filter #(.TYPE(0),  .CALCW(IW+3),  .IW(IW),             .STAGES(3),          .DEPTH(1),         .RATE(3)        )
+interpolate_smsfm2(.clk(clk), .reset(reset), .cen_in(cen216sms),  .cen_out(cen72sms),  .snd_in(smsfm1),   .snd_out(smsfm2));
 // Decimate SMS FM by a factor of 7 with ? stages and a filter depth of ?
-audio_cic_filter #(.TYPE(1),  .CALCW(IW+4),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(7)        )
-decimate_smsfm1   (.clk(clk), .reset(reset), .cen_in(cen72sms),   .cen_out(cen504sms), .snd_in(smsfm1),   .snd_out(smsfm2));
+audio_cic_filter #(.TYPE(1),  .CALCW(IW+3),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(7)        )
+decimate_smsfm1   (.clk(clk), .reset(reset), .cen_in(cen72sms),   .cen_out(cen504sms), .snd_in(smsfm2),   .snd_out(smsfm3));
 // Decimate SMS FM by a factor of 2 with ? stages and a filter depth of ?
-audio_cic_filter #(.TYPE(1),  .CALCW(IW+2),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(2)        )
-decimate_smsfm2   (.clk(clk), .reset(reset), .cen_in(cen504sms),  .cen_out(cen1008),   .snd_in(smsfm2),   .snd_out(smsfm3));
+audio_cic_filter #(.TYPE(1),  .CALCW(IW+1),  .IW(IW),             .STAGES(1),          .DEPTH(1),         .RATE(2)        )
+decimate_smsfm2   (.clk(clk), .reset(reset), .cen_in(cen504sms),  .cen_out(cen1008),   .snd_in(smsfm3),   .snd_out(smsfm4));
 
 
 // Mix FM and PSG now that PSG and SMS FM is downsampled to the same sample rate as FM
-logic signed [IW-1:0] mixed_l, mixed_r, mixed_l_2, mixed_l_3, mixed_l_4, mixed_r_2, mixed_r_3, mixed_r_4;
+logic [IW-1:0] mixed_l, mixed_r, mixed_l_2, mixed_l_3, mixed_l_4, mixed_r_2, mixed_r_3, mixed_r_4;
 always_ff @(posedge clk) begin
-    mixed_l <= fm_l_in + psg3 + smsfm3;
-    mixed_r <= fm_r_in + psg3 + smsfm3;
+    mixed_l <= fm_l_in + psg3 + smsfm4;
+    mixed_r <= fm_r_in + psg3 + smsfm4;
 end
 
 // Interpolate FM+PSG left audio
