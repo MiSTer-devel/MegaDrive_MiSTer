@@ -49,8 +49,6 @@ architecture RTL of OutputMemory is
 
   type SIGNED_LI_ARRAY_TYPE is array (0 to 18) of SIGNED_LI_VECTOR_TYPE;
   signal data_array : SIGNED_LI_ARRAY_TYPE;
-  attribute ramstyle : string;
-  attribute ramstyle of data_array : signal is "logic";
 
 begin
 

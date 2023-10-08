@@ -48,8 +48,6 @@ architecture RTL of PhaseMemory is
 
   type PHASE_ARRAY_TYPE is array (0 to 18-1) of PHASE_TYPE;
   signal phase_array : PHASE_ARRAY_TYPE;
-  attribute ramstyle : string;
-  attribute ramstyle of phase_array : signal is "logic";
 
 begin
 
