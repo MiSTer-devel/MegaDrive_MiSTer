@@ -73,12 +73,6 @@ always @(posedge clk) hs_d <= hs_in;
 wire hs_begin = hs_d & ~hs_in;
 wire hs_end   = ~hs_d & hs_in;
 
-reg vs_d;
-always @(posedge clk) vs_d <= vs_in;
-
-wire vs_begin = vs_d & ~vs_in;
-wire vs_end   = ~vs_d & vs_in;
-
 reg        hs_clean;
 reg [12:0] hcnt;
 always @(posedge clk) begin
@@ -155,42 +149,6 @@ end
 wire vbl = ~(border_en ? vde_brd : vde_nobrd);
 wire hbl = ~(border_en ? hde_brd : vdp_de_h);
 
-// VSync extension by half a line for interlace
-reg        vs_delay;
-always @(posedge clk) begin
-  // 3420 = 1/2 * 6840 clock per line
-  reg [11:0] vs_start_delay;
-  reg [11:0] vs_end_delay;
-  reg vs_delay_active;
-  if(~vs_in) begin
-	// interlace = 1 and f1 = 0 right before vsync start -> start the delay
-	if(vs_begin & interlace & ~f1) begin
-		vs_start_delay <= 3420;
-		vs_delay_active <= 1;
-	end
-
-	// vs_in already inactive, but end delay still != 0
-	if(!vs_end_delay) begin
-		vs_end_delay <= vs_end_delay - 1;
-	end else begin
-		vs_delay <= 0;
-	end
-  end else begin
-	// vs_in = '1'
-	if(vs_delay_active) begin
-		vs_end_delay <= 3420;
-		vs_delay_active <= 0;
-	end
-
-	// vs_in active, but start delay still != 0
-	if(!vs_start_delay) begin
-		vs_start_delay <= vs_start_delay - 1;
-	end else begin
-		vs_delay <= 1;
-	end
-  end
-end
-
 cofi coffee
 (
 	.clk(clk),
@@ -200,7 +158,7 @@ cofi coffee
 	.hblank(hbl),
 	.vblank(vbl),
 	.hs(hs_clean),
-	.vs(vs_delay),
+	.vs(vs_in),
 	.red(r_in),
 	.green(g_in),
 	.blue(b_in),
