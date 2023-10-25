@@ -212,7 +212,7 @@ always @(posedge clk) if(!port2_out[1:0]) n <= port2_out[6:4];
 
 always_comb begin
 	player_dir = '{7'h7F, 7'h7F, 7'h7F, 7'h7F};
-	player_dir[n[1:0]] = port1_dir;
+	if(!n[2]) player_dir[n[1:0]] = port1_dir;
 end
 
 endmodule

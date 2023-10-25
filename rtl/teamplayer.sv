@@ -115,11 +115,11 @@ module teamplayer
 	input  [6:0] port2_dir
 );
 
-wire [3:0] pad1qp_i[3] = '{~{P1_RIGHT,P1_LEFT,P1_DOWN,P1_UP}, ~{P1_START,P1_A,P1_B,P1_C}, ~{P1_MODE,P1_X,P1_Y,P1_Z}};
-wire [3:0] pad2qp_i[3] = '{~{P2_RIGHT,P2_LEFT,P2_DOWN,P2_UP}, ~{P2_START,P2_A,P2_B,P2_C}, ~{P2_MODE,P2_X,P2_Y,P2_Z}};
-wire [3:0] pad3qp_i[3] = '{~{P3_RIGHT,P3_LEFT,P3_DOWN,P3_UP}, ~{P3_START,P3_A,P3_B,P3_C}, ~{P3_MODE,P3_X,P3_Y,P3_Z}};
-wire [3:0] pad4qp_i[3] = '{~{P4_RIGHT,P4_LEFT,P4_DOWN,P4_UP}, ~{P4_START,P4_A,P4_B,P4_C}, ~{P4_MODE,P4_X,P4_Y,P4_Z}};
-wire [3:0] pad5qp_i[3] = '{~{P5_RIGHT,P5_LEFT,P5_DOWN,P5_UP}, ~{P5_START,P5_A,P5_B,P5_C}, ~{P5_MODE,P5_X,P5_Y,P5_Z}};
+wire [3:0] pad1qp_i[3] = '{~{P1_RIGHT,P1_LEFT,P1_DOWN,P1_UP}, ~{P1_START,P1_A,P1_C,P1_B}, ~{P1_MODE,P1_X,P1_Y,P1_Z}};
+wire [3:0] pad2qp_i[3] = '{~{P2_RIGHT,P2_LEFT,P2_DOWN,P2_UP}, ~{P2_START,P2_A,P2_C,P2_B}, ~{P2_MODE,P2_X,P2_Y,P2_Z}};
+wire [3:0] pad3qp_i[3] = '{~{P3_RIGHT,P3_LEFT,P3_DOWN,P3_UP}, ~{P3_START,P3_A,P3_C,P3_B}, ~{P3_MODE,P3_X,P3_Y,P3_Z}};
+wire [3:0] pad4qp_i[3] = '{~{P4_RIGHT,P4_LEFT,P4_DOWN,P4_UP}, ~{P4_START,P4_A,P4_C,P4_B}, ~{P4_MODE,P4_X,P4_Y,P4_Z}};
+wire [3:0] pad5qp_i[3] = '{~{P5_RIGHT,P5_LEFT,P5_DOWN,P5_UP}, ~{P5_START,P5_A,P5_C,P5_B}, ~{P5_MODE,P5_X,P5_Y,P5_Z}};
 
 wire [3:0] pad1qp[3] = PORT ? pad2qp_i : pad1qp_i;
 wire [3:0] pad2qp[3] = PORT ? pad3qp_i : pad2qp_i;
