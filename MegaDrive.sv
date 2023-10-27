@@ -469,21 +469,39 @@ end
 
 ///////////////////////////////////////////////////
 
-wire reset = RESET | status[0] | buttons[1] | region_set_rst | bk_loading;
+wire reset   = status[0] | buttons[1] | region_set_rst;
+wire loading = cart_download | bk_loading | RESET;
 
-reg sys_reset;
-always @(posedge clk_sys) sys_reset <= reset|cart_download;
-
+reg        btn_reset;
 reg        md_reset;
+reg        s_reset;
 reg [15:1] ram_rst_a;
 always @(posedge clk_md) begin
-	reg [1:0] cnt = 0;
+	reg [4:0] cnt = 0;
+	reg old_reset = 0;
 	
 	ram_rst_a <= ram_rst_a + 1'd1;
 	if(&ram_rst_a & ~&cnt) cnt <= cnt + 1'd1;
 
-	md_reset <= ^cnt | reset;
-	if(cart_download) cnt <= 0;
+	old_reset <= reset;
+	if(loading | (~old_reset & reset)) cnt <= 0;
+
+	s_reset <= (cnt < 3);
+	
+	if(loading)       md_reset <= 1;
+	else if(cnt == 3) md_reset <= 0;
+
+	if(~old_reset & reset) btn_reset <= 1;
+	else if(&cnt)          btn_reset <= 0;
+end
+
+reg sys_reset;
+always @(posedge clk_sys) begin
+	reg [1:0] sreset;
+	
+	sreset <= {sreset[0], s_reset};
+	if(!sreset) sys_reset <= 0;
+	if(&sreset) sys_reset <= 1;
 end
 
 reg vclk_en, zclk_en, clk_en;
@@ -504,7 +522,7 @@ always @(posedge clk_md) begin
 
 	pause_req <= OSD_STATUS & status[61];
 
-	if(pause_req & ~md_reset & ~cart_download) begin
+	if(pause_req & ~md_reset & ~btn_reset & ~cart_download) begin
 		dma_z80_req <= 1;
 		if((dma_z80_ack | res_z80) & ~cart_dma) dma_68k_req <= 1;
 	end
@@ -570,6 +588,7 @@ md_board md_board
 	.MCLK2(clk_md),
 
 	.ext_reset(md_reset),
+	.reset_button(btn_reset), // edge triggered, requires some activity time to get detected.
 
 	// ram
 	.ram_68k_address(ram_68k_address),
