@@ -226,7 +226,7 @@ video_calc video_calc
 	.new_vmode(new_vmode),
 	.video_rotated(video_rotated),
 
-	.par_num(byte_cnt[3:0]),
+	.par_num(byte_cnt[4:0]),
 	.dout(vc_dout)
 );
 
@@ -502,7 +502,7 @@ always@(posedge clk_sys) begin : uio_block
 				'h22: RTC[(byte_cnt-6'd1)<<4 +:16] <= io_din;
 
 				//Video res.
-				'h23: if(!byte_cnt[MAX_W:4]) io_dout <= vc_dout;
+				'h23: if(!byte_cnt[MAX_W:5]) io_dout <= vc_dout;
 
 				//RTC
 				'h24: TIMESTAMP[(byte_cnt-6'd1)<<4 +:16] <= io_din;
@@ -872,7 +872,7 @@ module video_calc
 	input new_vmode,
 	input video_rotated,
 
-	input       [3:0] par_num,
+	input       [4:0] par_num,
 	output reg [15:0] dout
 );
 
@@ -893,6 +893,7 @@ always @(posedge clk_sys) begin
 	  13: dout <= vid_vtime_hdmi[31:16];
 	  14: dout <= vid_ccnt[15:0];
 	  15: dout <= vid_ccnt[31:16];
+	  16: dout <= vid_pixrep;
 	  default dout <= 0;
 	endcase
 end
@@ -902,24 +903,30 @@ reg [31:0] vid_vcnt = 0;
 reg [31:0] vid_ccnt = 0;
 reg  [7:0] vid_nres = 0;
 reg  [1:0] vid_int  = 0;
+reg  [7:0] vid_pixrep;
 
 always @(posedge clk_vid) begin
 	integer hcnt;
 	integer vcnt;
 	integer ccnt;
-	reg old_vs= 0, old_de = 0, old_vmode = 0;
+	reg [7:0] pcnt;
+	reg old_vs= 0, old_de = 0, old_de1 = 0, old_vmode = 0;
 	reg [3:0] resto = 0;
 	reg calch = 0;
 
 	if(calch & de) ccnt <= ccnt + 1;
+	pcnt <= pcnt + 1'd1;
 
 	if(ce_pix) begin
 		old_vs <= vs;
 		old_de <= de;
+		old_de1 <= old_de;
+		pcnt <= 1;
 
 		if(~vs & ~old_de & de) vcnt <= vcnt + 1;
 		if(calch & de) hcnt <= hcnt + 1;
 		if(old_de & ~de) calch <= 0;
+		if(~old_de1 & old_de) vid_pixrep <= pcnt;
 
 		if(old_vs & ~vs) begin
 			vid_int <= {vid_int[0],f1};

@@ -124,12 +124,6 @@ module sys_top
 	inout   [6:0] USER_IO
 );
 
-`ifdef MISTER_DUAL_SDRAM
-	`ifndef MISTER_DISABLE_YC
-		`define MISTER_DISABLE_YC
-	`endif
-`endif
-
 //////////////////////  Secondary SD  ///////////////////////////////////
 wire SD_CS, SD_CLK, SD_MOSI;
 
@@ -282,12 +276,13 @@ wire       direct_video = 1;
 `else
 wire       direct_video = cfg[10];
 `endif
+wire       direct_video2= cfg[13];
 
 wire       audio_96k    = cfg[6];
 wire       csync_en     = cfg[3];
 wire       io_osd_vga   = io_ss1 & ~io_ss2;
+wire       ypbpr_en     = cfg[5];
 `ifndef MISTER_DUAL_SDRAM
-	wire    ypbpr_en     = cfg[5];
 	wire    sog          = cfg[9];
 	wire    vga_scaler   = cfg[2] | vga_force_scaler;
 `endif
@@ -1144,6 +1139,7 @@ osd hdmi_osd
 	.io_din(io_din),
 
 	.clk_video(clk_hdmi),
+	.ce_pix(1),
 	.din(hdmi_data_mask),
 	.hs_in(hdmi_hs_mask),
 	.vs_in(hdmi_vs_mask),
@@ -1162,7 +1158,13 @@ csync csync_hdmi(clk_hdmi, hdmi_hs_osd, hdmi_vs_osd, hdmi_cs_osd);
 reg [23:0] dv_data;
 reg        dv_hs, dv_vs, dv_de;
 wire [23:0] dv_data_osd;
-wire dv_hs_osd, dv_vs_osd, dv_cs_osd;
+wire dv_hs_osd, dv_vs_osd, dv_cs_osd, dv_de_osd;
+
+`ifndef MISTER_DISABLE_YC
+assign {dv_data_osd, dv_hs_osd, dv_vs_osd, dv_cs_osd, dv_de_osd } = (~yc_en | direct_video2) ? {vga_data_osd, vga_hs_osd, vga_vs_osd, vga_cs_osd, vga_de_osd } : {yc_o, yc_hs, yc_vs, yc_cs, 1'b1 };
+`else
+assign {dv_data_osd, dv_hs_osd, dv_vs_osd, dv_cs_osd, dv_de_osd } = {vga_data_osd, vga_hs_osd, vga_vs_osd, vga_cs_osd, vga_de_osd };
+`endif
 
 always @(posedge clk_vid) begin
 	reg [23:0] dv_d1, dv_d2;
@@ -1190,12 +1192,13 @@ always @(posedge clk_vid) begin
 			if(vcnt == vsz - 3) vde <= 0;
 		end
 
-		dv_de1 <= !{hss,dv_hs_osd} && vde;
-		dv_hs1 <= csync_en ? dv_cs_osd : dv_hs_osd;
+		if(direct_video2) dv_d1  <= dv_data_osd;
+		dv_de1 <= direct_video2 ? dv_de_osd : (!{hss,dv_hs_osd} && vde);
+		dv_hs1 <= (csync_en & ~direct_video2) ? dv_cs_osd : dv_hs_osd;
 		dv_vs1 <= dv_vs_osd;
 	end
 
-	dv_d1  <= dv_data_osd;
+	if(~direct_video2) dv_d1  <= dv_data_osd;
 	dv_d2  <= dv_d1;
 	dv_de2 <= dv_de1;
 	dv_hs2 <= dv_hs1;
@@ -1206,12 +1209,6 @@ always @(posedge clk_vid) begin
 	dv_hs  <= dv_hs2;
 	dv_vs  <= dv_vs2;
 end
-
-`ifndef MISTER_DISABLE_YC
-assign {dv_data_osd, dv_hs_osd, dv_vs_osd, dv_cs_osd } = ~yc_en ? {vga_data_osd, vga_hs_osd, vga_vs_osd, vga_cs_osd } : {yc_o, yc_hs, yc_vs, yc_cs };
-`else
-assign {dv_data_osd, dv_hs_osd, dv_vs_osd, dv_cs_osd } = {vga_data_osd, vga_hs_osd, vga_vs_osd, vga_cs_osd };
-`endif
 
 wire hdmi_tx_clk;
 `ifndef MISTER_DEBUG_NOHDMI
@@ -1306,7 +1303,7 @@ scanlines #(0) VGA_scanlines
 );
 
 wire [23:0] vga_data_osd;
-wire        vga_vs_osd, vga_hs_osd;
+wire        vga_vs_osd, vga_hs_osd, vga_de_osd;
 osd vga_osd
 (
 	.clk_sys(clk_sys),
@@ -1317,6 +1314,7 @@ osd vga_osd
 	.osd_status(osd_status),
 
 	.clk_video(clk_vid),
+	.ce_pix(ce_pix | ~direct_video2),
 	.din(vga_data_sl),
 	.hs_in(vga_hs_sl),
 	.vs_in(vga_vs_sl),
@@ -1324,11 +1322,39 @@ osd vga_osd
 
 	.dout(vga_data_osd),
 	.hs_out(vga_hs_osd),
-	.vs_out(vga_vs_osd)
+	.vs_out(vga_vs_osd),
+	.de_out(vga_de_osd)
 );
 
 wire vga_cs_osd;
 csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
+
+`ifndef MISTER_DISABLE_YC
+	reg         pal_en;
+	reg         yc_en;
+	reg         cvbs;
+	reg  [16:0] ColorBurst_Range;
+	reg  [39:0] PhaseInc;
+	wire [23:0] yc_o;
+	wire        yc_hs, yc_vs, yc_cs;
+
+	yc_out yc_out
+	(
+		.clk(clk_vid),
+		.PAL_EN(pal_en),
+		.CVBS(cvbs),
+		.PHASE_INC(PhaseInc),
+		.COLORBURST_RANGE(ColorBurst_Range),
+		.hsync(vga_hs_osd),
+		.vsync(vga_vs_osd),
+		.csync(vga_cs_osd),
+		.dout(yc_o),
+		.din(vga_data_osd),
+		.hsync_o(yc_hs),
+		.vsync_o(yc_vs),
+		.csync_o(yc_cs)
+	);
+`endif
 
 `ifndef MISTER_DUAL_SDRAM
 	wire VGA_DISABLE;
@@ -1365,31 +1391,6 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 	);
 
 `ifndef MISTER_DISABLE_YC
-	reg         pal_en;
-	reg         yc_en;
-	reg         cvbs;
-	reg  [16:0] ColorBurst_Range;
-	reg  [39:0] PhaseInc;
-	wire [23:0] yc_o;
-	wire        yc_hs, yc_vs, yc_cs;
-
-	yc_out yc_out
-	(
-		.clk(clk_vid),
-		.PAL_EN(pal_en),
-		.CVBS(cvbs),
-		.PHASE_INC(PhaseInc),
-		.COLORBURST_RANGE(ColorBurst_Range),
-		.hsync(vga_hs_osd),
-		.vsync(vga_vs_osd),
-		.csync(vga_cs_osd),
-		.dout(yc_o),
-		.din(vga_data_osd),
-		.hsync_o(yc_hs),
-		.vsync_o(yc_vs),
-		.csync_o(yc_cs)
-	);
-	
 	assign {vga_o, vga_hs, vga_vs, vga_cs } = ~yc_en ? {vga_o_t, vga_hs_t, vga_vs_t, vga_cs_t } : {yc_o, yc_hs, yc_vs, yc_cs };
 `else
 	assign {vga_o, vga_hs, vga_vs, vga_cs } =  {vga_o_t, vga_hs_t, vga_vs_t, vga_cs_t } ;

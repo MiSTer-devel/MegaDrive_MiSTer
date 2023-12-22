@@ -9,6 +9,7 @@ module osd
 	input  [15:0] io_din,
 
 	input         clk_video,
+	input         ce_pix,
 	input  [23:0] din,
 	input         de_in,
 	input         vs_in,
@@ -99,24 +100,30 @@ always@(posedge clk_sys) begin
 	end
 end
 
-(* direct_enable *) reg ce_pix;
+(* direct_enable *) reg ce_pix_osd;
 always @(posedge clk_video) begin
 	reg [21:0] cnt = 0;
 	reg [21:0] pixsz, pixcnt;
 	reg deD;
 
-	cnt <= cnt + 1'd1;
-	deD <= de_in;
+	ce_pix_osd <= 0;
 
-	pixcnt <= pixcnt + 1'd1;
-	if(pixcnt == pixsz) pixcnt <= 0;
-	ce_pix <= !pixcnt;
+	if(ce_pix) begin
+		cnt <= cnt + 1'd1;
+		deD <= de_in;
 
-	if(~deD && de_in) cnt <= 0;
+		pixcnt <= pixcnt + 1'd1;
+		if(pixcnt == pixsz) begin
+			pixcnt <= 0;
+			ce_pix_osd <= 1;
+		end
 
-	if(deD && ~de_in) begin
-		pixsz  <= (((cnt+1'b1) >> (9-rot[0])) > 1) ? (((cnt+1'b1) >> (9-rot[0])) - 1'd1) : 22'd0;
-		pixcnt <= 0;
+		if(~deD && de_in) cnt <= 1;
+
+		if(deD && ~de_in) begin
+			pixsz  <= (cnt >> (9-rot[0])) ? ((cnt >> (9-rot[0])) - 1'd1) : 22'd0;
+			pixcnt <= 0;
+		end
 	end
 end
 
@@ -130,7 +137,7 @@ reg [21:0] v_info_start_h, v_info_start_1, v_info_start_2, v_info_start_3, v_inf
 wire [21:0] osd_h_hdr = (info || rot) ? osd_h : (osd_h + OSD_HDR);
 
 // pipeline the comparisons a bit
-always @(posedge clk_video) if(ce_pix) begin
+always @(posedge clk_video) if(ce_pix_osd) begin
 	v_cnt_h <= v_cnt <= osd_t;
 	v_cnt_1 <= v_cnt < 320;
 	v_cnt_2 <= v_cnt < 640;
@@ -169,7 +176,7 @@ always @(posedge clk_video) begin
 	reg        f1;
 	reg        half;
 
-	if(ce_pix) begin
+	if(ce_pix_osd) begin
 
 		deD <= de_in;
 		if(~&h_cnt) h_cnt <= h_cnt + 1'd1;
@@ -187,11 +194,13 @@ always @(posedge clk_video) begin
 			osd_hcnt2 <= 0;
 			if(info && rot == 1) osd_hcnt2 <= 22'd128-infoh;
 		end
-		if (osd_hcnt+1 == osd_w) osd_de[0] <= 0;
+		else if (osd_hcnt+1 == osd_w) osd_de[0] <= 0;
 
 		// falling edge of de
-		if(!de_in && deD) dsp_width <= h_cnt[21:0];
+		if(!de_in && deD) dsp_width <= h_cnt[21:0] + 1'd1;
 
+		if(h_osd_start[21:20]) h_osd_start <= 1;
+		
 		// rising edge of de
 		if(de_in && !deD) begin
 			h_cnt <= 0;
@@ -258,29 +267,31 @@ reg [23:0] rdout;
 assign dout = rdout;
 
 always @(posedge clk_video) begin
-	reg [23:0] ordout1, nrdout1, rdout2, rdout3;
+	reg [23:0] ordout2, nrdout1, nrdout2, rdout3;
 	reg de1,de2,de3;
 	reg osd_mux;
 	reg vs1,vs2,vs3;
 	reg hs1,hs2,hs3;
 
-	nrdout1 <= din;
-	ordout1 <= {{osd_pixel, osd_pixel, OSD_COLOR[2], din[23:19]},// 23:16
-	            {osd_pixel, osd_pixel, OSD_COLOR[1], din[15:11]},// 15:8
-	            {osd_pixel, osd_pixel, OSD_COLOR[0], din[7:3]}}; //  7:0
+	if(ce_pix) begin
+		nrdout1 <= din;
+		nrdout2 <= nrdout1;
+		ordout2 <= {{osd_pixel, osd_pixel, OSD_COLOR[2], din[23:19]},// 23:16
+						{osd_pixel, osd_pixel, OSD_COLOR[1], din[15:11]},// 15:8
+						{osd_pixel, osd_pixel, OSD_COLOR[0], din[7:3]}}; //  7:0
 
-	osd_mux <= ~osd_de[2];
-	rdout2  <= osd_mux ? nrdout1 : ordout1;
-	rdout3  <= rdout2;
+		osd_mux <= ~osd_de[2];
+		rdout3  <= osd_mux ? nrdout2 : ordout2;
 
-	de1 <= de_in; de2 <= de1; de3 <= de2;
-	hs1 <= hs_in; hs2 <= hs1; hs3 <= hs2;
-	vs1 <= vs_in; vs2 <= vs1; vs3 <= vs2;
+		de1 <= de_in; de2 <= de1; de3 <= de2;
+		hs1 <= hs_in; hs2 <= hs1; hs3 <= hs2;
+		vs1 <= vs_in; vs2 <= vs1; vs3 <= vs2;
 
-	rdout   <= rdout3;
-	de_out  <= de3;
-	hs_out  <= hs3;
-	vs_out  <= vs3;
+		rdout   <= rdout3;
+		de_out  <= de3;
+		hs_out  <= hs3;
+		vs_out  <= vs3;
+	end
 end
 
 endmodule
