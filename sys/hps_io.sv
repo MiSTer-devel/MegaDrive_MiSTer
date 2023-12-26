@@ -894,6 +894,8 @@ always @(posedge clk_sys) begin
 	  14: dout <= vid_ccnt[15:0];
 	  15: dout <= vid_ccnt[31:16];
 	  16: dout <= vid_pixrep;
+	  17: dout <= vid_de_h;
+	  18: dout <= vid_de_v;
 	  default dout <= 0;
 	endcase
 end
@@ -904,13 +906,17 @@ reg [31:0] vid_ccnt = 0;
 reg  [7:0] vid_nres = 0;
 reg  [1:0] vid_int  = 0;
 reg  [7:0] vid_pixrep;
+reg [15:0] vid_de_h;
+reg  [7:0] vid_de_v;
 
 always @(posedge clk_vid) begin
 	integer hcnt;
 	integer vcnt;
 	integer ccnt;
 	reg [7:0] pcnt;
-	reg old_vs= 0, old_de = 0, old_de1 = 0, old_vmode = 0;
+	reg [7:0] de_v;
+	reg [15:0] de_h;
+	reg old_vs = 0, old_hs = 0, old_de = 0, old_de1 = 0, old_vmode = 0;
 	reg [3:0] resto = 0;
 	reg calch = 0;
 
@@ -919,6 +925,7 @@ always @(posedge clk_vid) begin
 
 	if(ce_pix) begin
 		old_vs <= vs;
+		old_hs <= hs;
 		old_de <= de;
 		old_de1 <= old_de;
 		pcnt <= 1;
@@ -927,6 +934,17 @@ always @(posedge clk_vid) begin
 		if(calch & de) hcnt <= hcnt + 1;
 		if(old_de & ~de) calch <= 0;
 		if(~old_de1 & old_de) vid_pixrep <= pcnt;
+		
+		de_h <= de_h + 1'd1;
+		if(old_hs & ~hs) begin
+			de_h <= 1;
+			de_v <= de_v + 1'd1;
+		end
+
+		if(calch & ~old_de & de) begin
+			vid_de_h <= de_h;
+			vid_de_v <= de_v;
+		end
 
 		if(old_vs & ~vs) begin
 			vid_int <= {vid_int[0],f1};
@@ -946,6 +964,7 @@ always @(posedge clk_vid) begin
 				hcnt <= 0;
 				ccnt <= 0;
 				calch <= 1;
+				de_v <= 1;
 			end
 		end
 	end
