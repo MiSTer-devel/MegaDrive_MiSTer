@@ -964,7 +964,7 @@ always @(posedge clk_vid) begin
 				hcnt <= 0;
 				ccnt <= 0;
 				calch <= 1;
-				de_v <= 1;
+				de_v <= 0;
 			end
 		end
 	end
