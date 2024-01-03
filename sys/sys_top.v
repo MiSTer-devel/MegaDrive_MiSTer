@@ -1185,11 +1185,12 @@ always @(posedge clk_vid) begin
 		end
 
 		dv_de1 <= !{hss,dv_hs_osd} && vde;
-		dv_hs1 <= csync_en ? dv_cs_osd : dv_hs_osd;
-		dv_vs1 <= dv_vs_osd;
 	end
 
 	dv_d1  <= dv_data_osd;
+	dv_hs1 <= csync_en ? dv_cs_osd : dv_hs_osd;
+	dv_vs1 <= dv_vs_osd;
+
 	dv_d2  <= dv_d1;
 	dv_de2 <= dv_de1;
 	dv_hs2 <= dv_hs1;
@@ -1767,6 +1768,21 @@ assign sync_out = sync_in ^ pol;
 
 reg pol;
 always @(posedge clk) begin
+	reg [31:0] cnt;
+	reg s1,s2;
+
+	s1 <= sync_in;
+	s2 <= s1;
+	cnt <= s2 ? (cnt - 1) : (cnt + 1);
+
+	if(~s2 & s1) begin
+		cnt <= 0;
+		pol <= cnt[31];
+	end
+end
+
+/*
+always @(posedge clk) begin
 	integer pos = 0, neg = 0, cnt = 0;
 	reg s1,s2;
 
@@ -1781,6 +1797,7 @@ always @(posedge clk) begin
 
 	pol <= pos > neg;
 end
+*/
 
 endmodule
 

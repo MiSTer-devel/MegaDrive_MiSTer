@@ -916,12 +916,19 @@ always @(posedge clk_vid) begin
 	reg [7:0] pcnt;
 	reg [7:0] de_v;
 	reg [15:0] de_h;
-	reg old_vs = 0, old_hs = 0, old_de = 0, old_de1 = 0, old_vmode = 0;
+	reg old_vs = 0, old_hs = 0, old_hs_vclk = 0, old_de = 0, old_de_vclk = 0, old_de1 = 0, old_vmode = 0;
 	reg [3:0] resto = 0;
 	reg calch = 0;
 
 	if(calch & de) ccnt <= ccnt + 1;
 	pcnt <= pcnt + 1'd1;
+
+	old_hs_vclk <= hs;
+	de_h <= de_h + 1'd1;
+	if(old_hs_vclk & ~hs) de_h <= 1;
+
+	old_de_vclk <= de;
+	if(calch & ~old_de_vclk & de) vid_de_h <= de_h;
 
 	if(ce_pix) begin
 		old_vs <= vs;
@@ -934,17 +941,8 @@ always @(posedge clk_vid) begin
 		if(calch & de) hcnt <= hcnt + 1;
 		if(old_de & ~de) calch <= 0;
 		if(~old_de1 & old_de) vid_pixrep <= pcnt;
-		
-		de_h <= de_h + 1'd1;
-		if(old_hs & ~hs) begin
-			de_h <= 1;
-			de_v <= de_v + 1'd1;
-		end
-
-		if(calch & ~old_de & de) begin
-			vid_de_h <= de_h;
-			vid_de_v <= de_v;
-		end
+		if(old_hs & ~hs) de_v <= de_v + 1'd1;
+		if(calch & ~old_de & de) vid_de_v <= de_v;
 
 		if(old_vs & ~vs) begin
 			vid_int <= {vid_int[0],f1};
