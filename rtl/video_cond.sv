@@ -149,19 +149,44 @@ end
 wire vbl = ~(border_en ? vde_brd : vde_nobrd);
 wire hbl = ~(border_en ? hde_brd : vdp_de_h);
 
+video_cleaner cleaner
+(
+       .clk_vid(clk),
+       .ce_pix(ce_pix),
+
+       .R(r_in),
+       .G(g_in),
+       .B(b_in),
+       .HSync(hs_clean),
+       .VSync(vs_in),
+       .HBlank(hbl),
+       .VBlank(vbl),
+
+       .VGA_R(r_c),
+       .VGA_G(g_c),
+       .VGA_B(b_c),
+       .VGA_VS(vs_c),
+       .VGA_HS(hs_c),
+       .HBlank_out(hblank_c),
+       .VBlank_out(vblank_c)
+);
+
+wire [7:0] r_c, g_c, b_c;
+wire hs_c,vs_c,hblank_c,vblank_c;
+
 cofi coffee
 (
 	.clk(clk),
 	.pix_ce(ce_pix),
 	.enable(blender),
 
-	.hblank(hbl),
-	.vblank(vbl),
-	.hs(hs_clean),
-	.vs(vs_in),
-	.red(r_in),
-	.green(g_in),
-	.blue(b_in),
+	.hblank(hblank_c),
+	.vblank(vblank_c),
+	.hs(hs_c),
+	.vs(vs_in), // original vsync used to avoid breaking interlaced video
+	.red(r_c),
+	.green(g_c),
+	.blue(b_c),
 
 	.hblank_out(hbl_out),
 	.vblank_out(vbl_out),
