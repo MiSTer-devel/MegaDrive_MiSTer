@@ -154,6 +154,9 @@ video_cleaner cleaner
        .clk_vid(clk),
        .ce_pix(ce_pix),
 
+       .interlace(interlace),
+       .f1(f1),
+
        .R(r_in),
        .G(g_in),
        .B(b_in),
@@ -183,7 +186,7 @@ cofi coffee
 	.hblank(hblank_c),
 	.vblank(vblank_c),
 	.hs(hs_c),
-	.vs(vs_in), // original vsync used to avoid breaking interlaced video
+	.vs(vs_c),
 	.red(r_c),
 	.green(g_c),
 	.blue(b_c),
