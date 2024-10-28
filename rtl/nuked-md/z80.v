@@ -1466,7 +1466,7 @@ module z80cpu
 	always @(posedge MCLK)
 	begin
 		if (w55)
-			w100 <= 0;
+			w100 <= 1'h1;
 		else if (clk)
 			w100 <= w100;
 		else if (!w98 & w103)
@@ -1807,7 +1807,7 @@ module z80cpu
 	assign pla[12] = (w147 & 8'h38) == 8'h30 & ~w82; // or
 	assign pla[13] = (w147 & 8'h38) == 8'h20 & ~w82; // and
 	assign pla[14] = (w147 & 8'h38) == 8'h00 & ~w82; // add
-	assign pla[15] = (w147 & 8'hf7) == 8'h57 & w92 & ~w74; // ???
+	assign pla[15] = (w147 & 8'hf7) == 8'h57 & w92 & w74; // ???
 	assign pla[16] = (w147 & 8'hc7) == 8'h44 & w92; // neg
 	assign pla[17] = w147 == 8'h2f & w90; // cpl
 	assign pla[18] = (w147 & 8'h38) == 8'h08 & ~w82; // adc
@@ -1990,7 +1990,7 @@ module z80cpu
 	assign w189 = ~(pla[72] | pla[73] | pla[77]
 		| pla[78]);
 	assign w190 = ~(pla[89] | pla[93]);
-	assign w191 = ~(pla[79] | pla[80] | pla[81]
+	assign w191 = ~(pla[79] | pla[80]
 		| ~w169 | pla[83] | pla[92] | pla[93]);
 	
 	assign w192 = (w201 & w110) | (w41 & w3 & w46);
@@ -2288,7 +2288,7 @@ module z80cpu
 	assign w267 = ~(
 		(w110 & w123 & pla[38])
 		| (w41 & ((w123 & w86)
-			| (w127 & pla[38])))
+			| (w127 & (pla[38] | ~w88))))
 		);
 	
 	assign w268 = ~(~w150 &
@@ -3242,7 +3242,7 @@ module z80cpu
 		else if (w440)
 		begin
 			if (w452)
-				w441 <= (w508 ^ w507) & ~w453;
+				w441 <= (w508 ^ w507) | w453;
 			else
 				w441 <= w506 ^ l62;
 		end
