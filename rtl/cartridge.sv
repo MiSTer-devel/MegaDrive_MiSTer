@@ -182,7 +182,7 @@ always @(posedge clk_ram) begin
 	end
 
 	we_old <= rom_we;
-	rd_old <= sdram_rd;
+	rd_old <= sdram_rd & rom_data_req;
 	if((~rd_old & sdram_rd & rom_data_req) || (~we_old & rom_we)) begin
 		rom_addr <= (cart_ms ? ms_cart_addr : md_cart_addr) & rom_mask[24:1];
 		rom_req <= ~rom_req;
