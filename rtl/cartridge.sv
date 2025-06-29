@@ -182,7 +182,7 @@ always @(posedge clk_ram) begin
 	end
 
 	we_old <= rom_we;
-	rd_old <= sdram_rd;
+	rd_old <= sdram_rd & rom_data_req;
 	if((~rd_old & sdram_rd & rom_data_req) || (~we_old & rom_we)) begin
 		rom_addr <= (cart_ms ? ms_cart_addr : md_cart_addr) & rom_mask[24:1];
 		rom_req <= ~rom_req;
@@ -642,6 +642,14 @@ reg mapper_codies;
 reg mapper_msx;
 always @(posedge clk) if(cart_dl && !cart_dl_addr && cart_dl_wr) mapper_msx <= (cart_dl_data == 16'h4241);
 
+reg [15:0] last_read_addr;
+wire ms_addr_eq_prev = (ms_addr == last_read_addr);
+always @(posedge clk) begin
+	if (cart_oe && ~mreq_n) begin
+		last_read_addr <= ms_addr;
+	end
+end
+
 reg  [7:0] ms_bank[4];
 reg  [7:0] ms_cfg;
 wire [1:0] ms_ram_e = ms_cfg[4:3];
@@ -681,19 +689,23 @@ always @(posedge clk) begin
 						end
 					'h4000:
 						begin
-							ms_bank[1] <= cart_data_wr[6:0];
-							ms_ram_c <= cart_data_wr[7];
-							lock_mapper_B <= 1;
+							if (~ms_addr_eq_prev) begin // Ignore LDIR write
+								ms_bank[1] <= cart_data_wr[6:0];
+								ms_ram_c <= cart_data_wr[7];
+								lock_mapper_B <= 1;
+							end
 						end
 					'h8000:
 						begin
-							ms_bank[2] <= cart_data_wr[7:0];
-							lock_mapper_B <= 1;
+							if (~ms_addr_eq_prev) begin
+								ms_bank[2] <= cart_data_wr[7:0];
+								lock_mapper_B <= 1;
+							end
 						end
 					// Korean mapper (Sangokushi 3, Dodgeball King)
 					'hA000:
 						begin
-							if(~mapper_codies) ms_bank[2] <= cart_data_wr[7:0];
+							if(~ms_addr_eq_prev & ~mapper_codies) ms_bank[2] <= cart_data_wr[7:0];
 						end
 				endcase
 			end

@@ -76,16 +76,16 @@ wire hs_end   = ~hs_d & hs_in;
 reg        hs_clean;
 reg [12:0] hcnt;
 always @(posedge clk) begin
-	reg [12:0] hs_width;
-
 	hcnt <= hcnt + 1'd1;
 
+	// Filter double HSync pulses around VSync
 	if(hs_begin & (hcnt[12] | vde_nobrd)) begin
 		hcnt <= 0;
 		hs_clean <= 0;
 	end
-	if(hs_end & vde_nobrd) hs_width <= hcnt;
-	if(hcnt == hs_width) hs_clean <= 1;
+
+	// 4.7us pulse
+	if(hcnt == 504) hs_clean <= 1;
 end
 
 always @(posedge clk) begin
