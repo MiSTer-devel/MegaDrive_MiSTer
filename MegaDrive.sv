@@ -261,6 +261,8 @@ localparam CONF_STR = {
 	"P2O[19:18],Mouse,None,Port1,Port2;",
 	"P2O[20],Mouse Flip Y,No,Yes;",
 	"P2-;",
+	"P2O[22:21],Keyboard,None,Port1,Port2;",
+	"P2-;",
 	"P2O[41:40],Gun Control,Disabled,Joy1,Joy2,Mouse;",
 	"D4P2O[42],Gun Fire,Joy,Mouse;",
 	"D4P2O[44:43],Cross,Small,Medium,Big,None;",
@@ -380,6 +382,8 @@ wire [63:0] img_size;
 
 wire        forced_scandoubler;
 wire [10:0] ps2_key;
+wire [2:0]  ps2_kbd_led_status;
+wire [2:0]  ps2_kbd_led_use = 3'b111;
 wire [24:0] ps2_mouse;
 
 wire [21:0] gamma_bus;
@@ -430,6 +434,8 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.sdram_sz(sdram_sz),
 
 	.ps2_key(ps2_key),
+	.ps2_kbd_led_status(ps2_kbd_led_status),
+	.ps2_kbd_led_use(ps2_kbd_led_use),
 	.ps2_mouse(ps2_mouse)
 );
 
@@ -1106,7 +1112,11 @@ md_io md_io
 
 	.port2_out(md_io_port2),
 	.port2_in(PB_o  | {7{snac_port2}}),
-	.port2_dir(PB_d | {7{snac_port2}})
+	.port2_dir(PB_d | {7{snac_port2}}),
+
+	.PS2_KEY(ps2_key),
+	.PS2_LED(ps2_kbd_led_status),
+	.KEYBOARD_OPT(status[22:21])
 );
 
 wire [2:0] lg_target;
