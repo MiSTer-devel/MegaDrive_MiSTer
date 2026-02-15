@@ -102,6 +102,10 @@ module md_io
 	input  [2:0] MOUSE_OPT,
 	input [24:0] MOUSE,
 
+	input [10:0] PS2_KEY,
+	output[2:0]  PS2_LED,
+	input  [1:0] KEYBOARD_OPT,
+
 	output[15:0] jcart_data,
 	input        jcart_th,
 
@@ -263,13 +267,40 @@ pad_io jcart_u
 assign jcart_data[7]  = 0;
 assign jcart_data[15] = 0;
 
+reg  [6:0] port1_sel;
+reg  [6:0] port2_sel;
+wire [6:0] port_kbd_out;
+wire [2:0] ps2_led_kbd;
+wire       kbd_p1_en = (KEYBOARD_OPT == 2'd1);
+wire       kbd_p2_en = (KEYBOARD_OPT == 2'd2);
+wire       kbd_en    = kbd_p1_en | kbd_p2_en;
+
 always @(posedge clk) begin
 	case(MULTITAP)
-		0: {port2_out,port1_out} <= {port2_pad, port1_pad};
-		1: {port2_out,port1_out} <= {port2_fw,  port1_fw };
-		2: {port2_out,port1_out} <= {port2_pad, SMS ? port_ms : port1_tp};
-		3: {port2_out,port1_out} <= {port2_tp,  port1_pad};
+		0: {port2_sel,port1_sel} <= {port2_pad, port1_pad};
+		1: {port2_sel,port1_sel} <= {port2_fw,  port1_fw };
+		2: {port2_sel,port1_sel} <= {port2_pad, SMS ? port_ms : port1_tp};
+		3: {port2_sel,port1_sel} <= {port2_tp,  port1_pad};
 	endcase
+end
+
+saturn_keyboard saturn_keyboard_inst (
+	.clk       (clk),
+	.reset     (reset),
+	.enable    (kbd_en),
+	.ps2_key   (PS2_KEY),
+	.ps2_led   (ps2_led_kbd),
+	.port_o    (kbd_p2_en ? port2_in  : port1_in ),
+	.port_d    (kbd_p2_en ? port2_dir : port1_dir),
+	.port_i_in (kbd_p2_en ? port2_sel : port1_sel),
+	.port_i_out(port_kbd_out)
+);
+
+assign PS2_LED = kbd_en ? ps2_led_kbd : 3'b000;
+
+always @(posedge clk) begin
+	port1_out <= kbd_p1_en ? port_kbd_out : port1_sel;
+	port2_out <= kbd_p2_en ? port_kbd_out : port2_sel;
 end
 
 endmodule
