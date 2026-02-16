@@ -20,5 +20,6 @@ set_global_assignment -name SYSTEMVERILOG_FILE rtl/teamplayer.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/fourway.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/md_io.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/cartridge.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/saturn_keyboard.sv
 set_global_assignment -name SDC_FILE MegaDrive.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE MegaDrive.sv
