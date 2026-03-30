@@ -178,11 +178,21 @@ assign ADC_BUS  = 'Z;
 assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign BUTTONS   = osd_btn;
 assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
+// DDRAM driven by mdp_audio for CDDA PCM streaming
 
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
-assign LED_USER  = cart_download | sav_pending;
+
+// MD+ debug: sticky latch — LED stays on after first MD+ command received
+reg mdp_cmd_seen;
+always @(posedge clk_sys) begin
+	if (sys_reset)
+		mdp_cmd_seen <= 0;
+	else if (mdp_track_request | mdp_stop_request | mdp_resume_request)
+		mdp_cmd_seen <= 1;
+end
+
+assign LED_USER  = cart_download | sav_pending | mdp_cmd_seen;
 
 assign VGA_SCALER= 0;
 assign VGA_DISABLE = 0;
@@ -389,6 +399,8 @@ wire [24:0] ps2_mouse;
 wire [21:0] gamma_bus;
 wire [15:0] sdram_sz;
 
+wire [35:0] EXT_BUS;
+
 hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -436,7 +448,9 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.ps2_key(ps2_key),
 	.ps2_kbd_led_status(ps2_kbd_led_status),
 	.ps2_kbd_led_use(ps2_kbd_led_use),
-	.ps2_mouse(ps2_mouse)
+	.ps2_mouse(ps2_mouse),
+
+	.EXT_BUS(EXT_BUS)
 );
 
 wire [1:0] gun_mode = status[41:40];
@@ -547,10 +561,34 @@ end
 wire        PAL = status[7];
 wire        JAP = !status[7:6];
 
-wire [15:0] cart_data;
 wire [23:1] cart_addr;
-wire        cart_cs, cart_oe, cart_lwr, cart_uwr, cart_data_en, cart_dtack, cart_time, cart_dma;
+wire        cart_cs, cart_oe, cart_lwr, cart_uwr, cart_time, cart_dma;
 wire [15:0] cart_data_wr;
+
+// Cartridge module outputs (before MD+ overlay mux)
+wire [15:0] cart_data_rom;
+wire        cart_data_en_rom;
+wire        cart_dtack_rom;
+
+// MD+ overlay outputs
+wire        mdp_data_en;
+wire [15:0] mdp_data_out;
+wire        mdp_dtack;
+wire        mdp_active;
+wire [15:0] mdp_last_cmd;
+wire        mdp_track_request;
+wire  [7:0] mdp_track_num;
+wire        mdp_track_loop;
+wire        mdp_stop_request;
+wire  [7:0] mdp_fade_sectors;
+wire        mdp_resume_request;
+wire  [7:0] mdp_volume;
+wire        mdp_volume_request;
+
+// Muxed cart signals: MD+ overlay takes priority when active
+wire [15:0] cart_data    = mdp_data_en ? mdp_data_out : cart_data_rom;
+wire        cart_data_en = mdp_data_en | cart_data_en_rom;
+wire        cart_dtack   = mdp_dtack   | cart_dtack_rom;
 
 wire        vdp_hclk1;
 wire        vdp_de_h;
@@ -770,15 +808,15 @@ cartridge cartridge
 
 	.cart_ms(cart_ms),
 	.cart_addr(cart_addr),
-	.cart_data(cart_data),
-	.cart_data_en(cart_data_en),
+	.cart_data(cart_data_rom),
+	.cart_data_en(cart_data_en_rom),
 	.cart_data_wr(cart_data_wr),
 	.cart_cs(cart_cs),
 	.cart_oe(cart_oe),
 	.cart_lwr(cart_lwr),
 	.cart_uwr(cart_uwr),
 	.cart_time(cart_time),
-	.cart_dtack(cart_dtack),
+	.cart_dtack(cart_dtack_rom),
 	.cart_dma(cart_dma),
 
 	.save_addr({sd_lba[6:0],sd_buff_addr}),
@@ -798,6 +836,111 @@ cartridge cartridge
 
 	.fm_en(~status[60]),
 	.fm_audio(sms_fm_audio)
+);
+
+
+///////////////////////////////////////////////////
+// MD+ Overlay (CDDA command intercept)
+///////////////////////////////////////////////////
+
+// HPS ↔ FPGA bridge for MD+ status + audio pointer exchange
+wire mdp_hps_playing;
+wire [7:0] mdp_hps_current_track;
+wire [15:0] mdp_audio_rd_ptr;
+wire [15:0] mdp_audio_wr_ptr;
+wire        mdp_audio_active;
+
+hps_ext hps_ext
+(
+	.clk_sys(clk_sys),
+	.reset(sys_reset),
+	.EXT_BUS(EXT_BUS),
+
+	.mdp_track_request(mdp_track_request),
+	.mdp_track_num(mdp_track_num),
+	.mdp_track_loop(mdp_track_loop),
+	.mdp_stop_request(mdp_stop_request),
+	.mdp_fade_sectors(mdp_fade_sectors),
+	.mdp_resume_request(mdp_resume_request),
+	.mdp_volume(mdp_volume),
+	.mdp_volume_request(mdp_volume_request),
+
+	.mdp_playing(mdp_hps_playing),
+	.mdp_current_track(mdp_hps_current_track),
+
+	.audio_rd_ptr(mdp_audio_rd_ptr),
+	.audio_wr_ptr(mdp_audio_wr_ptr),
+	.audio_active(mdp_audio_active)
+);
+
+md_plus md_plus
+(
+	.clk(clk_sys),
+	.reset(sys_reset),
+
+	.cart_addr(cart_addr),
+	.cart_data_wr(cart_data_wr),
+	.cart_cs(cart_cs),
+	.cart_oe(cart_oe),
+	.cart_lwr(cart_lwr),
+	.cart_uwr(cart_uwr),
+
+	.mdp_data_en(mdp_data_en),
+	.mdp_data_out(mdp_data_out),
+	.mdp_dtack(mdp_dtack),
+
+	.mdp_track_request(mdp_track_request),
+	.mdp_track_num(mdp_track_num),
+	.mdp_track_loop(mdp_track_loop),
+	.mdp_stop_request(mdp_stop_request),
+	.mdp_fade_sectors(mdp_fade_sectors),
+	.mdp_resume_request(mdp_resume_request),
+	.mdp_volume(mdp_volume),
+	.mdp_volume_request(mdp_volume_request),
+
+	.mdp_playing(mdp_hps_playing),
+	.mdp_current_track(mdp_hps_current_track),
+
+	.mdp_active(mdp_active),
+	.mdp_last_cmd(mdp_last_cmd)
+);
+
+// CDDA audio output from mdp_audio
+wire signed [15:0] cdda_l, cdda_r;
+
+mdp_audio mdp_audio
+(
+	.clk(clk_sys),
+	.reset(sys_reset),
+
+	// DDRAM interface
+	.DDRAM_CLK(DDRAM_CLK),
+	.DDRAM_BUSY(DDRAM_BUSY),
+	.DDRAM_BURSTCNT(DDRAM_BURSTCNT),
+	.DDRAM_ADDR(DDRAM_ADDR),
+	.DDRAM_DOUT(DDRAM_DOUT),
+	.DDRAM_DOUT_READY(DDRAM_DOUT_READY),
+	.DDRAM_RD(DDRAM_RD),
+	.DDRAM_DIN(DDRAM_DIN),
+	.DDRAM_BE(DDRAM_BE),
+	.DDRAM_WE(DDRAM_WE),
+
+	// Ring buffer pointers (from/to hps_ext)
+	.active(mdp_audio_active),
+	.buf_wr_ptr(mdp_audio_wr_ptr),
+	.buf_rd_ptr(mdp_audio_rd_ptr),
+
+	// MD+ commands (directly from md_plus)
+	.track_start(mdp_track_request),
+	.stop_request(mdp_stop_request),
+	.fade_sectors(mdp_fade_sectors),
+	.volume(mdp_volume),
+	.resume_request(mdp_resume_request),
+	.osd_pause(OSD_STATUS & status[61]),
+
+	// Audio output
+	.audio_l(cdda_l),
+	.audio_r(cdda_r)
 );
 
 
@@ -895,6 +1038,9 @@ video_mixer #(.LINE_LENGTH(400), .GAMMA(1)) video_mixer
 
 ///////////////////////////////////////////////////
 
+// FM + PSG base audio (before CDDA mix)
+wire [15:0] base_audio_l, base_audio_r;
+
 audio_cond audio_cond
 (
 	.clk(clk_sys),
@@ -913,9 +1059,22 @@ audio_cond audio_cond
 	.PSG(PSG),
 	.sms_fm_audio(sms_fm_audio),
 
-	.AUDIO_L(AUDIO_L),
-	.AUDIO_R(AUDIO_R)
+	.AUDIO_L(base_audio_l),
+	.AUDIO_R(base_audio_r)
 );
+
+// Attenuate CDDA: 93/256 ≈ 0.363 — matched to Mega Drive hardware output via A/B recording comparisons
+wire signed [24:0] cdda_scaled_l = $signed(cdda_l) * $signed(9'd93);
+wire signed [24:0] cdda_scaled_r = $signed(cdda_r) * $signed(9'd93);
+wire signed [15:0] cdda_att_l = cdda_scaled_l[23:8];
+wire signed [15:0] cdda_att_r = cdda_scaled_r[23:8];
+
+// Saturating mix: FM/PSG + attenuated CDDA
+wire signed [16:0] mix_l = $signed(base_audio_l) + $signed(cdda_att_l);
+wire signed [16:0] mix_r = $signed(base_audio_r) + $signed(cdda_att_r);
+
+assign AUDIO_L = (mix_l[16] != mix_l[15]) ? {mix_l[16], {15{~mix_l[16]}}} : mix_l[15:0];
+assign AUDIO_R = (mix_r[16] != mix_r[15]) ? {mix_r[16], {15{~mix_r[16]}}} : mix_r[15:0];
 
 assign AUDIO_MIX = status[58:57];
 
