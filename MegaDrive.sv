@@ -690,7 +690,7 @@ md_board md_board
 	.V_G(g),
 	.V_B(b),
 	.V_HS(hs),
-	.V_VS(vs),
+	.vdp_vsync2(vs),
 	
 	// audio
 	.MOL(MOL),
