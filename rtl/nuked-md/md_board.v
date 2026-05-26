@@ -125,6 +125,7 @@ module md_board
 	input  vdp_cramdot_dis,
 	output fm_clk1,
 	output vdp_hsync2,
+	output vdp_vsync2,
 	input ym2612_status_enable,
 	input dma_68k_req,
 	input dma_z80_req,
@@ -485,6 +486,7 @@ module md_board
 		.tmss_data(tmss_data),
 		.tmss_address(tmss_address),
 		.vdp_hsync2(vdp_hsync2),
+		.vdp_vsync2(vdp_vsync2),
 		.ym2612_status_enable(ym2612_status_enable),
 		.vdp_dma_oe_early(vdp_dma_oe_early),
 		.vdp_dma(vdp_dma)
