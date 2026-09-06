@@ -406,11 +406,11 @@ module ym3438(
 		.dac_out_enable_2612(dac_out_enable_2612)
 		);
 	
-	reg [8:0] ch_out_l;
-	reg [1:0] ch_pan_l;
-	reg dac_out_enable_l;
-	reg dac_out_enable_2612_l;
-	reg [2:0] dac_index_l;
+	reg [8:0] ch_out_l = 0;
+	reg [1:0] ch_pan_l = 0;
+	reg dac_out_enable_l = 0;
+	reg dac_out_enable_2612_l = 0;
+	reg [2:0] dac_index_l = 0;
 	
 	//assign MOR = ch_pan[0] ? ch_out : 9'h100;
 	//assign MOL = ch_pan[1] ? ch_out : 9'h100;

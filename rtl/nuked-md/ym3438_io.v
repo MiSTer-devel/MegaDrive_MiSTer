@@ -199,9 +199,10 @@ module ym3438_io
 		.nval(timer_b_status_sl_out)
 		);
 	
-	reg [7:0] data_o_r;
-	reg [25:0] status_time;
+	reg [7:0] data_o_r = 0;
+	reg [25:0] status_time = 0;
 	
+	wire [7:0] debug_data;
 	always @(posedge MCLK)
 	begin
 		if (read_status)
@@ -220,7 +221,6 @@ module ym3438_io
 	
 	assign irq = ~(timer_a_status_sl_out | timer_b_status_sl_out);
 	
-	wire [7:0] debug_data;
 	wire [15:0] debug_data_w;
 	wire [6:0] debug_data1_1;
 	wire [6:0] debug_data1_2;

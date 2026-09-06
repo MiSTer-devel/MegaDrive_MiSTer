@@ -15,16 +15,16 @@ module vram
 	output SD_d
 	);
 	
-	reg [15:0] addr;
-	reg dt;
-	reg [7:0] addr_ser;
-	reg [2047:0] ser;
+	reg [15:0] addr = 0;
+	reg dt = 0;
+	reg [7:0] addr_ser = 0;
+	reg [2047:0] ser = 0;
 	
-	reg o_OE;
-	reg o_RAS;
-	reg o_cas;
-	reg o_SC;
-	reg o_valid;
+	reg o_OE = 0;
+	reg o_RAS = 0;
+	reg o_cas = 0;
+	reg o_SC = 0;
+	reg o_valid = 0;
 	
 	wire cas = ~RAS & ~CAS;
 	wire wr = ~RAS & ~CAS & ~WE;
@@ -65,7 +65,7 @@ module vram
 	assign RD_d = ~o_valid;
 	assign SD_d = SE;
 	
-	reg [7:0] vram_ser;
+	reg [7:0] vram_ser = 0;
 	
 	assign SD_o = vram_ser;
 	

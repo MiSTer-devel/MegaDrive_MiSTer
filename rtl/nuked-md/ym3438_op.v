@@ -37,7 +37,7 @@ module ym3438_op
 	
 	wire [4:0] sin_lut_index = sin_index[5:1];
 	
-	reg [45:0] sine_lut_out;
+	reg [45:0] sine_lut_out = 0;
 	
 	always @(sin_lut_index)
 	begin
@@ -184,7 +184,7 @@ module ym3438_op
 	
 	wire [4:0] pow_lut_index = pow_index[5:1];
 	
-	reg [47:0] pow_lut_out;
+	reg [47:0] pow_lut_out = 0;
 	
 	always @(pow_lut_index)
 	begin

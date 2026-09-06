@@ -200,7 +200,7 @@ module ym7101
 	wire io_m1_s3;
 	wire io_m1_s4;
 	wire io_m1_s5;
-	reg [22:0] io_address;
+	reg [22:0] io_address = 0;
 	wire io_address_22o;
 	wire io_oe0;
 	wire w1153;
@@ -211,7 +211,7 @@ module ym7101
 	wire io_wr;
 	wire io_ipl1;
 	wire io_ipl2;
-	reg [15:0] io_data;
+	reg [15:0] io_data = 0;
 	wire w1;
 	wire dff1_l2;
 	wire dff2_l2;
@@ -2184,8 +2184,8 @@ module ym7101
 	
 	assign reset_comb = ~(RESET & w100);
 	
-	reg [16:0] vram_address;
-	reg [15:0] vram_data;
+	reg [16:0] vram_address = 0;
+	reg [15:0] vram_data = 0;
 	wire [7:0] vram_serial;
 	
 	//reg [16:0] vram_address_mem;
@@ -2196,34 +2196,34 @@ module ym7101
 	wire [1:0] color_pal;
 	
 	reg [10:0] vsram[0:39];
-	reg [10:0] vsram_out;
-	reg [10:0] vsram_out_0;
-	reg [10:0] vsram_out_1;
+	reg [10:0] vsram_out = 0;
+	reg [10:0] vsram_out_0 = 0;
+	reg [10:0] vsram_out_1 = 0;
 	
 	reg [20:0] sat[0:79];
-	reg [20:0] sat_out;
-	reg [20:0] sat_out_0;
-	reg [20:0] sat_out_1;
-	reg [20:0] sat_out_2;
-	reg [20:0] sat_out_3;
+	reg [20:0] sat_out = 0;
+	reg [20:0] sat_out_0 = 0;
+	reg [20:0] sat_out_1 = 0;
+	reg [20:0] sat_out_2 = 0;
+	reg [20:0] sat_out_3 = 0;
 	
 	reg [33:0] sprdata[0:19];
-	reg [33:0] sprdata_out;
-	reg [33:0] sprdata_out_0;
-	reg [33:0] sprdata_out_1;
+	reg [33:0] sprdata_out = 0;
+	reg [33:0] sprdata_out_0 = 0;
+	reg [33:0] sprdata_out_1 = 0;
 	
 	reg [55:0] linebuffer[0:39];
-	reg [55:0] linebuffer_out;
-	reg [55:0] linebuffer_out_0;
-	reg [55:0] linebuffer_out_1;
+	reg [55:0] linebuffer_out = 0;
+	reg [55:0] linebuffer_out_0 = 0;
+	reg [55:0] linebuffer_out_1 = 0;
 	
 	reg [8:0] color_ram[0:63];
-	reg [8:0] color_ram_out;
+	reg [8:0] color_ram_out = 0;
 	
 	// extra
 	wire [5:0] w1076_dp;
 	wire [5:0] l617_dp;
-	reg [8:0] color_ram_out_dp;
+	reg [8:0] color_ram_out_dp = 0;
 	
 	
 	// prescaler
@@ -2345,10 +2345,10 @@ module ym7101
 	// clk1, clk2
 	
 	
-	reg dclk_l;
-	reg dclk_l2;
-	reg dclk_l3;
-	reg dclk_l4;
+	reg dclk_l = 0;
+	reg dclk_l2 = 0;
+	reg dclk_l3 = 0;
+	reg dclk_l4 = 0;
 	
 	always @(posedge MCLK)
 	begin
@@ -2362,8 +2362,8 @@ module ym7101
 	assign clk2 = mclk_dclk & ~dclk_l;
 	
 	/*reg dclk_l;
-	reg tclk1_l;
-	reg tclk2_l;
+	reg tclk1_l = 0;
+	reg tclk2_l = 0;
 	
 	wire tclk1 = ~mclk_dclk & dclk_l;
 	wire tclk2 = mclk_dclk & ~dclk_l;
@@ -7209,7 +7209,7 @@ module ym7101
 		(l605 ? { l321, l323, l319 } : 7'h7f) &
 		(l604 ? { l274, l272, l270 } : 7'h7f);
 	
-	reg [6:0] color_bus_mem;
+	reg [6:0] color_bus_mem = 0;
 	
 	assign color_bus = (l606 | l603 | l605 | l604) ? color_bus_val : color_bus_mem;
 	

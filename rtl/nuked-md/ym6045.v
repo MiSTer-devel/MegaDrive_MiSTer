@@ -385,7 +385,7 @@ module ym6045
 	
 	wire [15:0] va_out;
 	
-	reg edclk_buf;
+	reg edclk_buf = 0;
 	
 	// EDCLK
 	/*always @(posedge MCLK)
@@ -534,7 +534,7 @@ module ym6045
 	assign strobe_dir = ~w268;
 	assign BGACK_o = ~w149;
 	
-	reg w45_mem;
+	reg w45_mem = 0;
 	
 	assign w45 = w46 & ztov;
 	assign w46 = w45_mem | BGACK_i;

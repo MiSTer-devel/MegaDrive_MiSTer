@@ -421,7 +421,7 @@ module ym6046_controller_port
 	wire rx_fsm2_5_q, rx_fsm2_5_nq;
 	wire rx_clk2;
 	wire [7:0] rx_shifter_q;
-	reg [7:0] rx_shifter_q_delay;
+	reg [7:0] rx_shifter_q_delay = 0;
 	
 	ym_sdffr #(.DATA_WIDTH(8)) p_control(.MCLK(MCLK), .clk(write_p_control), .val(data_bus), .reset(reset & m3), .q(p_control_q));
 	

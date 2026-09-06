@@ -296,7 +296,7 @@ endmodule
 	output outp
 	);
 	
-	reg prev_out;
+	reg prev_out = 0;
 	
 	always @(posedge c1)
 	begin
@@ -822,7 +822,7 @@ module ym_sdffs #(parameter DATA_WIDTH = 1)
 	output [DATA_WIDTH-1:0] nq
 	);
 	
-	reg [DATA_WIDTH-1:0] l1, l2;
+	reg [DATA_WIDTH-1:0] l1 = 0, l2 = 0;
 	
 	assign q = l2;
 	assign nq = ~l2;
