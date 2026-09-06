@@ -1,4 +1,8 @@
 module ym3438_prescaler(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input PHI,
 	input IC,
@@ -14,25 +18,27 @@ module ym3438_prescaler(
 	
 	wire ic_latch_out;
 	
+	wire ss_step1_ic_latch;
 	ym_sr_bit #(.SR_LENGTH(12)) ic_latch(
 		.MCLK(MCLK),
 		.bit_in(nIC),
 		.sr_out(ic_latch_out),
 		.c1(pc1),
 		.c2(pc2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_ic_latch));
 	
 	wire fsm_reset_and = nIC & ~ic_latch_out;
 	
 	wire fsm_res_latch_out;
 	
+	wire ss_step2_fsm_res_latch;
 	ym_sr_bit #(.SR_LENGTH(4)) fsm_res_latch(
 		.MCLK(MCLK),
 		.bit_in(fsm_reset_and),
 		.sr_out(fsm_res_latch_out),
 		.c1(pc1),
 		.c2(pc2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_ic_latch), .ss_out(ss_step2_fsm_res_latch));
 	
 	assign reset_fsm = fsm_res_latch_out;
 	
@@ -51,7 +57,7 @@ module ym3438_prescaler(
 				.sr_out(clkgen_sr_out[i]),
 				.c1(pc1),
 				.c2(pc2)
-				);
+				, .ss_en(ss_en));
 			if (i != 0)
 				assign clkgen_sr_in[i] = clkgen_sr_out[i-1];
 		end
@@ -64,20 +70,24 @@ module ym3438_prescaler(
 	wire c1_in = clkgen_sr_out[0] | clkgen_sr_out[5];
 	wire c2_in = clkgen_sr_out[2] | clkgen_sr_out[3];
 	
+	wire ss_step3_c1_sr;
 	ym_sr_bit c1_sr(
 		.MCLK(MCLK),
 		.bit_in(c1_in),
 		.sr_out(c1),
 		.c1(pc1),
 		.c2(pc2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_fsm_res_latch), .ss_out(ss_step3_c1_sr));
 	
+	wire ss_step4_c2_sr;
 	ym_sr_bit c2_sr(
 		.MCLK(MCLK),
 		.bit_in(c2_in),
 		.sr_out(c2),
 		.c1(pc1),
 		.c2(pc2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_c1_sr), .ss_out(ss_step4_c2_sr));
 
+
+	assign ss_out = ss_step4_c2_sr;
 endmodule

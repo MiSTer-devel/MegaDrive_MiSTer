@@ -27,6 +27,10 @@
 
 module z80cpu
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input CLK,
 	output [15:0] ADDRESS,
@@ -695,6 +699,7 @@ module z80cpu
 	
 	assign w1 = ~w1_i;
 	
+	wire ss_step1_rs1;
 	z80_rs_trig_nor rs1
 		(
 		.MCLK(MCLK),
@@ -702,16 +707,18 @@ module z80cpu
 		.set(w55 | (clk & (w114 | w201))),
 		.q(w1_i),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_rs1));
 		
+	wire ss_step2_dl1;
 	z80_dlatch dl1
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w69),
 		.outp(l1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_rs1), .ss_out(ss_step2_dl1));
 	
+	wire ss_step3_rs2;
 	z80_rs_trig_nor rs2
 		(
 		.MCLK(MCLK),
@@ -719,12 +726,13 @@ module z80cpu
 		.set(clk & w15),
 		.q(w2),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_dl1), .ss_out(ss_step3_rs2));
 	
 	
 	assign w3 = ~(w201 | w202);
 	
 	
+	wire ss_step4_rs4;
 	z80_rs_trig_nand rs4
 		(
 		.MCLK(MCLK),
@@ -732,9 +740,10 @@ module z80cpu
 		.nrst(clk | INT),
 		.q(w4),
 		.nq(w4_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_rs2), .ss_out(ss_step4_rs4));
 	
 	
+	wire ss_step5_rs5;
 	z80_rs_trig_nor rs5
 		(
 		.MCLK(MCLK),
@@ -742,18 +751,20 @@ module z80cpu
 		.set(clk & w4),
 		.q(w5),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step4_rs4), .ss_out(ss_step5_rs5));
 		
+	wire ss_step6_dl2;
 	z80_dlatch dl2
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w55 | w19)),
 		.outp(l2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step5_rs5), .ss_out(ss_step6_dl2));
 	
 	wire nmi = ~NMI;
 	
+	wire ss_step7_rs7;
 	z80_rs_trig_nor rs7
 		(
 		.MCLK(MCLK),
@@ -761,8 +772,9 @@ module z80cpu
 		.set(~nmi),
 		.q(w7),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step6_dl2), .ss_out(ss_step7_rs7));
 	
+	wire ss_step8_rs6;
 	z80_rs_trig_nor rs6
 		(
 		.MCLK(MCLK),
@@ -770,9 +782,10 @@ module z80cpu
 		.set(nmi & w7),
 		.q(w6),
 		.nq(w6_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step7_rs7), .ss_out(ss_step8_rs6));
 	
 	
+	wire ss_step9_rs8;
 	z80_rs_trig_nand rs8
 		(
 		.MCLK(MCLK),
@@ -780,8 +793,9 @@ module z80cpu
 		.nrst(clk | w6),
 		.q(w8),
 		.nq(w8_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step8_rs6), .ss_out(ss_step9_rs8));
 	
+	wire ss_step10_rs9;
 	z80_rs_trig_nor rs9
 		(
 		.MCLK(MCLK),
@@ -789,27 +803,36 @@ module z80cpu
 		.set(clk & w8),
 		.q(w9_n),
 		.nq(w9_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step9_rs8), .ss_out(ss_step10_rs9));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w9 <= ss_step10_rs9;
+		end
+		else
+		begin
+
 		if (w9_i)
 			w9 <= 1'h0;
 		else if (w9_n)
 			w9 <= 1'h1;
-	end
+			end
+end
 	
 	assign w10 = ~(w12 | w9 | w11);
 	
 	assign w11 = ~(w12 | w9 | ~pla[3]);
 		
+	wire ss_step12_dl3;
 	z80_dlatch dl3
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w73 | pla[1]),
 		.outp(l3)
-		);
+		, .ss_en(ss_en), .ss_in(w9), .ss_out(ss_step12_dl3));
 	
 	assign w12 = ~(w5 | w9 | l3);
 	
@@ -819,16 +842,18 @@ module z80cpu
 	
 	assign w15 = ~(~w114 | w202 | w201);
 		
+	wire ss_step13_dl4;
 	z80_dlatch dl4
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w55 | ~w97 | ~w118 | w133)),
 		.outp(l4)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step12_dl3), .ss_out(ss_step13_dl4));
 	
 	assign w16 = l4 & ~clk;
 	
+	wire ss_step14_rs18;
 	z80_rs_trig_nor rs18
 		(
 		.MCLK(MCLK),
@@ -836,10 +861,11 @@ module z80cpu
 		.set((w16 & ~w12) | w55),
 		.q(w18_i),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step13_dl4), .ss_out(ss_step14_rs18));
 	
 	assign w18 = ~w18_i;
 	
+	wire ss_step15_rs19;
 	z80_rs_trig_nor rs19
 		(
 		.MCLK(MCLK),
@@ -847,10 +873,11 @@ module z80cpu
 		.set((w16 & ~w9) | w55),
 		.q(w19_i),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step14_rs18), .ss_out(ss_step15_rs19));
 	
 	assign w19 = ~w19_i;
 	
+	wire ss_step16_rs21;
 	z80_rs_trig_nor rs21
 		(
 		.MCLK(MCLK),
@@ -858,12 +885,13 @@ module z80cpu
 		.set(w24),
 		.q(w21),
 		.nq(w21_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step15_rs19), .ss_out(ss_step16_rs21));
 	
 	//assign MREQ = ~w21_i ? 1'h0 : ((~w21 & ~w62) ? 1'h1 : 1'hz);
 	assign MREQ = w21_i;
 	assign MREQ_z = w21_i & w62;
 	
+	wire ss_step17_rs22;
 	z80_rs_trig_nor rs22
 		(
 		.MCLK(MCLK),
@@ -871,29 +899,31 @@ module z80cpu
 		.set(w23 | (w36 & clk)),
 		.q(w22),
 		.nq(w22_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step16_rs21), .ss_out(ss_step17_rs22));
 	
 	//assign IORQ = ~w22_i ? 1'h0 : ((~w22 & ~w62) ? 1'h1 : 1'hz);
 	assign IORQ = w22_i;
 	assign IORQ_z = w22_i & w62;
 		
+	wire ss_step18_dl5;
 	z80_dlatch dl5
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w35),
 		.outp(l5)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step17_rs22), .ss_out(ss_step18_dl5));
 	
 	assign w23 = ~clk & ~l5;
 		
+	wire ss_step19_dl6;
 	z80_dlatch dl6
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w27),
 		.outp(l6)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step18_dl5), .ss_out(ss_step19_dl6));
 	
 	assign w24 = ~clk & ~w202 & ~l6;
 	
@@ -903,34 +933,45 @@ module z80cpu
 	
 	assign w27 = !((w110 & w93) | (w131 & (w41 | (w110 & ~w18))));
 		
+	wire ss_step20_dl7;
 	z80_dlatch dl7
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w57),
 		.outp(l7)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step19_dl6), .ss_out(ss_step20_dl7));
 	
 	assign w28 = ~(halt | (w18 & w80) | w55 | w19 | ~(w18 | l7));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w30 <= ss_step20_dl7;
+		end
+		else
+		begin
+
 		if (w55)
 			w30 <= 1'h1;
 		else if (clk)
 			w30 <= w30;
 		else if (w103)
 			w30 <= ~w28;
-	end
+			end
+end
 		
+	wire ss_step22_dl8;
 	z80_dlatch dl8
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w101),
 		.outp(l8)
-		);
+		, .ss_en(ss_en), .ss_in(w30), .ss_out(ss_step22_dl8));
 	
+	wire ss_step23_rs31;
 	z80_rs_trig_nor rs31
 		(
 		.MCLK(MCLK),
@@ -938,24 +979,26 @@ module z80cpu
 		.set(~w25 & l8),
 		.q(w31),
 		.nq(w31_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step22_dl8), .ss_out(ss_step23_rs31));
 	
 	//assign RD = ~w31_i ? 1'h0 : ((~w31 & ~w62) ? 1'h1 : 1'hz);
 	assign RD = w31_i;
 	assign RD_z = w31_i & w62;
 	
 		
+	wire ss_step24_dl9;
 	z80_dlatch dl9
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w94),
 		.outp(l9)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step23_rs31), .ss_out(ss_step24_dl9));
 	
 	
 	assign w32 = ~clk & l9;
 	
+	wire ss_step25_rs33;
 	z80_rs_trig_nor rs33
 		(
 		.MCLK(MCLK),
@@ -963,30 +1006,33 @@ module z80cpu
 		.set(~l11 | (clk & w106 & w114 & w201)),
 		.q(w33),
 		.nq(w33_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step24_dl9), .ss_out(ss_step25_rs33));
 	
 	//assign WR = ~w33_i ? 1'h0 : ((~w33 & ~w62) ? 1'h1 : 1'hz);
 	assign WR = w33_i;
 	assign WR_z = w33_i & w62;
 		
+	wire ss_step26_dl10;
 	z80_dlatch dl10
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w41 & ~w55),
 		.outp(l10)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step25_rs33), .ss_out(ss_step26_dl10));
 		
+	wire ss_step27_dl11;
 	z80_dlatch dl11
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w114 & w201)),
 		.outp(l11)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step26_dl10), .ss_out(ss_step27_dl11));
 	
 	wire w34_v = ~(l12 & w112);
 	
+	wire ss_step28_rs34;
 	z80_rs_trig_nand rs34
 		(
 		.MCLK(MCLK),
@@ -994,30 +1040,33 @@ module z80cpu
 		.nrst(clk | w34_v),
 		.q(w34),
 		.nq(w34_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step27_dl11), .ss_out(ss_step28_rs34));
 		
+	wire ss_step29_dl12;
 	z80_dlatch dl12
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w41 & ~(~w114 & ~w34_i)),
 		.outp(l12)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step28_rs34), .ss_out(ss_step29_dl12));
 	
 	assign w35 = ~(~w37 & w131 & w18);
 	
 	assign w36 = w114 & w106;
 		
+	wire ss_step30_dl82;
 	z80_dlatch dl82
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w114),
 		.outp(l82)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step29_dl12), .ss_out(ss_step30_dl82));
 	
 	assign w531 = ~(w131 & w18 & l82);
 	
+	wire ss_step31_rs37;
 	z80_rs_trig_nand rs37
 		(
 		.MCLK(MCLK),
@@ -1025,16 +1074,18 @@ module z80cpu
 		.nrst(clk | w531),
 		.q(w37),
 		.nq(w37_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step30_dl82), .ss_out(ss_step31_rs37));
 	
+	wire ss_step32_dl_w38;
 	z80_dlatch dl_w38
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(((w18 & w131) | w106) & (~w37 | w114))),
 		.outp(w38)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step31_rs37), .ss_out(ss_step32_dl_w38));
 	
+	wire ss_step33_rs39;
 	z80_rs_trig_nor rs39
 		(
 		.MCLK(MCLK),
@@ -1042,13 +1093,22 @@ module z80cpu
 		.set(clk & (w38 & WAIT)),
 		.q(w39),
 		.nq(w39_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step32_dl_w38), .ss_out(ss_step33_rs39));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w40 <= ss_step33_rs39;
+			w40_i <= w40;
+		end
+		else
+		begin
+
 		w40 <= ~(w202 | (w40_i & (clk | w39)));
 		w40_i <= ~(w40 & (clk | w39_i));
-	end
+			end
+end
 	
 	assign w41 = ~w40 & ~w34;
 	
@@ -1056,14 +1116,16 @@ module z80cpu
 	
 	assign w43 = ~(~pla[35] & l13);
 	
+	wire ss_step35_dl13;
 	z80_dlatch dl13
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w110 & w201),
 		.outp(l13)
-		);
+		, .ss_en(ss_en), .ss_in(w40_i), .ss_out(ss_step35_dl13));
 	
+	wire ss_step36_rs44;
 	z80_rs_trig_nor rs44
 		(
 		.MCLK(MCLK),
@@ -1071,25 +1133,27 @@ module z80cpu
 		.set(l14 | (clk & w110)),
 		.q(w44_n),
 		.nq(w44_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step35_dl13), .ss_out(ss_step36_rs44));
 	
+	wire ss_step37_dl14;
 	z80_dlatch dl14
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w113),
 		.outp(l14)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step36_rs44), .ss_out(ss_step37_dl14));
 		
 	assign w44 = ~w44_i;
 	
+	wire ss_step38_dl15;
 	z80_dlatch dl15
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w201 & w110)),
 		.outp(l15)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step37_dl14), .ss_out(ss_step38_dl15));
 	
 	assign w45 = ~clk & ~l15;
 	
@@ -1097,30 +1161,34 @@ module z80cpu
 	
 	assign w47 = ~clk & ~l16;
 	
+	wire ss_step39_dl16;
 	z80_dlatch dl16
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w107 & w127 & w41)),
 		.outp(l16)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step38_dl15), .ss_out(ss_step39_dl16));
 	
+	wire ss_step40_dl17;
 	z80_dlatch dl17
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w114 & w131)),
 		.outp(l17)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step39_dl16), .ss_out(ss_step40_dl17));
 	
+	wire ss_step41_dl18;
 	z80_dlatch dl18
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w41 | w55)),
 		.outp(l18)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step40_dl17), .ss_out(ss_step41_dl18));
 	
+	wire ss_step42_rs48;
 	z80_rs_trig_nand rs48
 		(
 		.MCLK(MCLK),
@@ -1128,10 +1196,11 @@ module z80cpu
 		.nrst(clk | l18),
 		.q(w48),
 		.nq(w48_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step41_dl18), .ss_out(ss_step42_rs48));
 	
 	assign w49 = ~(w48 | w47);
 	
+	wire ss_step43_rs50;
 	z80_rs_trig_nand rs50
 		(
 		.MCLK(MCLK),
@@ -1139,8 +1208,9 @@ module z80cpu
 		.nrst(clk | ~RESET),
 		.q(w50),
 		.nq(w50_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step42_rs48), .ss_out(ss_step43_rs50));
 	
+	wire ss_step44_rs51;
 	z80_rs_trig_nor rs51
 		(
 		.MCLK(MCLK),
@@ -1148,28 +1218,31 @@ module z80cpu
 		.set(clk & w50),
 		.q(w51),
 		.nq(w51_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step43_rs50), .ss_out(ss_step44_rs51));
 		
 	assign w52 = ~clk & l19;
 	
+	wire ss_step45_dl19;
 	z80_dlatch dl19
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w131 & w114)),
 		.outp(l19)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step44_rs51), .ss_out(ss_step45_dl19));
 		
 	assign w53 = ~clk & ~l20 & ~w55;
 	
+	wire ss_step46_dl20;
 	z80_dlatch dl20
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w131 & w114)),
 		.outp(l20)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step45_dl19), .ss_out(ss_step46_dl20));
 	
+	wire ss_step47_rs54;
 	z80_rs_trig_nor rs54
 		(
 		.MCLK(MCLK),
@@ -1177,10 +1250,11 @@ module z80cpu
 		.set(w52 & w51_i),
 		.q(w54),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step46_dl20), .ss_out(ss_step47_rs54));
 	
 	assign w55 = ~w54;
 	
+	wire ss_step48_rs56;
 	z80_rs_trig_nor rs56
 		(
 		.MCLK(MCLK),
@@ -1188,10 +1262,11 @@ module z80cpu
 		.set((w53 & w104 & ~w51) | w55),
 		.q(w56),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step47_rs54), .ss_out(ss_step48_rs56));
 	
 	assign w57 = w56 | ~w104;
 	
+	wire ss_step49_rs58;
 	z80_rs_trig_nand rs58
 		(
 		.MCLK(MCLK),
@@ -1199,8 +1274,9 @@ module z80cpu
 		.nrst(clk | ~BUSRQ),
 		.q(w58),
 		.nq(w58_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step48_rs56), .ss_out(ss_step49_rs58));
 	
+	wire ss_step50_rs59;
 	z80_rs_trig_nor rs59
 		(
 		.MCLK(MCLK),
@@ -1208,18 +1284,20 @@ module z80cpu
 		.set(clk & w58),
 		.q(w59),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step49_rs58), .ss_out(ss_step50_rs59));
 	
+	wire ss_step51_dl21;
 	z80_dlatch dl21
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w68),
 		.outp(l21)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step50_rs59), .ss_out(ss_step51_dl21));
 	
 	assign w60 = l21 & w112;
 	
+	wire ss_step52_rs61;
 	z80_rs_trig_nand rs61
 		(
 		.MCLK(MCLK),
@@ -1227,32 +1305,35 @@ module z80cpu
 		.nrst(clk | w60),
 		.q(),
 		.nq(w61_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step51_dl21), .ss_out(ss_step52_rs61));
 	
 	assign w61 = ~w61_i;
 	
 	assign w62 = l22 | o_busak;
 	
+	wire ss_step53_dl22;
 	z80_dlatch dl22
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(o_busak),
 		.outp(l22)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step52_rs61), .ss_out(ss_step53_dl22));
 	
 	assign o_busak = ~w65 & ~w66_i & ~w67;
 	
 	assign BUSAK = ~o_busak;
 	
+	wire ss_step54_dl23;
 	z80_dlatch dl23
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w55),
 		.outp(l23)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step53_dl22), .ss_out(ss_step54_dl23));
 	
+	wire ss_step55_rs63;
 	z80_rs_trig_nand rs63
 		(
 		.MCLK(MCLK),
@@ -1260,20 +1341,22 @@ module z80cpu
 		.nrst(clk | l23),
 		.q(),
 		.nq(w63_t)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step54_dl23), .ss_out(ss_step55_rs63));
 	
 	assign w63 = ~(w63_t | ~(clk | ~l23));
 	
+	wire ss_step56_dl24;
 	z80_dlatch dl24
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w63 & ~w133),
 		.outp(l24)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step55_rs63), .ss_out(ss_step56_dl24));
 	
 	assign w65 = ~(~l24 | clk | ~w59);
 	
+	wire ss_step57_rs66;
 	z80_rs_trig_nor rs66
 		(
 		.MCLK(MCLK),
@@ -1281,22 +1364,24 @@ module z80cpu
 		.set(w65),
 		.q(w66),
 		.nq(w66_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step56_dl24), .ss_out(ss_step57_rs66));
 	
 	assign w67 = ~clk & ~w59;
 	
+	wire ss_step58_dl25;
 	z80_dlatch dl25
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w109),
 		.outp(l25)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step57_rs66), .ss_out(ss_step58_dl25));
 	
 	assign w68 = ~w68_i;
 	
 	wire w68_v = ~(l25 & w112);
 	
+	wire ss_step59_rs68;
 	z80_rs_trig_nand rs68
 		(
 		.MCLK(MCLK),
@@ -1304,22 +1389,30 @@ module z80cpu
 		.nrst(clk | ~w68_v),
 		.q(),
 		.nq(w68_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step58_dl25), .ss_out(ss_step59_rs68));
 	
 	assign w69 = ~(w55 | (w41 & ~w131));
 	
+	wire ss_step60_dl26;
 	z80_dlatch dl26
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(w131 & pla[1] & w110)),
 		.outp(l26)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step59_rs68), .ss_out(ss_step60_dl26));
 	
 	assign w71 = ~clk & ~l26;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w73 <= ss_step60_dl26;
+		end
+		else
+		begin
+
 		if (w19 | w18 | w55)
 			w73 <= 0;
 		else if (clk)
@@ -1328,25 +1421,35 @@ module z80cpu
 			w73 <= w147[3];
 		else if (w75)
 			w73 <= w74;
-	end
+			end
+end
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w74 <= w73;
+		end
+		else
+		begin
+
 		if (w18 | w55)
 			w74 <= 0;
 		else if (clk)
 			w74 <= w74;
 		else if (w71)
 			w74 <= w147[3];
-	end
+			end
+end
 	
+	wire ss_step63_dl27;
 	z80_dlatch dl27
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w76),
 		.outp(l27)
-		);
+		, .ss_en(ss_en), .ss_in(w74), .ss_out(ss_step63_dl27));
 	
 	assign w75 = ~clk & ~l27 & ~w19;
 	
@@ -1356,36 +1459,53 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w78_i <= ss_step63_dl27;
+		end
+		else
+		begin
+
 		if (w55)
 			w78_i <= 0;
 		else if (clk)
 			w78_i <= w78_i;
 		else if (w79)
 			w78_i <= w147[3];
-	end
+			end
+end
 	
 	assign w78 = ~w78_i;
 	
+	wire ss_step65_dl28;
 	z80_dlatch dl28
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(pla[2] & w131 & w110)),
 		.outp(l28)
-		);
+		, .ss_en(ss_en), .ss_in(w78_i), .ss_out(ss_step65_dl28));
 	
 	
 	assign w79 = ~clk & ~l28;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w80 <= ss_step65_dl28;
+		end
+		else
+		begin
+
 		if (w55)
 			w80 <= 0;
 		else if (clk)
 			w80 <= w80;
 		else if (w79)
 			w80 <= w147[4];
-	end
+			end
+end
 	
 	assign w81 = w80 & (w89 & w78 & w18);
 	
@@ -1409,23 +1529,32 @@ module z80cpu
 	
 	assign w91 = ~(w92 | ~w95);
 	
+	wire ss_step67_dl43;
 	z80_dlatch dl43
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~pla[47]),
 		.outp(l43)
-		);
+		, .ss_en(ss_en), .ss_in(w80), .ss_out(ss_step67_dl43));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w92 <= ss_step67_dl43;
+		end
+		else
+		begin
+
 		if (w55)
 			w92 <= 0;
 		else if (clk)
 			w92 <= w92;
 		else if (w103)
 			w92 <= ~l43;
-	end
+			end
+end
 	
 	assign w93 = ~(w131 | w106);
 	
@@ -1433,13 +1562,21 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w95_i <= w92;
+		end
+		else
+		begin
+
 		if (w55)
 			w95_i <= 0;
 		else if (clk)
 			w95_i <= w95_i;
 		else if (w103)
 			w95_i <= w98;
-	end
+			end
+end
 	
 	assign w95 = ~w95_i;
 	
@@ -1447,78 +1584,93 @@ module z80cpu
 	
 	assign w97 = ~(pla[47] | pla[54] | pla[57]);
 	
+	wire ss_step70_dw98;
 	z80_dlatch dw98
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(pla[54]),
 		.outp(w98)
-		);
+		, .ss_en(ss_en), .ss_in(w95_i), .ss_out(ss_step70_dw98));
 	
+	wire ss_step71_dw99;
 	z80_dlatch dw99
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~pla[57]),
 		.outp(w99)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step70_dw98), .ss_out(ss_step71_dw99));
 		
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w100 <= ss_step71_dw99;
+		end
+		else
+		begin
+
 		if (w55)
 			w100 <= 1'h1;
 		else if (clk)
 			w100 <= w100;
 		else if (!w98 & w103)
 			w100 <= w99;
-	end
+			end
+end
 	
 	assign w101 = ~(w202 | w201 | (w131 & (w41 | w18)));
 	
 	assign w102 = ~((w131 & w114) | (w110 & w127 & w107));
 	
+	wire ss_step73_dl29;
 	z80_dlatch dl29
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w102),
 		.outp(l29)
-		);
+		, .ss_en(ss_en), .ss_in(w100), .ss_out(ss_step73_dl29));
 	
 	assign w103 = ~l29 & ~clk;
 	
+	wire ss_step74_dw104;
 	z80_dlatch dw104
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w97),
 		.outp(w104)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step73_dl29), .ss_out(ss_step74_dw104));
 	
 	assign w105 = pla[61] | pla[71];
 	
 	assign w106 = (pla[77] & w120) | (w127 & pla[78]) | (w105 & w123);
 	
+	wire ss_step75_dw107;
 	z80_dlatch dw107
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(pla[76]),
 		.outp(w107)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step74_dw104), .ss_out(ss_step75_dw107));
 	
 	assign w109 = ~w109_i;
 	
+	wire ss_step76_dl30;
 	z80_dlatch dl30
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w41),
 		.outp(l30)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step75_dw107), .ss_out(ss_step76_dl30));
 	
 	assign w530 = ~(w112 & l30);
 	
+	wire ss_step77_rs109;
 	z80_rs_trig_nand rs109
 		(
 		.MCLK(MCLK),
@@ -1526,10 +1678,11 @@ module z80cpu
 		.nrst(clk | ~w530),
 		.q(),
 		.nq(w109_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step76_dl30), .ss_out(ss_step77_rs109));
 	
 	assign w110 = ~(w113 | w111);
 	
+	wire ss_step78_rs111;
 	z80_rs_trig_nand rs111
 		(
 		.MCLK(MCLK),
@@ -1537,28 +1690,31 @@ module z80cpu
 		.nrst(clk | w112),
 		.q(w111),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step77_rs109), .ss_out(ss_step78_rs111));
 	
+	wire ss_step79_dw112;
 	z80_dlatch dw112
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w113 & w133),
 		.outp(w112)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step78_rs111), .ss_out(ss_step79_dw112));
 	
 	assign w113 = w66 | w63 | w65;
 	
+	wire ss_step80_dl31;
 	z80_dlatch dl31
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w110),
 		.outp(l31)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step79_dw112), .ss_out(ss_step80_dl31));
 	
 	assign w532 = ~(w112 & l31);
 	
+	wire ss_step81_rs114;
 	z80_rs_trig_nand rs114
 		(
 		.MCLK(MCLK),
@@ -1566,10 +1722,11 @@ module z80cpu
 		.nrst(clk | ~w532),
 		.q(),
 		.nq(w114_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step80_dl31), .ss_out(ss_step81_rs114));
 	
 	assign w114 = ~w114_i;
 	
+	wire ss_step82_rs115;
 	z80_rs_trig_nor rs115
 		(
 		.MCLK(MCLK),
@@ -1577,7 +1734,7 @@ module z80cpu
 		.set(clk & w116),
 		.q(),
 		.nq(w115_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step81_rs114), .ss_out(ss_step82_rs115));
 	
 	assign w115 = ~w115_i;
 	
@@ -1588,16 +1745,18 @@ module z80cpu
 	
 	assign w118 = w117 | w299 | (w131 & w139);
 	
+	wire ss_step83_dl32;
 	z80_dlatch dl32
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w131),
 		.outp(l32)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step82_rs115), .ss_out(ss_step83_dl32));
 	
 	assign w119 = l32 & ~w134 & ~w130;
 	
+	wire ss_step84_rs120;
 	z80_rs_trig_nor rs120
 		(
 		.MCLK(MCLK),
@@ -1605,10 +1764,11 @@ module z80cpu
 		.set(w132 & w119),
 		.q(),
 		.nq(w120_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step83_dl32), .ss_out(ss_step84_rs120));
 	
 	assign w120 = ~w120_i;
 	
+	wire ss_step85_rs121;
 	z80_rs_trig_nor rs121
 		(
 		.MCLK(MCLK),
@@ -1616,20 +1776,22 @@ module z80cpu
 		.set(w132 & w122),
 		.q(),
 		.nq(w121_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step84_rs120), .ss_out(ss_step85_rs121));
 	
 	assign w121 = ~w121_i;
 	
+	wire ss_step86_dl33;
 	z80_dlatch dl33
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w123),
 		.outp(l33)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step85_rs121), .ss_out(ss_step86_dl33));
 	
 	assign w122 = l33 & ~w130;
 	
+	wire ss_step87_rs123;
 	z80_rs_trig_nor rs123
 		(
 		.MCLK(MCLK),
@@ -1637,17 +1799,18 @@ module z80cpu
 		.set(w132 & w124),
 		.q(),
 		.nq(w123_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step86_dl33), .ss_out(ss_step87_rs123));
 	
 	assign w123 = ~w123_i;
 	
+	wire ss_step88_dl34;
 	z80_dlatch dl34
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w127),
 		.outp(l34)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step87_rs123), .ss_out(ss_step88_dl34));
 	
 	assign w124 = ~w130 & (l34 | w134);
 	
@@ -1655,6 +1818,7 @@ module z80cpu
 	
 	assign w126 = (~w169 & ~w100) | w255;
 	
+	wire ss_step89_rs127;
 	z80_rs_trig_nor rs127
 		(
 		.MCLK(MCLK),
@@ -1662,22 +1826,24 @@ module z80cpu
 		.set(w132 & w128),
 		.q(),
 		.nq(w127_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step88_dl34), .ss_out(ss_step89_rs127));
 	
 	assign w127 = ~w127_i;
 	
+	wire ss_step90_dl35;
 	z80_dlatch dl35
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w120),
 		.outp(l35)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step89_rs127), .ss_out(ss_step90_dl35));
 	
 	assign w128 = ~(w134 | w130 | ~l35);
 	
 	assign w129 = ~(w131 & (w109 | w41));
 	
+	wire ss_step91_rsrfsh;
 	z80_rs_trig_nor rsrfsh
 		(
 		.MCLK(MCLK),
@@ -1685,20 +1851,22 @@ module z80cpu
 		.set(clk & w129),
 		.q(rfsh_rs),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step90_dl35), .ss_out(ss_step91_rsrfsh));
 	
 	assign rfsh = ~rfsh_rs;
 	
 	assign RFSH = ~rfsh;
 	
+	wire ss_step92_dw130;
 	z80_dlatch dw130
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w118),
 		.outp(w130)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step91_rsrfsh), .ss_out(ss_step92_dw130));
 	
+	wire ss_step93_rs131;
 	z80_rs_trig_nor rs131
 		(
 		.MCLK(MCLK),
@@ -1706,29 +1874,31 @@ module z80cpu
 		.set(w132 & w130),
 		.q(),
 		.nq(w131_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step92_dw130), .ss_out(ss_step93_rs131));
 	
 	assign w131 = ~w131_i;
 	
+	wire ss_step94_dl36;
 	z80_dlatch dl36
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w133),
 		.outp(l36)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step93_rs131), .ss_out(ss_step94_dl36));
 	
 	assign w132 = ~clk & l36;
 	
 	assign w133 = ~w137 & ~w55;
 	
+	wire ss_step95_dw134;
 	z80_dlatch dw134
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w125 & ((w159 & w131) | w120)),
 		.outp(w134)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step94_dl36), .ss_out(ss_step95_dw134));
 	
 	assign w135 = ~((w190 & w68) | (w131 & w109 & w149));
 	
@@ -1749,22 +1919,25 @@ module z80cpu
 	assign w143 = w120 | (w142 & w123) | (w121 & ~pla[88])
 		| (w127 & (~w151 | (w140 & w299)));
 	
+	wire ss_step96_dl37;
 	z80_dlatch dl37
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w133),
 		.outp(l37)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step95_dw134), .ss_out(ss_step96_dl37));
 	
+	wire ss_step97_dl38;
 	z80_dlatch dl38
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w110 & ~w55),
 		.outp(l38)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step96_dl37), .ss_out(ss_step97_dl38));
 	
+	wire ss_step98_rs144;
 	z80_rs_trig_nand rs144
 		(
 		.MCLK(MCLK),
@@ -1772,22 +1945,38 @@ module z80cpu
 		.nrst(clk | l38),
 		.q(w144),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step97_dl38), .ss_out(ss_step98_rs144));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w145 <= {w145[6:0], ss_step98_rs144};
+		end
+		else
+		begin
+
 		if (w2)
 			w145 <= ~DATA_i;
 		else if (w42)
 			w145 <= w146;
 		else
 			w145 <= w145;
-	end
+			end
+end
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w147_prev <= {w147_prev[6:0], w145[7]};
+		end
+		else
+		begin
+
 		w147_prev <= w147;
-	end
+			end
+end
 	
 	assign w147 = w49 ? w147_prev : ~w146;
 	
@@ -2024,14 +2213,16 @@ module z80cpu
 	assign w204 = ~((w109 & pla[93])
 		| (pla[88] & w121 & w41));
 	
+	wire ss_step101_dl39;
 	z80_dlatch dl39
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w204),
 		.outp(l39)
-		);
+		, .ss_en(ss_en), .ss_in(w147_prev[7]), .ss_out(ss_step101_dl39));
 	
+	wire ss_step102_rs205;
 	z80_rs_trig_nand rs205
 		(
 		.MCLK(MCLK),
@@ -2039,7 +2230,7 @@ module z80cpu
 		.nrst(clk | ~l39),
 		.q(w205),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step101_dl39), .ss_out(ss_step102_rs205));
 	
 	assign w206 = ~((w131 & w109 & w207)
 		| (~w186 & w123 & (w41 | w110))
@@ -2054,14 +2245,16 @@ module z80cpu
 	
 	assign w209 = ~w186 & w147[3];
 	
+	wire ss_step103_dl40;
 	z80_dlatch dl40
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w206 | ~w208),
 		.outp(l40)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step102_rs205), .ss_out(ss_step103_dl40));
 	
+	wire ss_step104_rs210;
 	z80_rs_trig_nand rs210
 		(
 		.MCLK(MCLK),
@@ -2069,7 +2262,7 @@ module z80cpu
 		.nrst(clk | l40),
 		.q(),
 		.nq(w210_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step103_dl40), .ss_out(ss_step104_rs210));
 	
 	assign w210 = ~w210_i;
 	
@@ -2087,13 +2280,14 @@ module z80cpu
 		| (w114 & ((w127 & ~w186)
 			| (w121 & w167 & ~w173))));
 	
+	wire ss_step105_dl41;
 	z80_dlatch dl41
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w55 | (~w57 & w110 & w131)),
 		.outp(l41)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step104_rs210), .ss_out(ss_step105_dl41));
 	
 	assign w215 = l41;
 	
@@ -2386,21 +2580,23 @@ module z80cpu
 	
 	assign w291 = ~(~w226 | w216);
 	
+	wire ss_step106_dw292;
 	z80_dlatch dw292
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w291),
 		.outp(w292)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step105_dl41), .ss_out(ss_step106_dw292));
 	
+	wire ss_step107_dw293;
 	z80_dlatch dw293
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w290),
 		.outp(w293)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step106_dw292), .ss_out(ss_step107_dw293));
 	
 	assign w294 = ~(w221 & w222);
 	
@@ -2411,67 +2607,88 @@ module z80cpu
 	
 	assign w297 = ~(~w226 | w295 | w294);
 	
+	wire ss_step108_dw298;
 	z80_dlatch dw298
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w297),
 		.outp(w298)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step107_dw293), .ss_out(ss_step108_dw298));
 	
 	assign w299 = (~w220 & w438) | w383 | (w265 & w448);
 	
 	assign w300 = ~(~w226 | w295);
 	
+	wire ss_step109_dw301;
 	z80_dlatch dw301
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w300),
 		.outp(w301)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step108_dw298), .ss_out(ss_step109_dw301));
 	
 	//assign w302 = ~(w303 & pla[97]);
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w302 <= ss_step109_dw301;
+		end
+		else
+		begin
+
 		w302 <= ~(w303 & pla[97]);
-	end
+			end
+end
 	
+	wire ss_step111_dl42;
 	z80_dlatch dl42
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w227),
 		.outp(l42)
-		);
+		, .ss_en(ss_en), .ss_in(w302), .ss_out(ss_step111_dl42));
 	
 	assign w303 = ~l42;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w304_r <= ss_step111_dl42;
+		end
+		else
+		begin
+
 		w304_r <= w303 & pla[95];
-	end
+			end
+end
 	
 	assign w304 = ~clk & w304_r;
 	
+	wire ss_step113_dw305;
 	z80_dlatch dw305
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w228 & w227),
 		.outp(w305)
-		);
+		, .ss_en(ss_en), .ss_in(w304_r), .ss_out(ss_step113_dw305));
 	
 	assign w306 = ~(w228 & w227 & w229);
 	
+	wire ss_step114_dw307;
 	z80_dlatch dw307
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w306 | w55),
 		.outp(w307)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step113_dw305), .ss_out(ss_step114_dw307));
 	
 	assign w308 = ~(~w294 & w313 & w344);
 	
@@ -2485,13 +2702,14 @@ module z80cpu
 	
 	assign w313 = ~(~w246 | ~w243 | ~w242 | ~w274 | ~w241 | ~w239 | ~w238 | w309);
 	
+	wire ss_step115_dl44;
 	z80_dlatch dl44
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w308),
 		.outp(l44)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step114_dw307), .ss_out(ss_step115_dl44));
 	
 	assign w314 = w307 | l44;
 	
@@ -2503,31 +2721,42 @@ module z80cpu
 	
 	assign w318 = (~w147[0] & w183) | (~w183 & ~w147[3]);
 	
+	wire ss_step116_dw319;
 	z80_dlatch dw319
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~((w316 & w310) | w309)),
 		.outp(w319)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step115_dl44), .ss_out(ss_step116_dw319));
 	
+	wire ss_step117_dl45;
 	z80_dlatch dl45
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w315),
 		.outp(l45)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step116_dw319), .ss_out(ss_step117_dl45));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w320 <= ss_step117_dl45;
+		end
+		else
+		begin
+
 		if (w304)
 			w320 <= l45;
 		else if (clk)
 			w320 <= w320;
-	end
+			end
+end
 	
 	
+	wire ss_step119_rs321;
 	z80_rs_trig_nand rs321
 		(
 		.MCLK(MCLK),
@@ -2535,9 +2764,10 @@ module z80cpu
 		.nrst(clk | ~w305 | w293),
 		.q(w321),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(w320), .ss_out(ss_step119_rs321));
 	
 	
+	wire ss_step120_rs322;
 	z80_rs_trig_nor rs322
 		(
 		.MCLK(MCLK),
@@ -2545,7 +2775,7 @@ module z80cpu
 		.set(clk & ~w113),
 		.q(w322),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step119_rs321), .ss_out(ss_step120_rs322));
 	
 	assign w323 = ~((clk & ~w113) | w322);
 	
@@ -2555,23 +2785,26 @@ module z80cpu
 	
 	assign w326 = ~(w303 & pla[96]);
 	
+	wire ss_step121_dl46;
 	z80_dlatch dl46
 		(
 		.MCLK(MCLK),
 		.en(w324),
 		.inp(w327_n),
 		.outp(l46)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step120_rs322), .ss_out(ss_step121_dl46));
 	
+	wire ss_step122_dl46_i;
 	z80_dlatch dl46_i
 		(
 		.MCLK(MCLK),
 		.en(w324),
 		.inp(w327_i),
 		.outp(l46_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step121_dl46), .ss_out(ss_step122_dl46_i));
 	
 	
+	wire ss_step123_rs327;
 	z80_rs_trig_nor rs327
 		(
 		.MCLK(MCLK),
@@ -2579,34 +2812,45 @@ module z80cpu
 		.set(l46_i & w328),
 		.q(w327_n),
 		.nq(w327_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step122_dl46_i), .ss_out(ss_step123_rs327));
 	
 	assign w328 = ~clk & ~w302;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w329_r <= ss_step123_rs327;
+		end
+		else
+		begin
+
 		w329_r <= ~w326 & ~w327;
-	end
+			end
+end
 	
 	assign w329 = ~clk & w329_r;
 	
+	wire ss_step125_dl47;
 	z80_dlatch dl47
 		(
 		.MCLK(MCLK),
 		.en(w324),
 		.inp(w330_n),
 		.outp(l47)
-		);
+		, .ss_en(ss_en), .ss_in(w329_r), .ss_out(ss_step125_dl47));
 	
+	wire ss_step126_dl47_i;
 	z80_dlatch dl47_i
 		(
 		.MCLK(MCLK),
 		.en(w324),
 		.inp(w330_i),
 		.outp(l47_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step125_dl47), .ss_out(ss_step126_dl47_i));
 	
 	
+	wire ss_step127_rs330;
 	z80_rs_trig_nor rs330
 		(
 		.MCLK(MCLK),
@@ -2614,39 +2858,58 @@ module z80cpu
 		.set(l47_i & w329),
 		.q(w330_n),
 		.nq(w330_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step126_dl47_i), .ss_out(ss_step127_rs330));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w331_r <= ss_step127_rs330;
+		end
+		else
+		begin
+
 		w331_r <= ~w326 & w327;
-	end
+			end
+end
 	
 	assign w331 = ~clk & w331_r;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w327 <= w331_r;
+		end
+		else
+		begin
+
 		if (w327_i)
 			w327 <= 1'h0;
 		else if (w327_n)
 			w327 <= 1'h1;
-	end
+			end
+end
 	
+	wire ss_step130_dl48;
 	z80_dlatch dl48
 		(
 		.MCLK(MCLK),
 		.en(w324),
 		.inp(w332_n),
 		.outp(l48)
-		);
+		, .ss_en(ss_en), .ss_in(w327), .ss_out(ss_step130_dl48));
 	
+	wire ss_step131_dl48_i;
 	z80_dlatch dl48_i
 		(
 		.MCLK(MCLK),
 		.en(w324),
 		.inp(w332_i),
 		.outp(l48_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step130_dl48), .ss_out(ss_step131_dl48_i));
 	
+	wire ss_step132_rs332;
 	z80_rs_trig_nor rs332
 		(
 		.MCLK(MCLK),
@@ -2654,7 +2917,7 @@ module z80cpu
 		.set(l48_i & w331),
 		.q(w332_n),
 		.nq(w332_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step131_dl48_i), .ss_out(ss_step132_rs332));
 	
 	
 	assign w333 = ~((w327 & w332_n) | (~w327 & w330_n));
@@ -2673,13 +2936,14 @@ module z80cpu
 	
 	assign w340 = ~(~w341 & ~w320);
 	
+	wire ss_step133_dw341;
 	z80_dlatch dw341
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w311),
 		.outp(w341)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step132_rs332), .ss_out(ss_step133_dw341));
 	
 	assign w342 = ~(~w341 & w320);
 	
@@ -2687,29 +2951,32 @@ module z80cpu
 	
 	assign w344 = ~(w310 | ~w244 | ~w250 | ~w248);
 	
+	wire ss_step134_dw345;
 	z80_dlatch dw345
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w343 | w312),
 		.outp(w345)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step133_dw341), .ss_out(ss_step134_dw345));
 	
+	wire ss_step135_dw346;
 	z80_dlatch dw346
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w242 & (~w315 | w317 | w344)),
 		.outp(w346)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step134_dw345), .ss_out(ss_step135_dw346));
 	
+	wire ss_step136_dw347;
 	z80_dlatch dw347
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp((w344 | ~w315 | ~w317) & w243),
 		.outp(w347)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step135_dw346), .ss_out(ss_step136_dw347));
 	
 	assign w348 = ~(~w327 & w349);
 	
@@ -2731,43 +2998,48 @@ module z80cpu
 	
 	assign w357 = ~((w248 & w250) | w318);
 	
+	wire ss_step137_dl81;
 	z80_dlatch dl81
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~(~w274 | ~w246 | (w356 & (w357 | ~w244)))),
 		.outp(l81)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step136_dw347), .ss_out(ss_step137_dl81));
 	
 	
 	assign w358 = ~l81;
 	
+	wire ss_step138_dw359;
 	z80_dlatch dw359
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w259),
 		.outp(w359)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step137_dl81), .ss_out(ss_step138_dw359));
 	
 	assign w360 = ~clk & ~w359;
 	
+	wire ss_step139_dl49;
 	z80_dlatch dl49
 		(
 		.MCLK(MCLK),
 		.en(w360),
 		.inp(w361_n),
 		.outp(l49)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step138_dw359), .ss_out(ss_step139_dl49));
 	
+	wire ss_step140_dl49_i;
 	z80_dlatch dl49_i
 		(
 		.MCLK(MCLK),
 		.en(w360),
 		.inp(w361_i),
 		.outp(l49_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step139_dl49), .ss_out(ss_step140_dl49_i));
 	
+	wire ss_step141_rs361;
 	z80_rs_trig_nor rs361
 		(
 		.MCLK(MCLK),
@@ -2775,7 +3047,7 @@ module z80cpu
 		.set(l49_i & w362),
 		.q(w361_n),
 		.nq(w361_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step140_dl49_i), .ss_out(ss_step141_rs361));
 	
 	assign w362 = ~clk & w359;
 	
@@ -2791,39 +3063,43 @@ module z80cpu
 	
 	assign w368 = ~(w315 | w317);
 	
+	wire ss_step142_dw369;
 	z80_dlatch dw369
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w289),
 		.outp(w369)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step141_rs361), .ss_out(ss_step142_dw369));
 	
+	wire ss_step143_dw370;
 	z80_dlatch dw370
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w288),
 		.outp(w370)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step142_dw369), .ss_out(ss_step143_dw370));
 	
 	assign w371 = ~(~w286 | ~w284 | (w271 & ~w268));
 	
+	wire ss_step144_dw372;
 	z80_dlatch dw372
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w286),
 		.outp(w372)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step143_dw370), .ss_out(ss_step144_dw372));
 	
+	wire ss_step145_dw373;
 	z80_dlatch dw373
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w285 | ~w284),
 		.outp(w373)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step144_dw372), .ss_out(ss_step145_dw373));
 	
 	assign w374 = ~(~w285 | ~w284 | ~w266 | ~w267 | w375);
 	
@@ -2834,66 +3110,74 @@ module z80cpu
 		| (w114 & w127 & w255)
 		);
 	
+	wire ss_step146_dw377;
 	z80_dlatch dw377
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w375),
 		.outp(w377)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step145_dw373), .ss_out(ss_step146_dw377));
 	
+	wire ss_step147_dw378_1;
 	z80_dlatch dw378_1
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w267),
 		.outp(w378_1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step146_dw377), .ss_out(ss_step147_dw378_1));
 	
+	wire ss_step148_dw378_2;
 	z80_dlatch dw378_2
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w266),
 		.outp(w378_2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step147_dw378_1), .ss_out(ss_step148_dw378_2));
 	
 	assign w378 = w378_1 | w378_2;
 	
+	wire ss_step149_dw379_1;
 	z80_dlatch dw379_1
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w268),
 		.outp(w379_1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step148_dw378_2), .ss_out(ss_step149_dw379_1));
 	
+	wire ss_step150_dw379_2;
 	z80_dlatch dw379_2
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w269),
 		.outp(w379_2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step149_dw379_1), .ss_out(ss_step150_dw379_2));
 	
 	assign w379 = ~(w379_1 | w379_2);
 	
+	wire ss_step151_dl50;
 	z80_dlatch dl50
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w273),
 		.outp(l50)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step150_dw379_2), .ss_out(ss_step151_dl50));
 	
+	wire ss_step152_dl51;
 	z80_dlatch dl51
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w274),
 		.outp(l51)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step151_dl50), .ss_out(ss_step152_dl51));
 	
+	wire ss_step153_rs380;
 	z80_rs_trig_nand rs380
 		(
 		.MCLK(MCLK),
@@ -2901,25 +3185,27 @@ module z80cpu
 		.nrst(clk | l50),
 		.q(),
 		.nq(w380_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step152_dl51), .ss_out(ss_step153_rs380));
 	
 	assign w380 = ~w380_i;
 	
+	wire ss_step154_dw381;
 	z80_dlatch dw381
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w380 & ~w274),
 		.outp(w381)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step153_rs380), .ss_out(ss_step154_dw381));
 	
+	wire ss_step155_dl52;
 	z80_dlatch dl52
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w274),
 		.outp(l52)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step154_dw381), .ss_out(ss_step155_dl52));
 	
 	assign w382 = ~clk & l52 & ~w381;
 	
@@ -2939,28 +3225,38 @@ module z80cpu
 	
 	assign w389 = ~(w390 & ~w162);
 	
+	wire ss_step156_dw390;
 	z80_dlatch dw390
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w270),
 		.outp(w390)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step155_dl52), .ss_out(ss_step156_dw390));
 	
+	wire ss_step157_dw391;
 	z80_dlatch dw391
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w280),
 		.outp(w391)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step156_dw390), .ss_out(ss_step157_dw391));
 	
 	//assign w392 = ~(w391 & ~w162);
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w392 <= ss_step157_dw391;
+		end
+		else
+		begin
+
 		w392 <= ~(w391 & ~w162);
-	end
+			end
+end
 	
 	assign w393 = ~(~w277
 		| (w114 & w127 & w255)
@@ -2974,13 +3270,14 @@ module z80cpu
 	
 	assign w395 = ~(~w165 & w390);
 	
+	wire ss_step159_dl53;
 	z80_dlatch dl53
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w276),
 		.outp(l53)
-		);
+		, .ss_en(ss_en), .ss_in(w392), .ss_out(ss_step159_dl53));
 	
 	assign w396 = ~(w395 & w394 & (w390 | l53));
 	
@@ -2995,46 +3292,50 @@ module z80cpu
 		| (w114 & w123 & pla[38])
 		);
 	
+	wire ss_step160_dw400;
 	z80_dlatch dw400
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w400_v),
 		.outp(w400)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step159_dl53), .ss_out(ss_step160_dw400));
 	
 	assign w401 = ~(
 		((~w147[3] & w109) | w114) &
 		w127 & pla[38]
 		);
 	
+	wire ss_step161_dl54;
 	z80_dlatch dl54
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w371),
 		.outp(l54)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step160_dw400), .ss_out(ss_step161_dl54));
 	
+	wire ss_step162_dl55;
 	z80_dlatch dl55
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w374),
 		.outp(l55)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step161_dl54), .ss_out(ss_step162_dl55));
 	
 	assign w402 = ~l54 | l55;
 	
 	assign w403 = ~(~w283 | ~w269 | ~w268);
 	
+	wire ss_step163_dw404;
 	z80_dlatch dw404
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w403 | ~w371),
 		.outp(w404)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step162_dl55), .ss_out(ss_step163_dw404));
 	
 	assign w405 = ~(~w147[4] | ~w406);
 	
@@ -3059,57 +3360,70 @@ module z80cpu
 	
 	assign w415 = ~(w412 | (w413 & w365) | (~w274 & w380));
 	
+	wire ss_step164_dw416;
 	z80_dlatch dw416
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w410),
 		.outp(w416)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step163_dw404), .ss_out(ss_step164_dw416));
 	
+	wire ss_step165_dw417;
 	z80_dlatch dw417
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w415),
 		.outp(w417)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step164_dw416), .ss_out(ss_step165_dw417));
 	
+	wire ss_step166_dw418;
 	z80_dlatch dw418
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w414),
 		.outp(w418)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step165_dw417), .ss_out(ss_step166_dw418));
 	
+	wire ss_step167_dw419;
 	z80_dlatch dw419
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w274),
 		.outp(w419)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step166_dw418), .ss_out(ss_step167_dw419));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w420 <= ss_step167_dw419;
+		end
+		else
+		begin
+
 		if (clk)
 			w420 <= w420;
 		else if (w421)
 			w420 <= w494;
-	end
+			end
+end
 	
 	assign w421 = ~clk & ~w419;
 	
 	assign w422 = ~(w408 | (w405 & w423));
 	
+	wire ss_step169_dl73;
 	z80_dlatch dl73
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w473),
 		.outp(l73)
-		);
+		, .ss_en(ss_en), .ss_in(w420), .ss_out(ss_step169_dl73));
 	
 	assign w423 = l73;
 	
@@ -3117,6 +3431,13 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w425 <= ss_step169_dl73;
+		end
+		else
+		begin
+
 		if (clk)
 			w425 <= 1'h1;
 		else if (w407)
@@ -3127,55 +3448,61 @@ module z80cpu
 			w425 <= w484[7];
 		else if (w424 & w409)
 			w425 <= w484[0];
-	end
+			end
+end
 	
 	assign w426 = ~(w390 & ~w154);
 	
 	assign w427 = ~clk & ~w426;
 	
+	wire ss_step171_dl56;
 	z80_dlatch dl56
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w283),
 		.outp(l56)
-		);
+		, .ss_en(ss_en), .ss_in(w425), .ss_out(ss_step171_dl56));
 	
 	assign w428 = l56 & w426 & ~clk;
 	
+	wire ss_step172_dl61;
 	z80_dlatch dl61
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w442_i),
 		.outp(l61)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step171_dl56), .ss_out(ss_step172_dl61));
 	
 	assign w429 = ~(~l61 & (w430 | w431));
 	
+	wire ss_step173_dw430;
 	z80_dlatch dw430
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w384),
 		.outp(w430)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step172_dl61), .ss_out(ss_step173_dw430));
 	
+	wire ss_step174_dw431;
 	z80_dlatch dw431
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w282),
 		.outp(w431)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step173_dw430), .ss_out(ss_step174_dw431));
 	
+	wire ss_step175_dl57;
 	z80_dlatch dl57
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w385),
 		.outp(l57)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step174_dw431), .ss_out(ss_step175_dl57));
 		
 	assign w432 = ~clk & l57;
 	
@@ -3183,33 +3510,36 @@ module z80cpu
 	
 	assign w434 = ~clk & ~w435;
 	
+	wire ss_step176_dl58;
 	z80_dlatch dl58
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w386),
 		.outp(l58)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step175_dl57), .ss_out(ss_step176_dl58));
 	
+	wire ss_step177_dl59;
 	z80_dlatch dl59
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w281),
 		.outp(l59)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step176_dl58), .ss_out(ss_step177_dl59));
 	
 	assign w435 = l58 & l59;
 	
 	assign w436 = ~clk & ~w389;
 	
+	wire ss_step178_dl60;
 	z80_dlatch dl60
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w387),
 		.outp(l60)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step177_dl59), .ss_out(ss_step178_dl60));
 	
 	assign w437 = ~clk & ~l60;
 	
@@ -3219,16 +3549,24 @@ module z80cpu
 	
 	assign w440 = ~clk & ~w392;
 	
+	wire ss_step179_dl62;
 	z80_dlatch dl62
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w505),
 		.outp(l62)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step178_dl60), .ss_out(ss_step179_dl62));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w441 <= ss_step179_dl62;
+		end
+		else
+		begin
+
 		if (clk)
 			w441 <= w441;
 		else if (w382)
@@ -3246,8 +3584,10 @@ module z80cpu
 			else
 				w441 <= w506 ^ l62;
 		end
-	end
+			end
+end
 	
+	wire ss_step181_rs442;
 	z80_rs_trig_nor rs442
 		(
 		.MCLK(MCLK),
@@ -3255,30 +3595,39 @@ module z80cpu
 		.set(w433),
 		.q(w442),
 		.nq(w442_i)
-		);
+		, .ss_en(ss_en), .ss_in(w441), .ss_out(ss_step181_rs442));
 	
+	wire ss_step182_dl83;
 	z80_dlatch dl83
 		(
 		.MCLK(MCLK),
 		.en(w432),
 		.inp(w484[0]),
 		.outp(l83)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step181_rs442), .ss_out(ss_step182_dl83));
 	
 	assign w443 = ~(pla[21] & l83 & w501);
 	
+	wire ss_step183_dl84;
 	z80_dlatch dl84
 		(
 		.MCLK(MCLK),
 		.en(w432),
 		.inp(w484[4]),
 		.outp(l84)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step182_dl83), .ss_out(ss_step183_dl84));
 	
 	assign w444 = ~(pla[21] & l84 & w502);
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w445 <= ss_step183_dl84;
+		end
+		else
+		begin
+
 		if (clk)
 			w445 <= w445;
 		else if (w436)
@@ -3287,124 +3636,150 @@ module z80cpu
 			w445 <= w484[6];
 		else if (w440)
 			w445 <= (w487 | w503[3:0] != 4'h0 | w504[3:0] != 4'h0);
-	end
+			end
+end
 	
 	assign w446 = ~w442 & ~w433;
 	
 	assign w448 = ~(w420 ^ w318);
 	
+	wire ss_step185_dw449;
 	z80_dlatch dw449
 		(
 		.MCLK(MCLK),
 		.en(clk & w446),
 		.inp(~w505),
 		.outp(w449)
-		);
+		, .ss_en(ss_en), .ss_in(w445), .ss_out(ss_step185_dw449));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w450 <= ss_step185_dw449;
+		end
+		else
+		begin
+
 		if (clk)
 			w450 <= w450;
 		else if (w382)
 			w450 <= ~w484[7];
 		else if (w440)
 			w450 <= w504[3];
-	end
+			end
+end
 	
+	wire ss_step187_dw452;
 	z80_dlatch dw452
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w158),
 		.outp(w452)
-		);
+		, .ss_en(ss_en), .ss_in(w450), .ss_out(ss_step187_dw452));
 	
+	wire ss_step188_dw453;
 	z80_dlatch dw453
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(pla[15]),
 		.outp(w453)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step187_dw452), .ss_out(ss_step188_dw453));
 	
+	wire ss_step189_dl63;
 	z80_dlatch dl63
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w180),
 		.outp(l63)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step188_dw453), .ss_out(ss_step189_dl63));
 	
 	assign w454 = ~l63 & ~w115;
 	
+	wire ss_step190_dl64;
 	z80_dlatch dl64
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w181),
 		.outp(l64)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step189_dl63), .ss_out(ss_step190_dl64));
 	
 	assign w455 = ~l64 & ~w115;
 	
+	wire ss_step191_dl65;
 	z80_dlatch dl65
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w168),
 		.outp(l65)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step190_dl64), .ss_out(ss_step191_dl65));
 	
 	assign w456 = ~l65 & ~w115;
 	
 	assign w457 = (pla[30] & ~w147[3]) | ~w160;
 	
+	wire ss_step192_dl66;
 	z80_dlatch dl66
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w393),
 		.outp(l66)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step191_dl65), .ss_out(ss_step192_dl66));
 	
 	assign w458 = ~clk & ~l66;
 	
 	assign w459 = ~clk & ~w395;
 	
+	wire ss_step193_dl67;
 	z80_dlatch dl67
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w396),
 		.outp(l67)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step192_dl66), .ss_out(ss_step193_dl67));
 	
 	assign w460 = ~clk & ~l67;
 	
+	wire ss_step194_dl68;
 	z80_dlatch dl68
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w394),
 		.outp(l68)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step193_dl67), .ss_out(ss_step194_dl68));
 	
 	assign w461 = ~clk & ~l68;
 	
 	assign w462 = ~clk & ~w429;
 	
+	wire ss_step195_dl70;
 	z80_dlatch dl70
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w278),
 		.outp(l70)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step194_dl68), .ss_out(ss_step195_dl70));
 	
 	assign w463 = ~clk & ~l70;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w464 <= ss_step195_dl70;
+		end
+		else
+		begin
+
 		if (clk)
 			w464 <= w464;
 		else if (w382)
@@ -3413,15 +3788,17 @@ module z80cpu
 			w464 <= ~w484[7];
 		else if (w466)
 			w464 <= w457;
-	end
+			end
+end
 	
+	wire ss_step197_dl71;
 	z80_dlatch dl71
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w272),
 		.outp(l71)
-		);
+		, .ss_en(ss_en), .ss_in(w464), .ss_out(ss_step197_dl71));
 	
 	assign w465 = ~clk & ~l71;
 	
@@ -3429,25 +3806,27 @@ module z80cpu
 	
 	assign w467 = ~(w464 & ~w115);
 	
+	wire ss_step198_dl72;
 	z80_dlatch dl72
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w397),
 		.outp(l72)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step197_dl71), .ss_out(ss_step198_dl72));
 	
 	assign w468 = ~(w464 & ~(w115 & l72));
 	
 	assign w469 = ~clk & w470;
 	
+	wire ss_step199_dw470;
 	z80_dlatch dw470
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(~w268 & w271),
 		.outp(w470)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step198_dl72), .ss_out(ss_step199_dw470));
 	
 	assign w471 = w470 & ~w147[3];
 	
@@ -3455,6 +3834,13 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w473 <= ss_step199_dw470;
+		end
+		else
+		begin
+
 		if (clk)
 			w473 <= w473;
 		else if (w469)
@@ -3472,22 +3858,31 @@ module z80cpu
 			w473 <= w477;
 		else if (w463)
 			w473 <= ~w476;
-	end
+			end
+end
 	
 	assign w474 = ~clk & ~w475;
 	
 	assign w475 = ~(w443 & w370);
 	
+	wire ss_step201_dl75;
 	z80_dlatch dl75
 		(
 		.MCLK(MCLK),
 		.en(clk & w446),
 		.inp(w477),
 		.outp(l75)
-		);
+		, .ss_en(ss_en), .ss_in(w473), .ss_out(ss_step201_dl75));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w476 <= ss_step201_dl75;
+		end
+		else
+		begin
+
 		if (clk)
 			w476 <= w476;
 		else if (w461)
@@ -3498,27 +3893,30 @@ module z80cpu
 			w476 <= ~1'h0;
 		else if (w462)
 			w476 <= l75;
-	end
+			end
+end
 	
 	assign w477 = ~(w467 ^ w507);
 	
+	wire ss_step203_dl76;
 	z80_dlatch dl76
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w398),
 		.outp(l76)
-		);
+		, .ss_en(ss_en), .ss_in(w476), .ss_out(ss_step203_dl76));
 	
 	assign w479 = l76 & w399;
 	
+	wire ss_step204_dl77;
 	z80_dlatch dl77
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w401),
 		.outp(l77)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step203_dl76), .ss_out(ss_step204_dl77));
 	
 	assign w480 = ~clk & ~l77;
 	
@@ -3549,6 +3947,13 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w496 <= {w496[6:0], ss_step204_dl77};
+		end
+		else
+		begin
+
 		if (w377)
 			w496 <= { w504, w503 };
 		else if (w493)
@@ -3572,12 +3977,20 @@ module z80cpu
 			w496 <= w498;
 		else if (w378)
 			w496 <= w511;
-	end
+			end
+end
 	
 	assign w497 = ~(8'h1 << (~w146[5:3]));
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w498 <= {w498[6:0], w496[7]};
+		end
+		else
+		begin
+
 		if (clk)
 			w498 <= w498;
 		else if (w428)
@@ -3586,13 +3999,22 @@ module z80cpu
 			w498 <= 8'h0;
 		else if (w480)
 			w498[3:0] <= ~w499;
-	end
+			end
+end
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w499 <= {w499[2:0], w498[7]};
+		end
+		else
+		begin
+
 		if (w432)
 			w499 <= ~w496[7:4];
-	end
+			end
+end
 	
 	assign w500 = w446 ? w498[3:0] : w498[7:4];
 	
@@ -3602,11 +4024,19 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w503 <= {w503[2:0], w499[3]};
+		end
+		else
+		begin
+
 		if (w446)
 			w503 <= w504;
 		else
 			w503 <= w503;
-	end
+			end
+end
 	
 	wire [3:0] c_in;
 	wire [3:0] o1 = w512;
@@ -3629,12 +4059,27 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w510 <= {w510[6:0], w503[3]};
+		end
+		else
+		begin
+
 		if (w432)
 			w510 <= ~{ w496[3:0], w500 };
-	end
+			end
+end
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w511 <= {w511[6:0], w510[7]};
+		end
+		else
+		begin
+
 		if (clk)
 			w511 <= w511;
 		else if (w480)
@@ -3653,7 +4098,8 @@ module z80cpu
 			if (w491 | w490)
 				w511[7] <= 1'h0;
 		end
-	end
+			end
+end
 	
 	wire [7:0] w511_xor = w481 ? ~w511 : w511;
 	
@@ -3751,6 +4197,16 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w514 <= {w514[14:0], w511[7]};
+			w515 <= {w515[14:0], w514[15]};
+			w520 <= {w520[14:0], w515[15]};
+			w521 <= {w521[14:0], w520[15]};
+		end
+		else
+		begin
+
 		if (w338)
 		begin
 			w514 <= ((w514 & w520) | rpullup1_comb[0]) & ~rpull1_comb[0];
@@ -3765,15 +4221,17 @@ module z80cpu
 			w520 <= (w520 | rpullup2_comb[0]) & ~rpull2_comb[0];
 			w521 <= (w521 | rpullup2_comb[1]) & ~rpull2_comb[1];
 		end
-	end
+			end
+end
 	
+	wire ss_step212_dl79;
 	z80_dlatch dl79
 		(
 		.MCLK(MCLK),
 		.en(clk),
 		.inp(w411),
 		.outp(l79)
-		);
+		, .ss_en(ss_en), .ss_in(w521[15]), .ss_out(ss_step212_dl79));
 	
 	assign w516 = ~clk & ~l79;
 	
@@ -3784,11 +4242,19 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w522 <= {w522[14:0], ss_step212_dl79};
+		end
+		else
+		begin
+
 		if (clk)
 			w522 <= w522;
 		else if (w334)
 			w522 <= w520;
-	end
+			end
+end
 	
 	assign w525 = w210 ? w522[14:0] : ~w522[14:0];
 	
@@ -3816,12 +4282,27 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w524 <= w522[15];
+		end
+		else
+		begin
+
 		if (clk & w210)
 			w524 <= w522 != 16'h1;
-	end
+			end
+end
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w526 <= {w526[14:0], w524};
+		end
+		else
+		begin
+
 		if (w194)
 		begin
 			if (clk)
@@ -3829,21 +4310,60 @@ module z80cpu
 		end
 		else
 			w526 <= w526;
-	end
+			end
+end
 	
 	assign ADDRESS = ~w526;
 	assign ADDRESS_z = w323;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w527 <= {w527[14:0], w526[15]};
+		end
+		else
+		begin
+
 		if (w339)
 			w527 <= w523;
-	end
+			end
+end
 	
 	assign w528 = w215 ? 16'h0 : ~w527;
 
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			regs[0][0] <= {regs[0][0][14:0], w527[15]};
+			regs[0][1] <= {regs[0][1][14:0], regs[0][0][15]};
+			regs[1][0] <= {regs[1][0][14:0], regs[0][1][15]};
+			regs[1][1] <= {regs[1][1][14:0], regs[1][0][15]};
+			regs[2][0] <= {regs[2][0][14:0], regs[1][1][15]};
+			regs[2][1] <= {regs[2][1][14:0], regs[2][0][15]};
+			regs[3][0] <= {regs[3][0][14:0], regs[2][1][15]};
+			regs[3][1] <= {regs[3][1][14:0], regs[3][0][15]};
+			regs[4][0] <= {regs[4][0][14:0], regs[3][1][15]};
+			regs[4][1] <= {regs[4][1][14:0], regs[4][0][15]};
+			regs[5][0] <= {regs[5][0][14:0], regs[4][1][15]};
+			regs[5][1] <= {regs[5][1][14:0], regs[5][0][15]};
+			regs[6][0] <= {regs[6][0][14:0], regs[5][1][15]};
+			regs[6][1] <= {regs[6][1][14:0], regs[6][0][15]};
+			regs[7][0] <= {regs[7][0][14:0], regs[6][1][15]};
+			regs[7][1] <= {regs[7][1][14:0], regs[7][0][15]};
+			regs[8][0] <= {regs[8][0][14:0], regs[7][1][15]};
+			regs[8][1] <= {regs[8][1][14:0], regs[8][0][15]};
+			regs[9][0] <= {regs[9][0][14:0], regs[8][1][15]};
+			regs[9][1] <= {regs[9][1][14:0], regs[9][0][15]};
+			regs[10][0] <= {regs[10][0][14:0], regs[9][1][15]};
+			regs[10][1] <= {regs[10][1][14:0], regs[10][0][15]};
+			regs[11][0] <= {regs[11][0][14:0], regs[10][1][15]};
+			regs[11][1] <= {regs[11][1][14:0], regs[11][0][15]};
+		end
+		else
+		begin
+
 		if (~w364)
 		begin
 			regs[0][0] <= ~(rpull1_comb[0] | regs[0][1]);
@@ -3904,10 +4424,21 @@ module z80cpu
 			regs[11][0] <= ~(rpull1_comb[0] | regs[11][1]);
 			regs[11][1] <= ~(rpull1_comb[1] | regs[11][0]);
 		end
-	end
+			end
+end
 
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			regs2[0][0] <= {regs2[0][0][14:0], regs[11][1][15]};
+			regs2[0][1] <= {regs2[0][1][14:0], regs2[0][0][15]};
+			regs2[1][0] <= {regs2[1][0][14:0], regs2[0][1][15]};
+			regs2[1][1] <= {regs2[1][1][14:0], regs2[1][0][15]};
+		end
+		else
+		begin
+
 		if (w336)
 		begin
 			regs2[0][0] <= ~(rpull2_comb[0] | regs2[0][1]);
@@ -3918,11 +4449,13 @@ module z80cpu
 			regs2[1][0] <= ~(rpull2_comb[0] | regs2[1][1]);
 			regs2[1][1] <= ~(rpull2_comb[1] | regs2[1][0]);
 		end
-	end
+			end
+end
 	
 	assign DATA_o = ~w145;
 	assign DATA_z = w44;
 	
+	wire ss_step219_haltrs;
 	z80_rs_trig_nor haltrs
 		(
 		.MCLK(MCLK),
@@ -3930,12 +4463,13 @@ module z80cpu
 		.set(w19 | w18 | w55 | ~w57),
 		.q(halt_i),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(regs2[1][1][15]), .ss_out(ss_step219_haltrs));
 	
 	assign halt = ~halt_i;
 	
 	assign HALT = ~halt;
 	
+	wire ss_step220_m1rs;
 	z80_rs_trig_nor m1rs
 		(
 		.MCLK(MCLK),
@@ -3943,7 +4477,7 @@ module z80cpu
 		.set(clk & w131 & w110),
 		.q(m1),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step219_haltrs), .ss_out(ss_step220_m1rs));
 	
 	assign M1 = ~m1;
 	
@@ -3983,6 +4517,15 @@ module z80cpu
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w146 <= {w146[6:0], ss_step220_m1rs};
+			w484 <= {w484[6:0], w146[7]};
+			w513 <= {w513[6:0], w484[7]};
+		end
+		else
+		begin
+
 		if (w369 & w419)
 		begin
 			w146 <= bus_comb_123;
@@ -4007,7 +4550,8 @@ module z80cpu
 			w484 <= bus_comb_2;
 			w513 <= bus_comb_3;
 		end
-	end
+			end
+end
 	
 	integer i;
 	initial begin
@@ -4023,11 +4567,17 @@ module z80cpu
 		end
 	end
 	
+
+	assign ss_out = w513[7];
 endmodule
 
 
 module z80_dlatch
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input en,
 	input inp,
@@ -4037,13 +4587,27 @@ module z80_dlatch
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			outp <= ss_in;
+		end
+		else
+		begin
+
 		if (en)
 			outp <= inp;
-	end
+			end
+end
+
+	assign ss_out = outp;
 endmodule
 
 module z80_rs_trig_nor
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input rst,
 	input set,
@@ -4053,6 +4617,14 @@ module z80_rs_trig_nor
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			q <= ss_in;
+			nq <= q;
+		end
+		else
+		begin
+
 //		if (rst)
 //			q <= 1'h0;
 //		else if (set)
@@ -4063,11 +4635,18 @@ module z80_rs_trig_nor
 //			nq <= 1'h1;
 		q = ~(rst | nq);
 		nq = ~(set | q);
-	end
+			end
+end
+
+	assign ss_out = nq;
 endmodule
 
 module z80_rs_trig_nand
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input nset,
 	input nrst,
@@ -4077,6 +4656,14 @@ module z80_rs_trig_nand
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			q <= ss_in;
+			nq <= q;
+		end
+		else
+		begin
+
 //		if (~nset)
 //			q <= 1'h1;
 //		else if (~nrst)
@@ -4087,5 +4674,8 @@ module z80_rs_trig_nand
 //			nq <= 1'h1;
 		q = ~(nq & nset);
 		nq = ~(q & nrst);
-	end
+			end
+end
+
+	assign ss_out = nq;
 endmodule

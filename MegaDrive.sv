@@ -40,7 +40,10 @@ always @(posedge clk_sys) begin
 		mdp_cmd_seen <= 1;
 end
 
-assign LED_USER  = cart_download | sav_pending | mdp_cmd_seen;
+// LED_USER doubles as the only way to see inside the chip from here: lit solid
+// means the savestate controller could not measure the scan chain, so snapshots
+// are disabled. anything else is normal core activity.
+assign LED_USER  = cart_download | sav_pending | mdp_cmd_seen | ss_cal_failed;
 
 assign VGA_SCALER= 0;
 assign VGA_DISABLE = 0;
@@ -75,7 +78,15 @@ video_freak video_freak
 
 `include "build_id.v"
 localparam CONF_STR = {
-	"MegaDrive;UART31250,MIDI;",
+	// SS<base>:<size> tells MiSTer main where the four savestate slots are and how
+	// big each one is, and main then does all the file work: it loads
+	// savestates/MegaDrive/<rom>_<n>.ss into each slot when a game is loaded,
+	// zeroes the slots it has no file for, and writes a file back when the core
+	// bumps the change detector in the slot header. See process_ss() in
+	// user_io.cpp. The address is a BYTE address: this used to read SS7C00000,
+	// which is the 64-bit word address of the same place, so main had been
+	// pointing 968 MB below the slots for as long as the line existed.
+	"MegaDrive;SS3E040000:40000,UART31250,MIDI;",
 	"FS1,BINGENMD ;",
 	"FS2,SMS;",
 	"-;",
@@ -92,7 +103,28 @@ localparam CONF_STR = {
 	"H6D0R[16],Load Backup RAM;",
 	"H6D0R[17],Save Backup RAM;",
 	"-;",
-
+	// The savestate group, below the cartridge battery and separate from it: one
+	// is the game writing its own save, the other is a snapshot of the whole
+	// machine. The stock group above is left exactly as it was.
+	//
+	// H hides when the bit is one, h hides when it is zero; bit 8 is "not
+	// available here" - under h these vanished exactly when calibration
+	// succeeded, which read as the feature being broken for a dozen builds.
+	//
+	// Only the two actions hide. The slot and the SD switch never do, so the
+	// group cannot empty and leave its two separators back to back: a line
+	// written as "-" ignores the hide prefix on this build of MiSTer main, so a
+	// separator can never be hidden along with the group it belongs to.
+	//
+	// The key names are the NES core's. Both cores share savestate_ui and the
+	// keys behave the same in each: F1 to F4 restore, Alt and the same key saves,
+	// and the key itself picks the slot. SNES labels them "(Alt-F1)" and "(F1)",
+	// which reads as though only one slot has keys.
+	"O[47],Save state to SD,On,Off;",
+	"O[26:25],Savestate Slot,1,2,3,4;",
+	"H8R[23],Save state (Alt+F1-F4);",
+	"H8R[31],Restore state (F1-F4);",
+	"-;",
 	"P1,Audio & Video;",
 	"P1O[49:48],Aspect Ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O[3:1],Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -133,6 +165,26 @@ localparam CONF_STR = {
 	"J1,A,B,C,Start,Mode,X,Y,Z;",
 	"jn,A,B,R,Start,Select,X,Y,L;", // name map to SNES layout.
 	"jp,Y,B,A,Start,Select,L,X,R;", // positional map to SNES layout (3 button friendly)
+	// The messages the OSD shows for savestates. main takes the info number the
+	// core sends and picks that comma-separated substring out of this line - see
+	// show_core_info() in user_io.cpp - so the numbering lives here and nowhere
+	// else. It is the SNES core's list and the SNES core's numbering: 2 + slot on
+	// a slot change, 6 + {slot, load} on a save or a restore. The first entry is
+	// the gamepad help text, which needs the hotkeys this core does not have yet.
+	"I,",
+	"Slot=DPAD|Save/Load=Start+DPAD,",
+	"Active Slot 1,",
+	"Active Slot 2,",
+	"Active Slot 3,",
+	"Active Slot 4,",
+	"Save to state 1,",
+	"Restore state 1,",
+	"Save to state 2,",
+	"Restore state 2,",
+	"Save to state 3,",
+	"Restore state 3,",
+	"Save to state 4,",
+	"Restore state 4;",
 	"V,v",`BUILD_DATE
 };
 
@@ -250,6 +302,11 @@ wire [15:0] sdram_sz;
 
 wire [35:0] EXT_BUS;
 
+wire       ss_ui_save, ss_ui_load, ss_status_update;
+wire [1:0] ss_ui_slot;
+wire       ss_ui_info_req;
+wire [7:0] ss_ui_info;
+
 hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 (
 	.clk_sys(clk_sys),
@@ -268,9 +325,17 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.new_vmode(new_vmode),
 
 	.status(status),
-	.status_in({status[127:8],region_req,status[5:0]}),
-	.status_set(region_set),
-	.status_menumask({tmss_loaded,status[13],en216p,!gun_mode,1'b0,status[8],~gg_available,~bk_ena}),
+	// the slot lives in savestate_ui now, so it has to be written back into the
+	// status word main holds, alongside the region the core picks for itself
+	.status_in({status[127:27], ss_ui_slot, status[24:8], region_req, status[5:0]}),
+	.status_set(region_set | ss_status_update),
+	// bit 8 drives the H8 lines below: it reports whether the savestate
+	// controller managed to measure the scan chain on this chip. LED_USER is not
+	// wired on every MiSTer board, so the menu is the only channel that always
+	// works.
+	.info_req(ss_ui_info_req),
+	.info(ss_ui_info),
+	.status_menumask({1'b0,ss_unavailable,tmss_loaded,status[13],en216p,!gun_mode,1'b0,status[8],~gg_available,~bk_ena}),
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
@@ -345,28 +410,50 @@ end
 wire reset   = status[0] | buttons[1] | region_set_rst;
 wire loading = cart_download | bk_loading | RESET;
 
-reg        btn_reset;
-reg        md_reset;
-reg        s_reset;
-reg [15:1] ram_rst_a;
-always @(posedge clk_md) begin
-	reg [4:0] cnt = 0;
-	reg old_reset = 0;
-	
-	ram_rst_a <= ram_rst_a + 1'd1;
-	if(&ram_rst_a & ~&cnt) cnt <= cnt + 1'd1;
+wire       btn_reset;
+// the machine is held in reset while the controller measures the chain, which
+// takes about a millisecond at power-up: see rtl/savestate.sv
+wire       ss_cal_busy;
+wire       ss_pause_req;
+// the measurement did not come back with a sane length; snapshots are off and
+// LED_USER is lit, because there is no other way to say so from in here
+wire       ss_cal_failed;
+// this cartridge carries live state the snapshot does not: an SVP, an EEPROM,
+// one of the odd mappers. the menu items hide rather than lie
+wire       ss_cart_unsupported;
+// an access on the far side of four megabytes is in flight, which nothing in
+// the chain would bring back: do not freeze here
+wire       cart_ss_hold;
+// the chain could not be measured on this chip, or this cartridge keeps state
+// the snapshot does not carry. Offering a savestate that comes back broken is
+// worse than not offering one, and it is what the NES core does too - its
+// savestate_ui takes allow_ss = rom_loaded & mapper_has_savestate.
+wire       ss_unavailable = ss_cal_failed | ss_cart_unsupported;
+// the measured chain length, which ss_ddr needs to size a transfer of the chain
+wire [15:0] ss_chain_len;
+wire [28:0] dg_ddr_addr;
+wire [63:0] dg_ddr_din;
+wire        dg_ddr_we, dg_ddr_rd, dg_busy;
+wire  [9:0] dg_buf_addr;
+wire [63:0] dg_buf_q;
+wire  [7:0] dg_ddr_burstcnt;
 
-	old_reset <= reset;
-	if(loading | (~old_reset & reset)) cnt <= 0;
-
-	s_reset <= (cnt < 3);
-	
-	if(loading)       md_reset <= 1;
-	else if(cnt == 3) md_reset <= 0;
-
-	if(~old_reset & reset) btn_reset <= 1;
-	else if(&cnt)          btn_reset <= 0;
-end
+// the machine's reset and the core's reset are two different windows on two
+// different counters, see rtl/md_reset.sv for why that matters
+wire       md_reset;
+wire       s_reset;
+wire [15:1] ram_rst_a;
+md_reset md_reset_inst
+(
+	.clk(clk_md),
+	.loading(loading),
+	.reset(reset),
+	.cal_busy(ss_cal_busy),
+	.md_reset(md_reset),
+	.s_reset(s_reset),
+	.btn_reset(btn_reset),
+	.ram_rst_a(ram_rst_a)
+);
 
 reg sys_reset;
 always @(posedge clk_sys) begin
@@ -393,7 +480,8 @@ end
 always @(posedge clk_md) begin
 	reg pause_req;
 
-	pause_req <= OSD_STATUS & status[61];
+	// the snapshot asks for the same clean stop the OSD pause uses
+	pause_req <= (OSD_STATUS & status[61]) | ss_pause_req;
 
 	if(pause_req & ~md_reset & ~btn_reset & ~cart_download) begin
 		dma_z80_req <= 1;
@@ -481,9 +569,167 @@ wire        res_z80;
 wire        VCLK, ZCLK;
 wire        VCLK_next, ZCLK_next;
 
+// savestate: scan chain plus memory walk, see rtl/savestate.sv
+//
+// The keyboard and gamepad front end is the SNES core's, so the keys and the OSD
+// messages are the ones players already know: F1 to F4 load, Alt and the same
+// key saves. It runs on clk_sys because that is where
+// ps2_key and hps_io already are: no clock crossing to get wrong, and the info
+// pulse it raises is sampled in its own domain.
+savestate_ui #(.INFO_TIMEOUT_BITS(25)) savestate_ui
+(
+	.clk          (clk_sys),
+	.ps2_key      (ps2_key),
+	.allow_ss     (~ss_unavailable),
+	// The gamepad half stays tied off. It needs a tenth entry in the J1 list and
+	// a button on the pad that is not already a Mega Drive button, which means
+	// every player redefining their controller for a feature the keyboard and the
+	// menu already reach. The module is the SNES core's and is kept whole so the
+	// keys and the OSD messages match theirs.
+	.joySS        (1'b0),
+	.joyRight     (1'b0),
+	.joyLeft      (1'b0),
+	.joyDown      (1'b0),
+	.joyUp        (1'b0),
+	.joyStart     (1'b0),
+	.joyRewind    (1'b0),
+	.rewindEnable (1'b0),
+	.status_slot  (status[26:25]),
+	.OSD_saveload ({status[31], status[23]}),
+	.ss_save      (ss_ui_save),
+	.ss_load      (ss_ui_load),
+	.ss_info_req  (ss_ui_info_req),
+	.ss_info      (ss_ui_info),
+	.statusUpdate (ss_status_update),
+	.selected_slot(ss_ui_slot)
+);
+
+wire  [1:0] ss_slot = ss_ui_slot;
+reg         ss_save_req, ss_load_req;
+always @(posedge clk_md) begin
+	reg old_save, old_load;
+	old_save <= ss_ui_save;
+	old_load <= ss_ui_load;
+	// savestate_ui pulses these for one clk_sys clock, which is two of these, so
+	// the edge cannot be missed going this way. Hidden in the menu is not enough
+	// on its own: the keys reach savestate_ui directly.
+	ss_save_req <= ~old_save & ss_ui_save & ~ss_busy & ~ss_unavailable;
+	ss_load_req <= ~old_load & ss_ui_load & ~ss_busy & ~ss_unavailable;
+end
+
+wire        ss_en, ss_in, ss_out, ss_busy;
+wire [15:0] ss_mem_addr, ss_mem_din, ss_mem_dout;
+wire  [3:0] ss_mem_sel;
+wire        ss_mem_wr, ss_mem_wr_hold;
+wire [15:0] ss_wram_q;
+wire  [7:0] ss_zram_q;
+wire  [7:0] ss_vram_q;
+wire        ss_wram_wr = ss_mem_wr & (ss_mem_sel == 4'd0);
+wire        ss_zram_wr = ss_mem_wr & (ss_mem_sel == 4'd1);
+// VRAM has no spare port, so the walk takes the machine's over for the duration.
+// It is paused and the chain is not shifting, so nothing else is asking for it.
+wire        ss_vram_sel = ss_busy & (ss_mem_sel == 4'd2);
+// the VDP's palette and vertical scroll, on a port of their own inside ym7101
+wire        ss_arr_sel  = ss_busy & (ss_mem_sel == 4'd3);
+wire [15:0] ss_arr_q;
+// the cartridge's live state: mapper banks, the EEPROM lines, the SMS paging
+wire        ss_cart_sel = ss_busy & (ss_mem_sel == 4'd4);
+wire [15:0] ss_cart_q;
+
+// the walked memories answer on one shared bus; only one is selected at a time
+assign ss_mem_dout = (ss_mem_sel == 4'd0) ? ss_wram_q :
+                     (ss_mem_sel == 4'd1) ? {8'd0, ss_zram_q} :
+                     (ss_mem_sel == 4'd2) ? {8'd0, ss_vram_q} :
+                     (ss_mem_sel == 4'd3) ? ss_arr_q :
+                     (ss_mem_sel == 4'd4) ? ss_cart_q : 16'd0;
+
+// DDR3 has a single master port and the CDDA reader already uses it.
+// snapshots are rare and brief, so they simply win while busy; the worst
+// case is a short gap in CD audio during a save or load.
+wire        ss_save_pending, ss_load_pending, ss_xfer_ack;
+wire [15:0] ss_blk_off;
+wire  [9:0] ss_blk_len;
+wire  [9:0] ss_blk_base;
+wire        ss_blk_hdr, ss_hdr_present;
+wire [31:0] ss_hdr_words32;
+wire        dg_buf_we;
+wire [63:0] dg_buf_din;
+wire [28:0] cdda_ddr_addr;
+wire [63:0] cdda_ddr_din;
+wire        cdda_ddr_rd, cdda_ddr_we;
+wire  [7:0] cdda_ddr_burstcnt;
+wire  [7:0] cdda_ddr_be;
+
+// one master for this port now that the controller no longer drives it itself:
+// everything savestate needs goes through ss_ddr, on the clock DDRAM_CLK comes
+// from. the CDDA reader gets the port back the moment ss_ddr is idle.
+assign DDRAM_ADDR     = dg_busy ? dg_ddr_addr     : cdda_ddr_addr;
+assign DDRAM_DIN      = dg_busy ? dg_ddr_din      : cdda_ddr_din;
+assign DDRAM_RD       = dg_busy ? dg_ddr_rd       : cdda_ddr_rd;
+assign DDRAM_WE       = dg_busy ? dg_ddr_we       : cdda_ddr_we;
+assign DDRAM_BURSTCNT = dg_busy ? dg_ddr_burstcnt : cdda_ddr_burstcnt;
+assign DDRAM_BE       = dg_busy ? 8'hFF : cdda_ddr_be;
+
+// the transfers run in the DDRAM clock domain, not the machine clock:
+// see rtl/ss_ddr.sv
+ss_ddr ss_ddr
+(
+	.clk(clk_sys),
+	.chain_len(ss_chain_len),
+	.busy(dg_busy),
+	.ddr_busy(DDRAM_BUSY),
+	.ddr_addr(dg_ddr_addr), .ddr_din(dg_ddr_din),
+	.ddr_we(dg_ddr_we), .ddr_burstcnt(dg_ddr_burstcnt),
+	.buf_addr(dg_buf_addr), .buf_q(dg_buf_q),
+	.req_save(ss_save_pending), .req_load(ss_load_pending), .slot(ss_slot),
+	.blk_off(ss_blk_off), .blk_len(ss_blk_len), .blk_base(ss_blk_base),
+	.blk_hdr(ss_blk_hdr), .hdr_words32(ss_hdr_words32), .hdr_present(ss_hdr_present),
+	.save_sd(~status[47]),
+	.ack(ss_xfer_ack),
+	.buf_we(dg_buf_we), .buf_din(dg_buf_din),
+	.ddr_rd(dg_ddr_rd), .ddr_dout(DDRAM_DOUT), .ddr_dout_ready(DDRAM_DOUT_READY)
+);
+
+savestate savestate
+(
+	.clk(clk_md),
+	.reset(sys_reset),
+	.ss_save(ss_save_req),
+	.ss_load(ss_load_req),
+	.busy(ss_busy),
+	.cal_busy(ss_cal_busy),
+	// the Z80 held in reset counts as off the bus, which is how the OSD pause reads
+	// it too. waiting only for its acknowledge meant the snapshot could never start
+	// at boot, gave up after 157 ms, and retried every 2.5 seconds: audible clicks
+	// and a game that never got past its logo. cart_cs idle keeps the freeze from
+	// landing in the middle of a cartridge access the memory controller will finish
+	// without the frozen 68000 ever seeing it.
+	.pause_req(ss_pause_req),
+	.bus_free((dma_z80_ack | res_z80) & ~cart_dma & ~cart_cs & ~cart_ss_hold),
+	.cal_failed(ss_cal_failed),
+	.chain_len(ss_chain_len),
+	.bufb_clk(clk_sys), .bufb_addr(dg_buf_addr), .bufb_q(dg_buf_q),
+	.bufb_we(dg_buf_we), .bufb_din(dg_buf_din),
+	// work-RAM writes, not cartridge accesses: a runaway 68000 fetches as hard as a
+	// working one, so cart_cs could not tell a crash from health. Writes to work RAM
+	// track the program actually storing results.
+	.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+	.save_req(ss_save_pending), .load_req(ss_load_pending), .xfer_ack(ss_xfer_ack),
+	.blk_off(ss_blk_off), .blk_len(ss_blk_len), .blk_base(ss_blk_base),
+	.blk_hdr(ss_blk_hdr), .hdr_words32(ss_hdr_words32), .hdr_present(ss_hdr_present),
+	.mem_addr(ss_mem_addr), .mem_sel(ss_mem_sel), .mem_din(ss_mem_din),
+	.mem_wr(ss_mem_wr), .mem_wr_hold(ss_mem_wr_hold), .mem_dout(ss_mem_dout)
+);
+
 md_board md_board
 (
 	.MCLK2(clk_md),
+	.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+	.ss_mem_sel(ss_vram_sel), .ss_mem_addr(ss_mem_addr),
+	.ss_mem_din(ss_mem_din[7:0]), .ss_mem_wr(ss_mem_wr & ss_vram_sel),
+	.ss_mem_dout(ss_vram_q),
+	.ss_arr_sel(ss_arr_sel), .ss_arr_addr(ss_mem_addr), .ss_arr_din(ss_mem_din),
+	.ss_arr_wr(ss_mem_wr & ss_arr_sel), .ss_arr_dout(ss_arr_q),
 
 	.ext_reset(md_reset),
 	.reset_button(btn_reset), // edge triggered, requires some activity time to get detected.
@@ -588,12 +834,14 @@ dpram #(15,16) ram_68k
 
 	.address_a(ram_68k_address),
 	.data_a(ram_68k_data),
-	.wren_a(ram_68k_wren),
+	.wren_a(ram_68k_wren & ~ss_en),
 	.byteena_a(ram_68k_byteena),
 	.q_a(ram_68k_o),
 
-	.address_b(ram_rst_a),
-	.wren_b(md_reset)
+	.address_b(ss_busy ? ss_mem_addr[14:0] : ram_rst_a),
+	.data_b(ss_mem_din),
+	.wren_b(ss_busy ? ss_wram_wr : md_reset),
+	.q_b(ss_wram_q)
 );
 
 dpram #(13,8) ram_z80k
@@ -602,12 +850,13 @@ dpram #(13,8) ram_z80k
 
 	.address_a(ram_z80_address),
 	.data_a(ram_z80_data),
-	.wren_a(ram_z80_wren),
+	.wren_a(ram_z80_wren & ~ss_en),
 	.q_a(ram_z80_o),
 
-	.address_b(ram_rst_a),
-	.wren_b(md_reset),
-	.data_b(8'hC7) // reset instruction to fix Titan 2 bug
+	.address_b(ss_busy ? ss_mem_addr[12:0] : ram_rst_a),
+	.wren_b(ss_busy ? ss_zram_wr : md_reset),
+	.data_b(ss_busy ? ss_mem_din[7:0] : 8'hC7), // reset instruction to fix Titan 2 bug
+	.q_b(ss_zram_q)
 );
 
 dpram_difclk #(10,16,10,16) rom_tmss
@@ -664,13 +913,19 @@ cartridge cartridge
 	.cart_data(cart_data_rom),
 	.cart_data_en(cart_data_en_rom),
 	.cart_data_wr(cart_data_wr),
-	.cart_cs(cart_cs),
-	.cart_oe(cart_oe),
-	.cart_lwr(cart_lwr),
-	.cart_uwr(cart_uwr),
+	.cart_cs(cart_cs & ~ss_en),
+	.cart_oe(cart_oe & ~ss_en),
+	.cart_lwr(cart_lwr & ~ss_en),
+	.cart_uwr(cart_uwr & ~ss_en),
 	.cart_time(cart_time),
 	.cart_dtack(cart_dtack_rom),
 	.cart_dma(cart_dma),
+
+	.ss_unsupported(ss_cart_unsupported),
+	.cart_ss_hold(cart_ss_hold),
+	.ss_cart_sel(ss_cart_sel), .ss_cart_addr(ss_mem_addr[3:0]),
+	.ss_cart_din(ss_mem_din), .ss_cart_wr(ss_mem_wr_hold & ss_cart_sel),
+	.ss_cart_dout(ss_cart_q),
 
 	.save_addr({sd_lba[6:0],sd_buff_addr}),
 	.save_di(sd_buff_dout),
@@ -733,10 +988,10 @@ md_plus md_plus
 
 	.cart_addr(cart_addr),
 	.cart_data_wr(cart_data_wr),
-	.cart_cs(cart_cs),
-	.cart_oe(cart_oe),
-	.cart_lwr(cart_lwr),
-	.cart_uwr(cart_uwr),
+	.cart_cs(cart_cs & ~ss_en),
+	.cart_oe(cart_oe & ~ss_en),
+	.cart_lwr(cart_lwr & ~ss_en),
+	.cart_uwr(cart_uwr & ~ss_en),
 
 	.mdp_data_en(mdp_data_en),
 	.mdp_data_out(mdp_data_out),
@@ -769,14 +1024,14 @@ mdp_audio mdp_audio
 	// DDRAM interface
 	.DDRAM_CLK(DDRAM_CLK),
 	.DDRAM_BUSY(DDRAM_BUSY),
-	.DDRAM_BURSTCNT(DDRAM_BURSTCNT),
-	.DDRAM_ADDR(DDRAM_ADDR),
+	.DDRAM_BURSTCNT(cdda_ddr_burstcnt),
+	.DDRAM_ADDR(cdda_ddr_addr),
 	.DDRAM_DOUT(DDRAM_DOUT),
 	.DDRAM_DOUT_READY(DDRAM_DOUT_READY),
-	.DDRAM_RD(DDRAM_RD),
-	.DDRAM_DIN(DDRAM_DIN),
-	.DDRAM_BE(DDRAM_BE),
-	.DDRAM_WE(DDRAM_WE),
+	.DDRAM_RD(cdda_ddr_rd),
+	.DDRAM_DIN(cdda_ddr_din),
+	.DDRAM_BE(cdda_ddr_be),
+	.DDRAM_WE(cdda_ddr_we),
 
 	// Ring buffer pointers (from/to hps_ext)
 	.active(mdp_audio_active),

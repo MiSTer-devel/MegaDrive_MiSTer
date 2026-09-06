@@ -1,5 +1,9 @@
 module ym3438_io
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input c1,
 	input c2,
@@ -39,6 +43,7 @@ module ym3438_io
 	
 	wire write_a_sig;
 	
+	wire ss_step1_write_a_tr1;
 	ym_rs_trig write_a_tr1
 		(
 		.MCLK(MCLK),
@@ -46,10 +51,11 @@ module ym3438_io
 		.rst(write_a_sig),
 		.q(write_a_tr1_q),
 		.nq(write_a_tr1_nq)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_write_a_tr1));
 	
 	wire write_a_tr2_q;
 	
+	wire ss_step2_write_a_tr2;
 	ym_rs_trig_sync write_a_tr2
 		(
 		.MCLK(MCLK),
@@ -58,8 +64,9 @@ module ym3438_io
 		.c1(c1),
 		.q(write_a_tr2_q),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_write_a_tr1), .ss_out(ss_step2_write_a_tr2));
 	
+	wire ss_step3_write_a_sl;
 	ym_slatch write_a_sl
 		(
 		.MCLK(MCLK),
@@ -67,10 +74,11 @@ module ym3438_io
 		.inp(write_a_tr2_q),
 		.val(write_a_sig),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_write_a_tr2), .ss_out(ss_step3_write_a_sl));
 	
 	wire write_a_sig_delay;
 	
+	wire ss_step4_write_a_sr;
 	ym_sr_bit write_a_sr
 		(
 		.MCLK(MCLK),
@@ -78,7 +86,7 @@ module ym3438_io
 		.c2(c2),
 		.bit_in(write_a_sig),
 		.sr_out(write_a_sig_delay)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_write_a_sl), .ss_out(ss_step4_write_a_sr));
 	
 	assign write_addr_en = write_a_sig & ~write_a_sig_delay;
 	
@@ -86,6 +94,7 @@ module ym3438_io
 	
 	wire write_d_sig;
 	
+	wire ss_step5_write_d_tr1;
 	ym_rs_trig write_d_tr1
 		(
 		.MCLK(MCLK),
@@ -93,10 +102,11 @@ module ym3438_io
 		.rst(write_d_sig),
 		.q(write_d_tr1_q),
 		.nq(write_d_tr1_nq)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step4_write_a_sr), .ss_out(ss_step5_write_d_tr1));
 	
 	wire write_d_tr2_q;
 	
+	wire ss_step6_write_d_tr2;
 	ym_rs_trig_sync write_d_tr2
 		(
 		.MCLK(MCLK),
@@ -105,8 +115,9 @@ module ym3438_io
 		.c1(c1),
 		.q(write_d_tr2_q),
 		.nq()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step5_write_d_tr1), .ss_out(ss_step6_write_d_tr2));
 	
+	wire ss_step7_write_d_sl;
 	ym_slatch write_d_sl
 		(
 		.MCLK(MCLK),
@@ -114,10 +125,11 @@ module ym3438_io
 		.inp(write_d_tr2_q),
 		.val(write_d_sig),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step6_write_d_tr2), .ss_out(ss_step7_write_d_sl));
 		
 	wire write_d_sig_delay;
 	
+	wire ss_step8_write_d_sr;
 	ym_sr_bit write_d_sr
 		(
 		.MCLK(MCLK),
@@ -125,7 +137,7 @@ module ym3438_io
 		.c2(c2),
 		.bit_in(write_d_sig),
 		.sr_out(write_d_sig_delay)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step7_write_d_sl), .ss_out(ss_step8_write_d_sr));
 	
 	assign write_data_en = write_d_sig & ~write_d_sig_delay;
 	
@@ -140,12 +152,13 @@ module ym3438_io
 		.inp(data_in),
 		.val(data_l_out),
 		.nval()
-		);
+		, .ss_en(ss_en));
 	
 	wire busy_of;
 	
 	wire busy_state_o;
 	
+	wire ss_step9_busy_cnt;
 	ym_cnt_bit #(.DATA_WIDTH(5)) busy_cnt
 		(
 		.MCLK(MCLK),
@@ -155,10 +168,11 @@ module ym3438_io
 		.reset(~io_IC),
 		.val(),
 		.c_out(busy_of)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step8_write_d_sr), .ss_out(ss_step9_busy_cnt));
 	
 	wire busy_state_i = ~(write_data_en | (~busy_state_o & ~(busy_of | ~io_IC)));
 	
+	wire ss_step10_busy_sr;
 	ym_sr_bit busy_sr
 		(
 		.MCLK(MCLK),
@@ -166,7 +180,7 @@ module ym3438_io
 		.c2(c2),
 		.bit_in(busy_state_i),
 		.sr_out(busy_state_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step9_busy_cnt), .ss_out(ss_step10_busy_sr));
 	
 	assign io_dir = ~(IC & ~RD & ~CS);
 	
@@ -179,6 +193,7 @@ module ym3438_io
 	
 	wire timer_a_status_sl_out;
 	
+	wire ss_step11_timer_a_status_sl;
 	ym_slatch timer_a_status_sl
 		(
 		.MCLK(MCLK),
@@ -186,10 +201,11 @@ module ym3438_io
 		.inp(timer_a),
 		.val(),
 		.nval(timer_a_status_sl_out)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step10_busy_sr), .ss_out(ss_step11_timer_a_status_sl));
 	
 	wire timer_b_status_sl_out;
 	
+	wire ss_step12_timer_b_status_sl;
 	ym_slatch timer_b_status_sl
 		(
 		.MCLK(MCLK),
@@ -197,7 +213,7 @@ module ym3438_io
 		.inp(timer_b),
 		.val(),
 		.nval(timer_b_status_sl_out)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step11_timer_a_status_sl), .ss_out(ss_step12_timer_b_status_sl));
 	
 	reg [7:0] data_o_r = 0;
 	reg [25:0] status_time = 0;
@@ -205,6 +221,14 @@ module ym3438_io
 	wire [7:0] debug_data;
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			data_o_r <= {data_o_r[6:0], ss_step12_timer_b_status_sl};
+			status_time <= {status_time[24:0], data_o_r[7]};
+		end
+		else
+		begin
+
 		if (read_status)
 			data_o_r <= { ~busy_state_o, 5'h0, timer_b_status_sl_out, timer_a_status_sl_out };
 		if (read_debug)
@@ -216,7 +240,8 @@ module ym3438_io
 			status_time <= status_time - 1;
 		else
 			data_o_r <= 8'h0;
-	end
+			end
+end
 	assign data_o = data_o_r;
 	
 	assign irq = ~(timer_a_status_sl_out | timer_b_status_sl_out);
@@ -229,6 +254,7 @@ module ym3438_io
 	
 	wire [8:0] ch_dbg_sr_o;
 	
+	wire ss_step14_ch_dbg_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(9)) ch_dbg_sr
 		(
 		.MCLK(MCLK),
@@ -236,10 +262,12 @@ module ym3438_io
 		.c2(c2),
 		.data_in(ch_dbg),
 		.data_out(ch_dbg_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(status_time[25]), .ss_out(ss_step14_ch_dbg_sr));
 	
 	assign debug_data_w[15] = pg_dbg;
 	assign debug_data_w[14] = reg_21[0] ? eg_dbg : eg_dbg_inc;
 	assign debug_data_w[13:0] = reg_2c[4] ? { 5'h0, ch_dbg_sr_o } : op_dbg;
 
+
+	assign ss_out = ss_step14_ch_dbg_sr;
 endmodule

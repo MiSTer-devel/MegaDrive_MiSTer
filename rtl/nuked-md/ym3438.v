@@ -24,6 +24,10 @@
  */
 
 module ym3438(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input PHI,
 	input [7:0] DATA_i,
@@ -47,6 +51,7 @@ module ym3438(
 	wire c1, c2;
 	wire reset_fsm;
 	
+	wire ss_step1_prescaler;
 	ym3438_prescaler prescaler(
 		.MCLK(MCLK),
 		.PHI(PHI),
@@ -54,7 +59,7 @@ module ym3438(
 		.c1(c1),
 		.c2(c2),
 		.reset_fsm(reset_fsm)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_prescaler));
 		
 	wire fsm_sel0;
 	wire fsm_sel1;
@@ -76,6 +81,7 @@ module ym3438(
 	
 	wire [2:0] connect;
 	
+	wire ss_step2_fsm;
 	ym3438_fsm fsm(
 		.MCLK(MCLK),
 		.c1(c1),
@@ -99,7 +105,7 @@ module ym3438(
 		.fsm_dac_load(fsm_dac_load),
 		.fsm_dac_out_sel(fsm_dac_out_sel),
 		.fsm_dac_ch6(fsm_dac_ch6)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_prescaler), .ss_out(ss_step2_fsm));
 	
 	wire [7:0] data_bus;
 	wire bank;
@@ -122,6 +128,7 @@ module ym3438(
 	assign TEST_o = fsm_sel23;
 	assign TEST_o_z = reg_2c[7];
 	
+	wire ss_step3_io;
 	ym3438_io io(
 		.MCLK(MCLK),
 		.c1(c1),
@@ -149,7 +156,7 @@ module ym3438(
 		.io_dir(DATA_o_z),
 		.irq(IRQ),
 		.ym2612_status_enable(ym2612_status_enable)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_fsm), .ss_out(ss_step3_io));
 		
 	wire [3:0] reg_lfo;
 	
@@ -193,6 +200,7 @@ module ym3438(
 	
 	wire [2:0] dac_index;
 	
+	wire ss_step4_reg_ctrl;
 	ym3438_reg_ctrl reg_ctrl(
 		.MCLK(MCLK),
 		.c1(c1),
@@ -241,11 +249,12 @@ module ym3438(
 		.timer_b_status(timer_b_status),
 		.connect(connect),
 		.dac_index(dac_index)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_io), .ss_out(ss_step4_reg_ctrl));
 	
 	wire [11:0] fnum_lfo;
 	wire [5:0] lfo_am;
 		
+	wire ss_step5_lfo;
 	ym3438_lfo lfo
 		(
 		.MCLK(MCLK),
@@ -259,11 +268,12 @@ module ym3438(
 		.fnum(reg_fnum),
 		.fnum_lfo(fnum_lfo),
 		.lfo_am(lfo_am)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step4_reg_ctrl), .ss_out(ss_step5_lfo));
 	
 	wire [4:0] kcode_sr1_o;
 	wire [4:0] kcode_sr2_o;
 	
+	wire ss_step6_kcode_sr1;
 	ym_sr_bit_array #(.DATA_WIDTH(5)) kcode_sr1
 		(
 		.MCLK(MCLK),
@@ -271,8 +281,9 @@ module ym3438(
 		.c2(c2),
 		.data_in(reg_kcode),
 		.data_out(kcode_sr1_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step5_lfo), .ss_out(ss_step6_kcode_sr1));
 	
+	wire ss_step7_kcode_sr2;
 	ym_sr_bit_array #(.DATA_WIDTH(5)) kcode_sr2
 		(
 		.MCLK(MCLK),
@@ -280,12 +291,13 @@ module ym3438(
 		.c2(c2),
 		.data_in(kcode_sr1_o),
 		.data_out(kcode_sr2_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step6_kcode_sr1), .ss_out(ss_step7_kcode_sr2));
 	
 	wire dt_sign_1;
 	wire dt_sign_2;
 	wire [4:0] dt_value;
 	
+	wire ss_step8_detune;
 	ym3438_detune detune
 		(
 		.MCLK(MCLK),
@@ -296,12 +308,13 @@ module ym3438(
 		.dt_sign_1(dt_sign_1),
 		.dt_sign_2(dt_sign_2),
 		.dt_value(dt_value)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step7_kcode_sr2), .ss_out(ss_step8_detune));
 	
 	wire [9:0] pg_out;
 	
 	wire pg_reset;
 	
+	wire ss_step9_pg;
 	ym3438_pg pg
 		(
 		.MCLK(MCLK),
@@ -318,10 +331,11 @@ module ym3438(
 		.fsm_sel2(fsm_sel2),
 		.pg_out(pg_out),
 		.pg_dbg_o(pg_dbg)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step8_detune), .ss_out(ss_step9_pg));
 	
 	wire [9:0] eg_out;
 		
+	wire ss_step10_eg;
 	ym3438_eg eg
 		(
 		.MCLK(MCLK),
@@ -356,12 +370,13 @@ module ym3438(
 		.eg_out(eg_out),
 		.test_inc(eg_dbg_inc),
 		.eg_dbg(eg_dbg)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step9_pg), .ss_out(ss_step10_eg));
 	
 	wire [13:0] op_output;
 	
 	assign op_dbg = op_output;
 	
+	wire ss_step11_op;
 	ym3438_op op
 		(
 		.MCLK(MCLK),
@@ -380,12 +395,13 @@ module ym3438(
 		.no_fb(alg_fb_sel),
 		.fb(reg_fb),
 		.op_output(op_output)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step10_eg), .ss_out(ss_step11_op));
 
 	wire [8:0] ch_out;
 	wire dac_out_enable;
 	wire dac_out_enable_2612;
 	
+	wire ss_step12_ch;
 	ym3438_ch ch
 		(
 		.MCLK(MCLK),
@@ -404,7 +420,7 @@ module ym3438(
 		.ch_out(ch_out),
 		.dac_out_enable(dac_out_enable),
 		.dac_out_enable_2612(dac_out_enable_2612)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step11_op), .ss_out(ss_step12_ch));
 	
 	reg [8:0] ch_out_l = 0;
 	reg [1:0] ch_pan_l = 0;
@@ -431,13 +447,27 @@ module ym3438(
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			ch_out_l <= {ch_out_l[7:0], ss_step12_ch};
+			ch_pan_l <= {ch_pan_l[0:0], ch_out_l[8]};
+			dac_out_enable_l <= ch_pan_l[1];
+			dac_out_enable_2612_l <= dac_out_enable_l;
+			dac_index_l <= {dac_index_l[1:0], dac_out_enable_2612_l};
+		end
+		else
+		begin
+
 		ch_out_l <= ch_out;
 		ch_pan_l <= pan;
 		dac_out_enable_l <= dac_out_enable;
 		dac_out_enable_2612_l <= dac_out_enable_2612;
 		dac_index_l <= dac_index;
-	end
+			end
+end
 	
 	assign fm_clk1 = c1;
 	
+
+	assign ss_out = dac_index_l[2];
 endmodule

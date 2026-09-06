@@ -1,5 +1,9 @@
 module ym3438_eg
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input c1,
 	input c2,
@@ -38,6 +42,7 @@ module ym3438_eg
 	
 	wire fsm_sel1;
 	
+	wire ss_step1_fsm_sel1_sr;
 	ym_sr_bit fsm_sel1_sr
 		(
 		.MCLK(MCLK),
@@ -45,10 +50,11 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(fsm_sel0),
 		.sr_out(fsm_sel1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_fsm_sel1_sr));
 	
 	wire fsm_sel12;
 	
+	wire ss_step2_fsm_sel12_sr;
 	ym_sr_bit #(.SR_LENGTH(12)) fsm_sel12_sr
 		(
 		.MCLK(MCLK),
@@ -56,11 +62,12 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(fsm_sel0),
 		.sr_out(fsm_sel12)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_fsm_sel1_sr), .ss_out(ss_step2_fsm_sel12_sr));
 	
 	wire subcnt_rst;
 	wire [1:0] subcnt_o;
 	
+	wire ss_step3_subcnt;
 	ym_cnt_bit #(.DATA_WIDTH(2)) subcnt
 		(
 		.MCLK(MCLK),
@@ -70,12 +77,13 @@ module ym3438_eg
 		.reset(subcnt_rst),
 		.val(subcnt_o),
 		.c_out()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_fsm_sel12_sr), .ss_out(ss_step3_subcnt));
 	
 	assign subcnt_rst = nIC | (subcnt_o[1] & fsm_sel0);
 	
 	wire subcnt_of_l_o;
 	
+	wire ss_step4_subcnt_of_l;
 	ym_dlatch_1 subcnt_of_l
 		(
 		.MCLK(MCLK),
@@ -83,10 +91,11 @@ module ym3438_eg
 		.inp(subcnt_o[1]),
 		.val(subcnt_of_l_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_subcnt), .ss_out(ss_step4_subcnt_of_l));
 	
 	wire subcnt_of_sr_o;
 	
+	wire ss_step5_subcnt_of_sr;
 	ym_sr_bit subcnt_of_sr
 		(
 		.MCLK(MCLK),
@@ -94,7 +103,7 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(subcnt_o[1]),
 		.sr_out(subcnt_of_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step4_subcnt_of_l), .ss_out(ss_step5_subcnt_of_sr));
 	
 	wire timer_bit;
 	
@@ -102,6 +111,7 @@ module ym3438_eg
 	
 	wire mask_bit = ~(fsm_sel0 | fsm_sel12 | nIC) & (mask_bit_sr_o | timer_bit);
 	
+	wire ss_step6_mask_bit_sr;
 	ym_sr_bit mask_bit_sr
 		(
 		.MCLK(MCLK),
@@ -109,12 +119,13 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(mask_bit),
 		.sr_out(mask_bit_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step5_subcnt_of_sr), .ss_out(ss_step6_mask_bit_sr));
 	
 	wire eg_timer_i;
 	wire eg_timer_o1;
 	wire eg_timer_o2;
 	
+	wire ss_step7_eg_timer_sr;
 	ym_sr_bit #(.SR_LENGTH(11)) eg_timer_sr
 		(
 		.MCLK(MCLK),
@@ -122,8 +133,9 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(eg_timer_i),
 		.sr_out(eg_timer_o1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step6_mask_bit_sr), .ss_out(ss_step7_eg_timer_sr));
 	
+	wire ss_step8_eg_timer_sr2;
 	ym_sr_bit eg_timer_sr2
 		(
 		.MCLK(MCLK),
@@ -131,11 +143,12 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(eg_timer_o1),
 		.sr_out(eg_timer_o2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step7_eg_timer_sr), .ss_out(ss_step8_eg_timer_sr2));
 	
 	wire carry_sr_i;
 	wire carry_sr_o;
 	
+	wire ss_step9_carry_sr;
 	ym_sr_bit carry_sr
 		(
 		.MCLK(MCLK),
@@ -143,7 +156,7 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(carry_sr_i),
 		.sr_out(carry_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step8_eg_timer_sr2), .ss_out(ss_step9_carry_sr));
 		
 	wire timer_add = (fsm_sel1 & subcnt_o[1]) | carry_sr_o;
 	
@@ -179,22 +192,24 @@ module ym3438_eg
 				.c2(c2),
 				.bit_in(timer_shift_i[i]),
 				.sr_out(timer_shift_sel[i])
-				);
+				, .ss_en(ss_en));
 		end
 	endgenerate
 	
 	wire eg_cnt_ed_o;
 	
+	wire ss_step10_eg_cnt_ed;
 	ym_edge_detect eg_cnt_ed
 		(
 		.MCLK(MCLK),
 		.c1(c1),
 		.inp(subcnt_of_sr_o & fsm_sel1),
 		.outp(eg_cnt_ed_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step9_carry_sr), .ss_out(ss_step10_eg_cnt_ed));
 	
 	wire [1:0] eg_cnt_low_o;
 		
+	wire ss_step11_eg_cnt_low;
 	ym_slatch #(.DATA_WIDTH(2)) eg_cnt_low
 		(
 		.MCLK(MCLK),
@@ -202,7 +217,7 @@ module ym3438_eg
 		.inp({ eg_timer_o1, eg_timer_o2}),
 		.val(eg_cnt_low_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step10_eg_cnt_ed), .ss_out(ss_step11_eg_cnt_low));
 	
 	wire [3:0] eg_cnt_shift_i;
 	
@@ -217,6 +232,7 @@ module ym3438_eg
 	
 	wire [3:0] eg_cnt_shift_o;
 		
+	wire ss_step12_eg_cnt_shift;
 	ym_slatch #(.DATA_WIDTH(4)) eg_cnt_shift
 		(
 		.MCLK(MCLK),
@@ -224,10 +240,11 @@ module ym3438_eg
 		.inp(eg_cnt_shift_i),
 		.val(eg_cnt_shift_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step11_eg_cnt_low), .ss_out(ss_step12_eg_cnt_shift));
 	
 	wire rate_nz_sr_o;
 	
+	wire ss_step13_rate_nz_sr;
 	ym_sr_bit rate_nz_sr
 		(
 		.MCLK(MCLK),
@@ -235,10 +252,11 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(rate != 5'h0),
 		.sr_out(rate_nz_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step12_eg_cnt_shift), .ss_out(ss_step13_rate_nz_sr));
 	
 	wire [4:0] rate_l_o; // ~eg_rate
 	
+	wire ss_step14_rate_l;
 	ym_dlatch_1 #(.DATA_WIDTH(5)) rate_l
 		(
 		.MCLK(MCLK),
@@ -246,7 +264,7 @@ module ym3438_eg
 		.inp(rate),
 		.val(),
 		.nval(rate_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step13_rate_nz_sr), .ss_out(ss_step14_rate_l));
 	
 	wire [4:0] rate_ks_add;
 	
@@ -258,6 +276,7 @@ module ym3438_eg
 	
 	wire [4:0] rate_ks_add_l_o; // ~eg_ksv
 	
+	wire ss_step15_rate_ks_add_l;
 	ym_dlatch_1 #(.DATA_WIDTH(5)) rate_ks_add_l
 		(
 		.MCLK(MCLK),
@@ -265,12 +284,13 @@ module ym3438_eg
 		.inp(rate_ks_add),
 		.val(),
 		.nval(rate_ks_add_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step14_rate_l), .ss_out(ss_step15_rate_ks_add_l));
 	
 	wire [6:0] rate_sum = { 1'h0, rate_l_o, 1'h1 } + { 2'h1, rate_ks_add_l_o } + 7'h1;
 	
 	wire [6:0] rate_sum_l_o; // eg_rate2
 	
+	wire ss_step16_rate_sum_l;
 	ym_dlatch_2 #(.DATA_WIDTH(7)) rate_sum_l
 		(
 		.MCLK(MCLK),
@@ -278,7 +298,7 @@ module ym3438_eg
 		.inp(rate_sum),
 		.val(),
 		.nval(rate_sum_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step15_rate_ks_add_l), .ss_out(ss_step16_rate_sum_l));
 	
 	wire [5:0] rate_sum_clamp = rate_sum_l_o[5:0] | {6{rate_sum_l_o[6]}};
 	
@@ -295,6 +315,7 @@ module ym3438_eg
 	
 	wire step_low_l_o; // eg_inc1
 	
+	wire ss_step17_step_low_l;
 	ym_dlatch_1 step_low_l
 		(
 		.MCLK(MCLK),
@@ -302,7 +323,7 @@ module ym3438_eg
 		.inp(step_comb),
 		.val(),
 		.nval(step_low_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step16_rate_sum_l), .ss_out(ss_step17_step_low_l));
 	
 	wire rate_sum_not_max = rate_sum_clamp[5:1] != 5'h1f;
 	wire rate_sum_12 = rate_sum_clamp[5:2] != 4'hc;
@@ -312,6 +333,7 @@ module ym3438_eg
 	
 	wire rate_not_max_sr_o; // ~eg_maxrate[1]
 	
+	wire ss_step18_rate_not_max_sr;
 	ym_sr_bit rate_not_max_sr
 		(
 		.MCLK(MCLK),
@@ -319,13 +341,14 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(rate_sum_not_max),
 		.sr_out(rate_not_max_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step17_step_low_l), .ss_out(ss_step18_rate_not_max_sr));
 	
 	wire rate_12_l_o; // eg_rate12
 	wire rate_13_l_o; // eg_rate13
 	wire rate_14_l_o; // eg_rate14
 	wire rate_15_l_o; // eg_rate15
 	
+	wire ss_step19_rate_12_l;
 	ym_dlatch_1 rate_12_l
 		(
 		.MCLK(MCLK),
@@ -333,8 +356,9 @@ module ym3438_eg
 		.inp(rate_sum_12),
 		.val(),
 		.nval(rate_12_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step18_rate_not_max_sr), .ss_out(ss_step19_rate_12_l));
 	
+	wire ss_step20_rate_13_l;
 	ym_dlatch_1 rate_13_l
 		(
 		.MCLK(MCLK),
@@ -342,8 +366,9 @@ module ym3438_eg
 		.inp(rate_sum_13),
 		.val(),
 		.nval(rate_13_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step19_rate_12_l), .ss_out(ss_step20_rate_13_l));
 	
+	wire ss_step21_rate_14_l;
 	ym_dlatch_1 rate_14_l
 		(
 		.MCLK(MCLK),
@@ -351,8 +376,9 @@ module ym3438_eg
 		.inp(rate_sum_14),
 		.val(),
 		.nval(rate_14_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step20_rate_13_l), .ss_out(ss_step21_rate_14_l));
 	
+	wire ss_step22_rate_15_l;
 	ym_dlatch_1 rate_15_l
 		(
 		.MCLK(MCLK),
@@ -360,7 +386,7 @@ module ym3438_eg
 		.inp(rate_sum_15),
 		.val(),
 		.nval(rate_15_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step21_rate_14_l), .ss_out(ss_step22_rate_15_l));
 	
 	wire rate_hi_sel = ~(
 		(~eg_cnt_low_o[0] & rate_sum_clamp[1])
@@ -370,6 +396,7 @@ module ym3438_eg
 	
 	wire rate_hi_sel_l_o; // eg_inc2
 	
+	wire ss_step23_rate_hi_sel_l;
 	ym_dlatch_1 rate_hi_sel_l
 		(
 		.MCLK(MCLK),
@@ -377,7 +404,7 @@ module ym3438_eg
 		.inp(rate_hi_sel),
 		.val(),
 		.nval(rate_hi_sel_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step22_rate_15_l), .ss_out(ss_step23_rate_hi_sel_l));
 	
 	wire inc1 = subcnt_of_l_o & (step_low_l_o | (~rate_hi_sel_l_o & rate_12_l_o));
 	wire inc2 = subcnt_of_l_o & (rate_hi_sel_l_o ? rate_12_l_o : rate_13_l_o);
@@ -389,6 +416,7 @@ module ym3438_eg
 	wire inc3_l_o;
 	wire inc4_l_o;
 	
+	wire ss_step24_inc1_l;
 	ym_dlatch_2 inc1_l
 		(
 		.MCLK(MCLK),
@@ -396,8 +424,9 @@ module ym3438_eg
 		.inp(inc1),
 		.val(inc1_l_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step23_rate_hi_sel_l), .ss_out(ss_step24_inc1_l));
 	
+	wire ss_step25_inc2_l;
 	ym_dlatch_2 inc2_l
 		(
 		.MCLK(MCLK),
@@ -405,8 +434,9 @@ module ym3438_eg
 		.inp(inc2),
 		.val(inc2_l_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step24_inc1_l), .ss_out(ss_step25_inc2_l));
 	
+	wire ss_step26_inc3_l;
 	ym_dlatch_2 inc3_l
 		(
 		.MCLK(MCLK),
@@ -414,8 +444,9 @@ module ym3438_eg
 		.inp(inc3),
 		.val(inc3_l_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step25_inc2_l), .ss_out(ss_step26_inc3_l));
 	
+	wire ss_step27_inc4_l;
 	ym_dlatch_2 inc4_l
 		(
 		.MCLK(MCLK),
@@ -423,10 +454,11 @@ module ym3438_eg
 		.inp(inc4),
 		.val(inc4_l_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step26_inc3_l), .ss_out(ss_step27_inc4_l));
 	
 	wire inc_test_i = inc1_l_o | inc2_l_o | inc3_l_o | inc4_l_o;
 	
+	wire ss_step28_inc_test_sr;
 	ym_sr_bit inc_test_sr
 		(
 		.MCLK(MCLK),
@@ -434,10 +466,11 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(inc_test_i),
 		.sr_out(test_inc)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step27_inc4_l), .ss_out(ss_step28_inc_test_sr));
 	
 	wire [4:0] sl_sr_o;
 	
+	wire ss_step29_sl_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(5), .SR_LENGTH(2)) sl_sr
 		(
 		.MCLK(MCLK),
@@ -445,12 +478,13 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(sl),
 		.data_out(sl_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step28_inc_test_sr), .ss_out(ss_step29_sl_sr));
 		
 
 	wire ssg_pg_reset;
 	wire ssg_pg_reset_o;
 	
+	wire ss_step30_ssg_pg_reset_sr;
 	ym_sr_bit #(.SR_LENGTH(2)) ssg_pg_reset_sr
 		(
 		.MCLK(MCLK),
@@ -458,11 +492,12 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(ssg_pg_reset),
 		.sr_out(ssg_pg_reset_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step29_sl_sr), .ss_out(ss_step30_ssg_pg_reset_sr));
 		
 	wire ssg_toggle;
 	wire ssg_toggle_o;
 	
+	wire ss_step31_ssg_toggle_sr;
 	ym_sr_bit #(.SR_LENGTH(2)) ssg_toggle_sr
 		(
 		.MCLK(MCLK),
@@ -470,10 +505,11 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(ssg_toggle),
 		.sr_out(ssg_toggle_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step30_ssg_pg_reset_sr), .ss_out(ss_step31_ssg_toggle_sr));
 		
 	wire ssg_enable_o;
 	
+	wire ss_step32_ssg_enable_sr;
 	ym_sr_bit #(.SR_LENGTH(2)) ssg_enable_sr
 		(
 		.MCLK(MCLK),
@@ -481,11 +517,12 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(ssg_enable),
 		.sr_out(ssg_enable_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step31_ssg_toggle_sr), .ss_out(ss_step32_ssg_enable_sr));
 		
 	wire ssg_holdup_i = ~(ssg_holdup & ssg_enable & kon);
 	wire ssg_holdup_o;
 	
+	wire ss_step33_ssg_holdup_sr;
 	ym_sr_bit #(.SR_LENGTH(2)) ssg_holdup_sr
 		(
 		.MCLK(MCLK),
@@ -493,11 +530,12 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(ssg_holdup_i),
 		.sr_out(ssg_holdup_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step32_ssg_enable_sr), .ss_out(ss_step33_ssg_holdup_sr));
 	
 	wire ssg_inv_i;
 	wire ssg_inv_o;
 	
+	wire ss_step34_ssg_inv_sr;
 	ym_sr_bit #(.SR_LENGTH(24)) ssg_inv_sr
 		(
 		.MCLK(MCLK),
@@ -505,9 +543,10 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(ssg_inv_i),
 		.sr_out(ssg_inv_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step33_ssg_holdup_sr), .ss_out(ss_step34_ssg_inv_sr));
 	
 	wire csm_kon_o;
+	wire ss_step35_csm_kon_sr;
 	ym_sr_bit #(.SR_LENGTH(2)) csm_kon_sr
 		(
 		.MCLK(MCLK),
@@ -515,10 +554,11 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(csm_kon),
 		.sr_out(csm_kon_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step34_ssg_inv_sr), .ss_out(ss_step35_csm_kon_sr));
 	
 	wire [6:0] tl_o;
 	wire [6:0] tl_o1;
+	wire ss_step36_tl_sr_1;
 	ym_sr_bit_array #(.DATA_WIDTH(7)) tl_sr_1
 		(
 		.MCLK(MCLK),
@@ -526,8 +566,9 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(tl),
 		.data_out(tl_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step35_csm_kon_sr), .ss_out(ss_step36_tl_sr_1));
 	
+	wire ss_step37_tl_sr_2;
 	ym_sr_bit_array #(.DATA_WIDTH(7)) tl_sr_2
 		(
 		.MCLK(MCLK),
@@ -535,9 +576,10 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(tl_o),
 		.data_out(tl_o1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step36_tl_sr_1), .ss_out(ss_step37_tl_sr_2));
 	
 	wire pg_reset_i;
+	wire ss_step38_pg_reset_sr;
 	ym_sr_bit #(.SR_LENGTH(2)) pg_reset_sr
 		(
 		.MCLK(MCLK),
@@ -545,10 +587,11 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(pg_reset_i),
 		.sr_out(pg_reset)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step37_tl_sr_2), .ss_out(ss_step38_pg_reset_sr));
 		
 	wire kon_sr_o;
 	
+	wire ss_step39_kon_sr;
 	ym_sr_bit #(.SR_LENGTH(2)) kon_sr
 		(
 		.MCLK(MCLK),
@@ -556,11 +599,12 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(kon),
 		.sr_out(kon_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step38_pg_reset_sr), .ss_out(ss_step39_kon_sr));
 	
 	wire okon_sr1_o; // okon2
 	wire okon_sr_o; // okon
 	
+	wire ss_step40_okon_sr1;
 	ym_sr_bit #(.SR_LENGTH(22)) okon_sr1
 		(
 		.MCLK(MCLK),
@@ -568,8 +612,9 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(kon_sr_o),
 		.sr_out(okon_sr1_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step39_kon_sr), .ss_out(ss_step40_okon_sr1));
 	
+	wire ss_step41_okon_sr2;
 	ym_sr_bit #(.SR_LENGTH(2)) okon_sr2
 		(
 		.MCLK(MCLK),
@@ -577,12 +622,13 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(okon_sr1_o),
 		.sr_out(okon_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step40_okon_sr1), .ss_out(ss_step41_okon_sr2));
 	
 	wire [1:0] state_sr_i;
 	wire [1:0] state_sr1_o;
 	wire [1:0] state_sr_o;
 	
+	wire ss_step42_state_sr1;
 	ym_sr_bit_array #(.DATA_WIDTH(2), .SR_LENGTH(22)) state_sr1
 		(
 		.MCLK(MCLK),
@@ -590,8 +636,9 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(state_sr_i),
 		.data_out(state_sr1_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step41_okon_sr2), .ss_out(ss_step42_state_sr1));
 	
+	wire ss_step43_state_sr2;
 	ym_sr_bit_array #(.DATA_WIDTH(2), .SR_LENGTH(2)) state_sr2
 		(
 		.MCLK(MCLK),
@@ -599,7 +646,7 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(state_sr1_o),
 		.data_out(state_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step42_state_sr1), .ss_out(ss_step43_state_sr2));
 	
 	
 	wire [9:0] eg_level_sr_i;
@@ -647,6 +694,7 @@ module ym3438_eg
 		| eg_mute
 		| set_release_koff;
 	
+	wire ss_step44_eg_level_sr1;
 	ym_sr_bit_array #(.DATA_WIDTH(10), .SR_LENGTH(21)) eg_level_sr1
 		(
 		.MCLK(MCLK),
@@ -654,8 +702,9 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(eg_level_sr_i),
 		.data_out(eg_level_sr_o1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step43_state_sr2), .ss_out(ss_step44_eg_level_sr1));
 	
+	wire ss_step45_eg_level_sr2;
 	ym_sr_bit_array #(.DATA_WIDTH(10), .SR_LENGTH(2)) eg_level_sr2
 		(
 		.MCLK(MCLK),
@@ -663,7 +712,7 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(eg_level_sr_o1),
 		.data_out(eg_level_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step44_eg_level_sr1), .ss_out(ss_step45_eg_level_sr2));
 		
 	wire [9:0] eg_level_out_sr2_o;
 	
@@ -678,6 +727,7 @@ module ym3438_eg
 	
 	wire eg_invert;
 	
+	wire ss_step46_eg_invert_sr;
 	ym_sr_bit eg_invert_sr
 		(
 		.MCLK(MCLK),
@@ -685,7 +735,7 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(okon_sr1_o & (ssg_inv ^ ssg_inv_o)),
 		.sr_out(eg_invert)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step45_eg_level_sr2), .ss_out(ss_step46_eg_invert_sr));
 	
 	wire [3:0] eg_add_linear_normal;
 	
@@ -714,6 +764,7 @@ module ym3438_eg
 	
 	wire [9:0] eg_add_l_o;
 	
+	wire ss_step47_eg_add_l;
 	ym_dlatch_1 #(.DATA_WIDTH(10)) eg_add_l
 		(
 		.MCLK(MCLK),
@@ -721,7 +772,7 @@ module ym3438_eg
 		.inp(eg_add_comb),
 		.val(),
 		.nval(eg_add_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step46_eg_invert_sr), .ss_out(ss_step47_eg_add_l));
 	
 	wire [9:0] eg_level_comb;
 	
@@ -729,6 +780,7 @@ module ym3438_eg
 	
 	wire [9:0] eg_level_comb_o;
 	
+	wire ss_step48_eg_level_comb_l;
 	ym_dlatch_1 #(.DATA_WIDTH(10)) eg_level_comb_l
 		(
 		.MCLK(MCLK),
@@ -736,10 +788,11 @@ module ym3438_eg
 		.inp(eg_level_comb),
 		.val(),
 		.nval(eg_level_comb_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step47_eg_add_l), .ss_out(ss_step48_eg_level_comb_l));
 		
 	wire [9:0] eg_level_sum = eg_add_l_o + eg_level_comb_o + 10'h1;
 	
+	wire ss_step49_eg_level_sum_l;
 	ym_dlatch_2 #(.DATA_WIDTH(10)) eg_level_sum_l
 		(
 		.MCLK(MCLK),
@@ -747,10 +800,11 @@ module ym3438_eg
 		.inp(eg_level_sum),
 		.val(),
 		.nval(eg_level_sr_i)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step48_eg_level_comb_l), .ss_out(ss_step49_eg_level_sum_l));
 	
 	wire [9:0] eg_level_out_sr_o;
 	
+	wire ss_step50_eg_level_out_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(10)) eg_level_out_sr
 		(
 		.MCLK(MCLK),
@@ -758,10 +812,11 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(eg_level_sr_o1),
 		.data_out(eg_level_out_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step49_eg_level_sum_l), .ss_out(ss_step50_eg_level_out_sr));
 	
 	wire [9:0] eg_level_outinv_l1_o;
 	
+	wire ss_step51_eg_level_outinv_l1;
 	ym_dlatch_1 #(.DATA_WIDTH(10)) eg_level_outinv_l1
 		(
 		.MCLK(MCLK),
@@ -769,11 +824,12 @@ module ym3438_eg
 		.inp(eg_level_sr_o1),
 		.val(),
 		.nval(eg_level_outinv_l1_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step50_eg_level_out_sr), .ss_out(ss_step51_eg_level_outinv_l1));
 	
 	wire [9:0] eg_level_outinv_l2_i = eg_level_outinv_l1_o + 10'h201;
 	wire [9:0] eg_level_outinv_l2_o;
 	
+	wire ss_step52_eg_level_outinv_l2;
 	ym_dlatch_2 #(.DATA_WIDTH(10)) eg_level_outinv_l2
 		(
 		.MCLK(MCLK),
@@ -781,10 +837,11 @@ module ym3438_eg
 		.inp(eg_level_outinv_l2_i),
 		.val(eg_level_outinv_l2_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step51_eg_level_outinv_l1), .ss_out(ss_step52_eg_level_outinv_l2));
 	
 	wire [9:0] eg_level_out = eg_invert ? eg_level_outinv_l2_o : eg_level_out_sr_o;
 	
+	wire ss_step53_eg_level_out_sr2;
 	ym_sr_bit_array #(.DATA_WIDTH(10)) eg_level_out_sr2
 		(
 		.MCLK(MCLK),
@@ -792,7 +849,7 @@ module ym3438_eg
 		.c2(c2),
 		.data_in(eg_level_out),
 		.data_out(eg_level_out_sr2_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step52_eg_level_outinv_l2), .ss_out(ss_step53_eg_level_out_sr2));
 	
 	wire [9:0] eg_level_out_test = lsi_21[5] ? 10'h0 : eg_level_out;
 	
@@ -800,6 +857,7 @@ module ym3438_eg
 	
 	wire [1:0] ams_l_o;
 	
+	wire ss_step54_ams_l;
 	ym_dlatch_1 #(.DATA_WIDTH(2)) ams_l
 		(
 		.MCLK(MCLK),
@@ -807,10 +865,11 @@ module ym3438_eg
 		.inp(ams),
 		.val(ams_l_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step53_eg_level_out_sr2), .ss_out(ss_step54_ams_l));
 	
 	wire [5:0] lfo_am_l_o;
 	
+	wire ss_step55_lfo_am_l;
 	ym_dlatch_1 #(.DATA_WIDTH(6)) lfo_am_l
 		(
 		.MCLK(MCLK),
@@ -818,7 +877,7 @@ module ym3438_eg
 		.inp(lfo_am),
 		.val(lfo_am_l_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step54_ams_l), .ss_out(ss_step55_lfo_am_l));
 	
 	wire [3:0] ams_sel;
 	assign ams_sel[0] = ams_l_o == 2'h0;
@@ -839,6 +898,7 @@ module ym3438_eg
 	
 	wire [6:0] eg_lfo_mux_l_o;
 	
+	wire ss_step56_eg_lfo_mux_l;
 	ym_dlatch_2 #(.DATA_WIDTH(7)) eg_lfo_mux_l
 		(
 		.MCLK(MCLK),
@@ -846,12 +906,13 @@ module ym3438_eg
 		.inp(eg_lfo_mux),
 		.val(),
 		.nval(eg_lfo_mux_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step55_lfo_am_l), .ss_out(ss_step56_eg_lfo_mux_l));
 	
 	wire [10:0] eg_level_lfo = { 4'h0, eg_lfo_mux_l_o } + { 1'h0, eg_level_out_test };
 	//wire [10:0] eg_level_lfo = eg_level_out_test;
 	wire [10:0] eg_level_lfo_l_o;
 	
+	wire ss_step57_eg_level_lfo_l;
 	ym_dlatch_1 #(.DATA_WIDTH(11)) eg_level_lfo_l
 		(
 		.MCLK(MCLK),
@@ -859,10 +920,11 @@ module ym3438_eg
 		.inp(eg_level_lfo),
 		.val(),
 		.nval(eg_level_lfo_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step56_eg_lfo_mux_l), .ss_out(ss_step57_eg_level_lfo_l));
 	
 	wire ch3_sel_sr_o;
 	
+	wire ss_step58_ch3_sel_sr;
 	ym_sr_bit ch3_sel_sr
 		(
 		.MCLK(MCLK),
@@ -870,13 +932,14 @@ module ym3438_eg
 		.c2(c2),
 		.bit_in(ch3_sel),
 		.sr_out(ch3_sel_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step57_eg_level_lfo_l), .ss_out(ss_step58_ch3_sel_sr));
 	
 	wire not_csm = ~(mode_csm & ch3_sel_sr_o);
 		
 	wire [6:0] tl_add_l_i = not_csm ? tl_o : 7'h0;
 	wire [6:0] tl_add_l_o;
 	
+	wire ss_step59_tl_add_l;
 	ym_dlatch_1 #(.DATA_WIDTH(7)) tl_add_l
 		(
 		.MCLK(MCLK),
@@ -884,7 +947,7 @@ module ym3438_eg
 		.inp(tl_add_l_i),
 		.val(),
 		.nval(tl_add_l_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step58_ch3_sel_sr), .ss_out(ss_step59_tl_add_l));
 	
 	wire [10:0] eg_level_tl = { 1'h0, eg_level_lfo_l_o[9:0] } + { 1'h0, tl_add_l_o, 3'h0 } + 11'h8;
 	//wire [10:0] eg_level_tl = eg_level_lfo_l_o[9:0];
@@ -894,6 +957,7 @@ module ym3438_eg
 	
 	wire [9:0] eg_level_tl_clamp = eg_level_of ? eg_level_tl[9:0] : 10'h0;
 	
+	wire ss_step60_eg_out_l;
 	ym_dlatch_2 #(.DATA_WIDTH(10)) eg_out_l
 		(
 		.MCLK(MCLK),
@@ -901,8 +965,9 @@ module ym3438_eg
 		.inp(eg_level_tl_clamp),
 		.val(),
 		.nval(eg_out)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step59_tl_add_l), .ss_out(ss_step60_eg_out_l));
 	
+	wire ss_step61_dbg_read;
 	ym_dbg_read_eg #(.DATA_WIDTH(10)) dbg_read
 		(
 		.MCLK(MCLK),
@@ -912,6 +977,8 @@ module ym3438_eg
 		.load(fsm_sel2),
 		.load_val(eg_out),
 		.next(eg_dbg)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step60_eg_out_l), .ss_out(ss_step61_dbg_read));
 	
+
+	assign ss_out = ss_step61_dbg_read;
 endmodule

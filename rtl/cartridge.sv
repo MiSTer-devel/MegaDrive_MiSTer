@@ -17,6 +17,34 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
 
+// The cartridge state a restore carries. The same concatenation is the source
+// below and appears again inside each always block that owns those registers:
+// it cannot be applied from a block of its own, because a second block driving
+// the same reg is two drivers and Quartus refuses that outright.
+//
+// This is the two sets of bank registers and nothing else. The quirk registers -
+// Pier's protection, Realtec, the SF mappers, the EEPROM lines, jcart, chk_data -
+// were carried too, and cost four percent of a device already at ninety-four:
+// the fitter spent four hours in placement and gave up nothing usable. They are
+// out until something else here gets smaller. Banking is what a restore cannot
+// do without; the rest matters to games this can no longer afford to carry.
+`define SS_VEC_MD { \
+	md_bank[0], md_bank[1], md_bank[2], md_bank[3], \
+	md_bank[4], md_bank[5], md_bank[6], md_bank[7], \
+	md_bank_sram, md_bank_use }
+`define SS_VEC_MS { \
+	ms_bank[0], ms_bank[1], ms_bank[2], ms_bank[3], ms_cfg, ms_ram_c }
+`define SS_VEC_BOOT { boot_en }
+
+// One layout, named once. It used to be written out four times - the read
+// vector, three offsets, and the same concatenation again inside each of the
+// three always blocks that own those registers, because a block of its own
+// would be a second driver on the same regs and Quartus refuses that. Four
+// copies of a 92-bit layout is four chances to disagree, and a wrong offset
+// does not fail to compile: it puts the banks back pointing somewhere else and
+// the game dies a second after the restore.
+`define SS_CART_VEC { `SS_VEC_MD, `SS_VEC_MS, `SS_VEC_BOOT }
+
 module cartridge
 (
 	input             clk,
@@ -54,6 +82,33 @@ module cartridge
 	output            cart_data_en,
 	output            cart_dtack,
 	input             cart_dma,
+
+	// Everything in here that changes while a game runs, as one vector. The
+	// snapshot reads it sixteen bits at a time and writes it back the same way,
+	// then applies the whole thing when it moves on. The registers set once at
+	// ROM load are deliberately absent: they are the same before and after a
+	// restore, and carrying them would mean carrying the ROM.
+	input             ss_cart_sel,
+	input       [3:0] ss_cart_addr,
+	input      [15:0] ss_cart_din,
+	input             ss_cart_wr,
+	output     [15:0] ss_cart_dout,
+	// High while the cartridge has an access the snapshot could not put back, so
+	// the freeze waits for it to clear. cart_cs, which the top level already
+	// waits on, only covers the low four megabytes; anything above that is
+	// cart_cs_ext and is answered by dtack_ext, a register on the SDRAM clock
+	// that is in neither the scan chain nor the vector below. Freeze in the
+	// middle of one and the 68000 comes back waiting for an acknowledge that
+	// will never arrive - which is a five megabyte game standing dead still
+	// after a restore, and a small one never noticing.
+	output            cart_ss_hold,
+
+	// This cartridge holds live state the snapshot does not carry, so savestates
+	// have to be hidden for it rather than offered and broken. The quirk
+	// registers were carried once, in v42, and cost four percent of a device
+	// already at ninety-four. SVP is not a register at all: it is a second
+	// processor with its own DRAM and none of it is in the chain.
+	output            ss_unsupported,
 
 	input      [14:0] save_addr,
 	input      [15:0] save_di,
@@ -282,12 +337,39 @@ assign save_change = sram_wren;
 
 assign    md_addr = {cart_addr,1'b0};
 
+localparam SS_O_BOOT = 0;
+localparam SS_O_MS   = SS_O_BOOT + $bits(`SS_VEC_BOOT);
+localparam SS_O_MD   = SS_O_MS   + $bits(`SS_VEC_MS);
+localparam SS_CART_BITS = SS_O_MD + $bits(`SS_VEC_MD);
+
+localparam SS_CART_WORDS = (SS_CART_BITS + 15) / 16;
+wire [SS_CART_WORDS*16-1:0] ss_cart_vec = {{(SS_CART_WORDS*16-SS_CART_BITS){1'b0}}, `SS_CART_VEC};
+assign ss_cart_dout = (ss_cart_addr < SS_CART_WORDS) ? ss_cart_vec[{ss_cart_addr, 4'd0} +: 16] : 16'd0;
+
+reg [SS_CART_WORDS*16-1:0] ss_cart_hold = 0;
+reg         ss_cart_apply = 0;
+reg         ss_cart_seen = 0;
+always @(posedge clk) begin
+	ss_cart_apply <= 0;
+	if (ss_cart_wr && ss_cart_addr < SS_CART_WORDS)
+		ss_cart_hold[{ss_cart_addr, 4'd0} +: 16] <= ss_cart_din;
+	// one pulse when the walk moves on, not a word at a time: a half-written set
+	// of bank registers pointing somewhere new is worse than a stale one
+	else if (ss_cart_seen && !ss_cart_sel) ss_cart_apply <= 1;
+	if (ss_cart_wr) ss_cart_seen <= 1;
+	else if (ss_cart_apply) ss_cart_seen <= 0;
+end
+
+
 reg [5:0] md_bank[8] = '{0,1,2,3,4,5,6,7};
 reg       md_bank_sram = 0;
 reg       md_bank_use = 0;
 
 always @(posedge clk) begin
-	if(reset) begin
+	if (ss_cart_apply) begin
+		`SS_VEC_MD <= ss_cart_hold[SS_O_MD +: $bits(`SS_VEC_MD)];
+	end
+	else if(reset) begin
 		md_bank <= '{0,1,2,3,4,5,6,7};
 		md_bank_sram <= 0;
 		md_bank_use <= 0;
@@ -452,10 +534,13 @@ STM95XXX pier_eeprom
 
 wire pier_prot_cs = pier_quirk && (cart_addr == 'hAF3 || cart_addr == 'hAF4);
 reg [15:0] pier_prot_data;
+// hoisted out of the always block below so the snapshot vector can name them:
+// a declaration inside a block is local to it, which iverilog lets you reference
+// from outside and Quartus does not - "object pier_count is not declared".
+reg  [3:0] pier_count;
+reg        old_oe;
 
 always @(posedge clk) begin
-	reg [3:0] pier_count;
-	reg old_oe;
 
 	old_oe <= cart_oe;
 	
@@ -629,7 +714,8 @@ spram #(14,8,"rtl/mboot.mif") boot_rom
 
 reg boot_en;
 always @(posedge clk) begin
-	if(reset) boot_en <= 1;
+	if (ss_cart_apply) `SS_VEC_BOOT <= ss_cart_hold[SS_O_BOOT +: $bits(`SS_VEC_BOOT)];
+	else if(reset) boot_en <= 1;
 	else if(cart_lwr && ~iorq_n && !ms_addr[7:6] && !ms_addr[0]) boot_en <= 0;
 end
 
@@ -659,7 +745,10 @@ reg        ms_ram_c;
 always @(posedge clk) begin
 	reg lock_mapper_B, mapper_codies_lock;
 
-	if (reset) begin
+	if (ss_cart_apply) begin
+		`SS_VEC_MS <= ss_cart_hold[SS_O_MS +: $bits(`SS_VEC_MS)];
+	end
+	else if (reset) begin
 		ms_bank   <= '{0,1,2,3};
 		ms_cfg    <= 0;
 		ms_ram_c  <= 0;
@@ -900,4 +989,20 @@ end
 
 assign ym2612_quirk = fmbusy_quirk;
 
+// Only the quirks that keep registers moving while a game runs. fmbusy, noram,
+// sram00 and schan are settings read once at load and identical either side of
+// a restore; chk_data is a fixed table the cartridge only ever reads.
+assign cart_ss_hold = cart_cs_ext | dtack_ext | (rom_req ^ rom_ack);
+
+assign ss_unsupported = svp_quirk        // Virtua Racing: a whole second CPU
+                      | pier_quirk       // Pier Solar: protection counter and latch
+                      | realtec_quirk    // realtec_bank, realtec_boot
+                      | (|eeprom_quirk)  // eeprom_bank and the EEPROM's own state
+                      | (|sf_quirk);     // sf001/sf002/sf004 bank registers
+
 endmodule
+
+`undef SS_CART_VEC
+`undef SS_VEC_MD
+`undef SS_VEC_MS
+`undef SS_VEC_BOOT

@@ -26,6 +26,15 @@
 
 module fc1004
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+	input ss_arr_sel,
+	input [15:0] ss_arr_addr,
+	input [15:0] ss_arr_din,
+	input ss_arr_wr,
+	output [15:0] ss_arr_dout,
+
 	input MCLK,
 	input MCLK_e,
 	input [7:0] SD,
@@ -293,6 +302,7 @@ module fc1004
 	
 	wire no_tmss_flag;
 	
+	wire ss_step1_vdp;
 	ym7101 vdp(
 		.MCLK(MCLK),
 		.MCLK_e(MCLK_e),
@@ -382,8 +392,11 @@ module fc1004
 		.vdp_cramdot_dis(vdp_cramdot_dis),
 		.vdp_dma_oe_early(vdp_dma_oe_early),
 		.vdp_dma(vdp_dma)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_vdp)
+		, .ss_arr_sel(ss_arr_sel), .ss_arr_addr(ss_arr_addr), .ss_arr_din(ss_arr_din)
+		, .ss_arr_wr(ss_arr_wr), .ss_arr_dout(ss_arr_dout));
 	
+	wire ss_step2_fm;
 	ym3438 fm
 		(
 		.MCLK(MCLK),
@@ -407,7 +420,7 @@ module fc1004
 		.fm_clk1(fm_clk1),
 		.DAC_ch_index(DAC_ch_index),
 		.ym2612_status_enable(ym2612_status_enable)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_vdp), .ss_out(ss_step2_fm));
 	
 	
 	assign AS_d = arb_strobe_dir;
@@ -416,6 +429,7 @@ module fc1004
 	assign WAIT_pull = ~arb_wait_o;
 	assign SOUND_o = arb_sound;
 	
+	wire ss_step3_arb;
 	ym6045 arb
 		(
 		.MCLK(MCLK),
@@ -499,8 +513,9 @@ module fc1004
 		.w142(arb_w142),
 		.w310(arb_w310),
 		.w353(arb_w353)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_fm), .ss_out(ss_step3_arb));
 	
+	wire ss_step4_ioc;
 	ym6046 ioc
 		(
 		.MCLK(MCLK),
@@ -542,7 +557,7 @@ module fc1004
 		.zdata(ioc_zdata),
 		.ztov_address(ioc_ztov_address),
 		.tmss_enable(tmss_enable)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_arb), .ss_out(ss_step4_ioc));
 	
 	wire tmss_ce0_i;
 	wire [15:0] tmss_vd_o;
@@ -551,6 +566,7 @@ module fc1004
 	wire tmss_ce0_o;
 	wire tmss_data_out_en;
 
+	wire ss_step5_tmss_;
 	tmss tmss_
 		(
 		.MCLK(MCLK),
@@ -580,7 +596,7 @@ module fc1004
 		.tmss_enable(tmss_enable),
 		.tmss_data(tmss_data),
 		.tmss_address(tmss_address)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step4_ioc), .ss_out(ss_step5_tmss_));
 	
 	assign ZA_o[0] = arb_za0_o;
 	assign ZA_o[7:1] = VA_i[6:0];
@@ -685,4 +701,6 @@ module fc1004
 	assign fm_clk = tmss_test_2 ? CLK_i : vdp_clk1_o;
 	assign fm_cs = tmss_test_0 ? SOUND_i : arb_sound;
 	
+
+	assign ss_out = ss_step5_tmss_;
 endmodule

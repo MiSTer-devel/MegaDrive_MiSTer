@@ -1,5 +1,9 @@
 module ym3438_op
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input c1,
 	input c2,
@@ -24,6 +28,7 @@ module ym3438_op
 	
 	wire [9:0] phase_sr_o;
 	
+	wire ss_step1_phase_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(10)) phase_sr
 		(
 		.MCLK(MCLK),
@@ -31,7 +36,7 @@ module ym3438_op
 		.c2(c2),
 		.data_in(phase_sum),
 		.data_out(phase_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_phase_sr));
 	
 	wire [7:0] sin_index = phase_sr_o[7:0] ^ {8{phase_sr_o[8]}};
 	
@@ -116,6 +121,7 @@ module ym3438_op
 	
 	wire [18:0] sin_lut_sr_o;
 	
+	wire ss_step2_sin_lut_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(19)) sin_lut_sr
 		(
 		.MCLK(MCLK),
@@ -123,10 +129,11 @@ module ym3438_op
 		.c2(c2),
 		.data_in(sin_lut_mux),
 		.data_out(sin_lut_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_phase_sr), .ss_out(ss_step2_sin_lut_sr));
 	
 	wire sin_index_0_sr_o;
 	
+	wire ss_step3_sin_index_0_sr;
 	ym_sr_bit sin_index_0_sr
 		(
 		.MCLK(MCLK),
@@ -134,7 +141,7 @@ module ym3438_op
 		.c2(c2),
 		.bit_in(sin_index[0]),
 		.sr_out(sin_index_0_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_sin_lut_sr), .ss_out(ss_step3_sin_index_0_sr));
 	
 	wire [10:0] sin_base = { sin_lut_sr_o[18:15], sin_lut_sr_o[13], sin_lut_sr_o[11], sin_lut_sr_o[9], sin_lut_sr_o[7], sin_lut_sr_o[5], sin_lut_sr_o[3], sin_lut_sr_o[1] };
 	
@@ -144,6 +151,7 @@ module ym3438_op
 	
 	wire sign_sr_o;
 	
+	wire ss_step4_sign_sr;
 	ym_sr_bit #(.SR_LENGTH(3)) sign_sr
 		(
 		.MCLK(MCLK),
@@ -151,10 +159,11 @@ module ym3438_op
 		.c2(c2),
 		.bit_in(phase_sr_o[9]),
 		.sr_out(sign_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_sin_index_0_sr), .ss_out(ss_step4_sign_sr));
 	
 	wire [9:0] eg_att_sr_o;
 	
+	wire ss_step5_eg_att_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(10)) eg_att_sr
 		(
 		.MCLK(MCLK),
@@ -162,13 +171,14 @@ module ym3438_op
 		.c2(c2),
 		.data_in(eg_att),
 		.data_out(eg_att_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step4_sign_sr), .ss_out(ss_step5_eg_att_sr));
 
 	wire [12:0] att_sum = sin_sum + { eg_att_sr_o, 2'h0 };
 	//wire [12:0] att_sum = sin_sum + 100;
 	
 	wire [12:0] att_sum_sr_o;
 	
+	wire ss_step6_att_sum_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(13)) att_sum_sr
 		(
 		.MCLK(MCLK),
@@ -176,7 +186,7 @@ module ym3438_op
 		.c2(c2),
 		.data_in(att_sum),
 		.data_out(att_sum_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step5_eg_att_sr), .ss_out(ss_step6_att_sum_sr));
 	
 	wire [11:0] att_clamp = ~(att_sum_sr_o[12] ? 12'hfff : att_sum_sr_o[11:0]);
 	
@@ -260,6 +270,7 @@ module ym3438_op
 	
 	wire [12:0] pow_lut_sr_o;
 	
+	wire ss_step7_pow_lut_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(13)) pow_lut_sr
 		(
 		.MCLK(MCLK),
@@ -267,10 +278,11 @@ module ym3438_op
 		.c2(c2),
 		.data_in(pow_lut_mux),
 		.data_out(pow_lut_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step6_att_sum_sr), .ss_out(ss_step7_pow_lut_sr));
 	
 	wire pow_index_0_sr_o;
 	
+	wire ss_step8_pow_index_0_sr;
 	ym_sr_bit pow_index_0_sr
 		(
 		.MCLK(MCLK),
@@ -278,7 +290,7 @@ module ym3438_op
 		.c2(c2),
 		.bit_in(pow_index[0]),
 		.sr_out(pow_index_0_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step7_pow_lut_sr), .ss_out(ss_step8_pow_index_0_sr));
 	
 	wire [9:0] pow_base = { pow_lut_sr_o[12:6], pow_lut_sr_o[4], pow_lut_sr_o[2], pow_lut_sr_o[0] };
 	wire [2:0] pow_delta = pow_index_0_sr_o ? { pow_lut_sr_o[5], pow_lut_sr_o[3], pow_lut_sr_o[1] } : 3'h0;
@@ -287,6 +299,7 @@ module ym3438_op
 	
 	wire [3:0] pow_shift_sr_o;
 	
+	wire ss_step9_pow_shift_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(4)) pow_shift_sr
 		(
 		.MCLK(MCLK),
@@ -294,7 +307,7 @@ module ym3438_op
 		.c2(c2),
 		.data_in(att_clamp[11:8]),
 		.data_out(pow_shift_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step8_pow_index_0_sr), .ss_out(ss_step9_pow_shift_sr));
 	
 	wire [3:0] sh_sel1;
 	
@@ -328,6 +341,7 @@ module ym3438_op
 	
 	assign op_output = op_value_sr_o;
 	
+	wire ss_step10_op_value_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(14)) op_value_sr
 		(
 		.MCLK(MCLK),
@@ -335,11 +349,12 @@ module ym3438_op
 		.c2(c2),
 		.data_in(op_value2),
 		.data_out(op_value_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step9_pow_shift_sr), .ss_out(ss_step10_op_value_sr));
 		
 	wire [13:0] op_op1_1_sr_i;
 	wire [13:0] op_op1_1_sr_o;
 	
+	wire ss_step11_op_op1_1_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(14), .SR_LENGTH(6)) op_op1_1_sr
 		(
 		.MCLK(MCLK),
@@ -347,13 +362,14 @@ module ym3438_op
 		.c2(c2),
 		.data_in(op_op1_1_sr_i),
 		.data_out(op_op1_1_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step10_op_value_sr), .ss_out(ss_step11_op_op1_1_sr));
 	
 	assign op_op1_1_sr_i = is_op1 ? op_value_sr_o : op_op1_1_sr_o;
 		
 	wire [13:0] op_op1_2_sr_i;
 	wire [13:0] op_op1_2_sr_o;
 	
+	wire ss_step12_op_op1_2_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(14), .SR_LENGTH(6)) op_op1_2_sr
 		(
 		.MCLK(MCLK),
@@ -361,13 +377,14 @@ module ym3438_op
 		.c2(c2),
 		.data_in(op_op1_2_sr_i),
 		.data_out(op_op1_2_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step11_op_op1_1_sr), .ss_out(ss_step12_op_op1_2_sr));
 	
 	assign op_op1_2_sr_i = is_op1 ? op_op1_1_sr_o : op_op1_2_sr_o;
 		
 	wire [13:0] op_op2_sr_i;
 	wire [13:0] op_op2_sr_o;
 	
+	wire ss_step13_op_op2_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(14), .SR_LENGTH(6)) op_op2_sr
 		(
 		.MCLK(MCLK),
@@ -375,7 +392,7 @@ module ym3438_op
 		.c2(c2),
 		.data_in(op_op2_sr_i),
 		.data_out(op_op2_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step12_op_op1_2_sr), .ss_out(ss_step13_op_op2_sr));
 	
 	assign op_op2_sr_i = is_op2 ? op_value_sr_o : op_op2_sr_o;
 	
@@ -394,6 +411,7 @@ module ym3438_op
 	
 	wire [13:0] op_sum_sr_o;
 	
+	wire ss_step14_op_sum_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(14)) op_sum_sr
 		(
 		.MCLK(MCLK),
@@ -401,7 +419,7 @@ module ym3438_op
 		.c2(c2),
 		.data_in(op_sum[14:1]),
 		.data_out(op_sum_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step13_op_op2_sr), .ss_out(ss_step14_op_sum_sr));
 	
 	wire is_fb = ~no_fb;
 	
@@ -426,6 +444,7 @@ module ym3438_op
 		| ({10{fb_sel[6]}} & op_sum_sr_o[12:3])
 		| ({10{fb_sel[7]}} & op_sum_sr_o[11:2]);
 	
+	wire ss_step15_op_fm_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(10), .SR_LENGTH(6)) op_fm_sr
 		(
 		.MCLK(MCLK),
@@ -433,6 +452,8 @@ module ym3438_op
 		.c2(c2),
 		.data_in(op_fm_value),
 		.data_out(mod_add)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step14_op_sum_sr), .ss_out(ss_step15_op_fm_sr));
 	
+
+	assign ss_out = ss_step15_op_fm_sr;
 endmodule

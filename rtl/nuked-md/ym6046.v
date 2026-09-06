@@ -24,6 +24,10 @@
 
 module ym6046
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input [6:0] PORT_A_i,
 	input [6:0] PORT_B_i,
@@ -164,28 +168,32 @@ module ym6046
 	wire irq_b6_c;
 	wire irq_uart_c;
 	
+	wire ss_step1_port_a;
 	ym6046_controller_port port_a(.MCLK(MCLK), .port_i(PORT_A_i), .data_bus(data_bus), .reset(reset), .m3(M3), .uart_clk_i1(uart_clk_i1),
 		.uart_clk_i2(uart_clk_i2), .read_rx_data(read_rx_data_a), .write_p_data(write_p_data_a), .write_tx_data(write_tx_data_a),
 		.write_s_control(write_s_control_a), .write_p_control(write_p_control_a), .uart_clk1(uart_clk1_a), .uart_clk2(uart_clk2_a), .p_data_q(p_data_q_a),
 		.p_control_q(p_control_q_a), .tx_data(tx_data_a), .rx_data_q(rx_data_q_a), .s_control_q(s_control_q_a),
 		.tx_state1_q(tx_state1_q_a), .rx_ready_q(rx_ready_q_a), .rx_error_q(rx_error_q_a), .port_d(port_a_d), .port_o(port_a_o),
-		.irq_b6(irq_b6_a), .irq_uart(irq_uart_a));
+		.irq_b6(irq_b6_a), .irq_uart(irq_uart_a), .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_port_a));
 	
+	wire ss_step2_port_b;
 	ym6046_controller_port port_b(.MCLK(MCLK), .port_i(PORT_B_i), .data_bus(data_bus), .reset(reset), .m3(M3), .uart_clk_i1(uart_clk_i1),
 		.uart_clk_i2(uart_clk_i2), .read_rx_data(read_rx_data_b), .write_p_data(write_p_data_b), .write_tx_data(write_tx_data_b),
 		.write_s_control(write_s_control_b), .write_p_control(write_p_control_b), .uart_clk1(uart_clk1_b), .uart_clk2(uart_clk2_b), .p_data_q(p_data_q_b),
 		.p_control_q(p_control_q_b), .tx_data(tx_data_b), .rx_data_q(rx_data_q_b), .s_control_q(s_control_q_b),
 		.tx_state1_q(tx_state1_q_b), .rx_ready_q(rx_ready_q_b), .rx_error_q(rx_error_q_b), .port_d(port_b_d), .port_o(port_b_o),
-		.irq_b6(irq_b6_b), .irq_uart(irq_uart_b));
+		.irq_b6(irq_b6_b), .irq_uart(irq_uart_b), .ss_en(ss_en), .ss_in(ss_step1_port_a), .ss_out(ss_step2_port_b));
 	
+	wire ss_step3_port_c;
 	ym6046_controller_port port_c(.MCLK(MCLK), .port_i(PORT_C_i), .data_bus(data_bus), .reset(reset), .m3(M3), .uart_clk_i1(uart_clk_i1),
 		.uart_clk_i2(uart_clk_i2), .read_rx_data(read_rx_data_c), .write_p_data(write_p_data_c), .write_tx_data(write_tx_data_c),
 		.write_s_control(write_s_control_c), .write_p_control(write_p_control_c), .uart_clk1(uart_clk1_c), .uart_clk2(uart_clk2_c), .p_data_q(p_data_q_c),
 		.p_control_q(p_control_q_c), .tx_data(tx_data_c), .rx_data_q(rx_data_q_c), .s_control_q(s_control_q_c),
 		.tx_state1_q(tx_state1_q_c), .rx_ready_q(rx_ready_q_c), .rx_error_q(rx_error_q_c), .port_d(port_c_d), .port_o(port_c_o),
-		.irq_b6(irq_b6_c), .irq_uart(irq_uart_c));
+		.irq_b6(irq_b6_c), .irq_uart(irq_uart_c), .ss_en(ss_en), .ss_in(ss_step2_port_b), .ss_out(ss_step3_port_c));
 	
-	ym_sdff res_dff(.MCLK(MCLK), .clk(VCLK), .val(SRES), .q(res_dff_q), .nq(res_dff_nq));
+	wire ss_step4_res_dff;
+	ym_sdff res_dff(.MCLK(MCLK), .clk(VCLK), .val(SRES), .q(res_dff_q), .nq(res_dff_nq), .ss_en(ss_en), .ss_in(ss_step3_port_c), .ss_out(ss_step4_res_dff));
 	
 	assign FRES = res_dff_nq;
 	assign reset = res_dff_q;
@@ -193,23 +201,33 @@ module ym6046
 	assign pal = ~NTSC;
 	
 	assign load = ~(~reset | (cnt1_q == 4'hf & cnt2_q == 4'hf));
+	wire ss_step5_cnt1;
 	ym_scnt_bit #(.DATA_WIDTH(4)) cnt1(.MCLK(MCLK), .clk(VCLK), .load(load), .val(pal ? 4'hd : 4'hc), .cin(load), .rst(1'h1),
-		.q(cnt1_q));
+		.q(cnt1_q), .ss_en(ss_en), .ss_in(ss_step4_res_dff), .ss_out(ss_step5_cnt1));
+	wire ss_step6_cnt2;
 	ym_scnt_bit #(.DATA_WIDTH(4)) cnt2(.MCLK(MCLK), .clk(VCLK), .load(load), .val(4'h9), .cin(load & cnt1_q == 4'hf), .rst(1'h1),
-		.q(cnt2_q));
+		.q(cnt2_q), .ss_en(ss_en), .ss_in(ss_step5_cnt1), .ss_out(ss_step6_cnt2));
 	
 	assign uart_clk = cnt2_q[2];
 	
 	assign uart_clk2 = test ? VCLK : uart_clk;
 	
-	ym_sdffr uart_clk_div_0(.MCLK(MCLK), .clk(~uart_clk2), .val(uart_clk_div_0_nq), .reset(reset), .q(uart_clk_div_0_q), .nq(uart_clk_div_0_nq));
-	ym_sdffr uart_clk_div_1(.MCLK(MCLK), .clk(~uart_clk_div_0_q), .val(uart_clk_div_1_nq), .reset(reset), .q(uart_clk_div_1_q), .nq(uart_clk_div_1_nq));
-	ym_sdffr uart_clk_div_2(.MCLK(MCLK), .clk(~uart_clk_div_1_q), .val(uart_clk_div_2_nq), .reset(reset), .q(uart_clk_div_2_q), .nq(uart_clk_div_2_nq));
-	ym_sdffr uart_clk_div_3(.MCLK(MCLK), .clk(~uart_clk_div_2_q), .val(uart_clk_div_3_nq), .reset(reset), .q(uart_clk_div_3_q), .nq(uart_clk_div_3_nq));
-	ym_sdffr uart_clk_div_4(.MCLK(MCLK), .clk(~uart_clk_div_3_q), .val(uart_clk_div_4_nq), .reset(reset), .q(uart_clk_div_4_q), .nq(uart_clk_div_4_nq));
-	ym_sdffr uart_clk_div_5(.MCLK(MCLK), .clk(~uart_clk_div_4_q), .val(uart_clk_div_5_nq), .reset(reset), .q(uart_clk_div_5_q), .nq(uart_clk_div_5_nq));
-	ym_sdffr uart_clk_div_6(.MCLK(MCLK), .clk(~uart_clk_div_5_q), .val(uart_clk_div_6_nq), .reset(reset), .q(uart_clk_div_6_q), .nq(uart_clk_div_6_nq));
-	ym_sdffr uart_clk_div_7(.MCLK(MCLK), .clk(~uart_clk_div_6_q), .val(uart_clk_div_7_nq), .reset(reset), .q(uart_clk_div_7_q), .nq(uart_clk_div_7_nq));
+	wire ss_step7_uart_clk_div_0;
+	ym_sdffr uart_clk_div_0(.MCLK(MCLK), .clk(~uart_clk2), .val(uart_clk_div_0_nq), .reset(reset), .q(uart_clk_div_0_q), .nq(uart_clk_div_0_nq), .ss_en(ss_en), .ss_in(ss_step6_cnt2), .ss_out(ss_step7_uart_clk_div_0));
+	wire ss_step8_uart_clk_div_1;
+	ym_sdffr uart_clk_div_1(.MCLK(MCLK), .clk(~uart_clk_div_0_q), .val(uart_clk_div_1_nq), .reset(reset), .q(uart_clk_div_1_q), .nq(uart_clk_div_1_nq), .ss_en(ss_en), .ss_in(ss_step7_uart_clk_div_0), .ss_out(ss_step8_uart_clk_div_1));
+	wire ss_step9_uart_clk_div_2;
+	ym_sdffr uart_clk_div_2(.MCLK(MCLK), .clk(~uart_clk_div_1_q), .val(uart_clk_div_2_nq), .reset(reset), .q(uart_clk_div_2_q), .nq(uart_clk_div_2_nq), .ss_en(ss_en), .ss_in(ss_step8_uart_clk_div_1), .ss_out(ss_step9_uart_clk_div_2));
+	wire ss_step10_uart_clk_div_3;
+	ym_sdffr uart_clk_div_3(.MCLK(MCLK), .clk(~uart_clk_div_2_q), .val(uart_clk_div_3_nq), .reset(reset), .q(uart_clk_div_3_q), .nq(uart_clk_div_3_nq), .ss_en(ss_en), .ss_in(ss_step9_uart_clk_div_2), .ss_out(ss_step10_uart_clk_div_3));
+	wire ss_step11_uart_clk_div_4;
+	ym_sdffr uart_clk_div_4(.MCLK(MCLK), .clk(~uart_clk_div_3_q), .val(uart_clk_div_4_nq), .reset(reset), .q(uart_clk_div_4_q), .nq(uart_clk_div_4_nq), .ss_en(ss_en), .ss_in(ss_step10_uart_clk_div_3), .ss_out(ss_step11_uart_clk_div_4));
+	wire ss_step12_uart_clk_div_5;
+	ym_sdffr uart_clk_div_5(.MCLK(MCLK), .clk(~uart_clk_div_4_q), .val(uart_clk_div_5_nq), .reset(reset), .q(uart_clk_div_5_q), .nq(uart_clk_div_5_nq), .ss_en(ss_en), .ss_in(ss_step11_uart_clk_div_4), .ss_out(ss_step12_uart_clk_div_5));
+	wire ss_step13_uart_clk_div_6;
+	ym_sdffr uart_clk_div_6(.MCLK(MCLK), .clk(~uart_clk_div_5_q), .val(uart_clk_div_6_nq), .reset(reset), .q(uart_clk_div_6_q), .nq(uart_clk_div_6_nq), .ss_en(ss_en), .ss_in(ss_step12_uart_clk_div_5), .ss_out(ss_step13_uart_clk_div_6));
+	wire ss_step14_uart_clk_div_7;
+	ym_sdffr uart_clk_div_7(.MCLK(MCLK), .clk(~uart_clk_div_6_q), .val(uart_clk_div_7_nq), .reset(reset), .q(uart_clk_div_7_q), .nq(uart_clk_div_7_nq), .ss_en(ss_en), .ss_in(ss_step13_uart_clk_div_6), .ss_out(ss_step14_uart_clk_div_7));
 	
 	assign uart_clk_i1[0] = uart_clk2;
 	assign uart_clk_i1[1] = uart_clk_div_0_q;
@@ -332,8 +350,10 @@ module ym6046
 	assign write_tx_data_c = ~(vwrite_high & address[2:0] == 3'h5);
 	assign write_s_control_c = ~(vwrite_high & address[2:0] == 3'h7);
 	
-	ym_sdffr reg_3e(.MCLK(MCLK), .clk(zwrite0), .val(data_bus[4]), .reset(reset), .q(reg_3e_q));
-	ym_sdffs #(.DATA_WIDTH(8)) reg_3f(.MCLK(MCLK), .clk(zwrite1), .val(data_bus), .set(reset), .q(reg_3f_q));
+	wire ss_step15_reg_3e;
+	ym_sdffr reg_3e(.MCLK(MCLK), .clk(zwrite0), .val(data_bus[4]), .reset(reset), .q(reg_3e_q), .ss_en(ss_en), .ss_in(ss_step14_uart_clk_div_7), .ss_out(ss_step15_reg_3e));
+	wire ss_step16_reg_3f;
+	ym_sdffs #(.DATA_WIDTH(8)) reg_3f(.MCLK(MCLK), .clk(zwrite1), .val(data_bus), .set(reset), .q(reg_3f_q), .ss_en(ss_en), .ss_in(ss_step15_reg_3e), .ss_out(ss_step16_reg_3f));
 	
 	assign PORT_A_d = M3 ? port_a_d : { reg_3f_q[1:0], port_a_d[4:0] };
 	assign PORT_B_d = M3 ? port_b_d : { reg_3f_q[3:2], port_b_d[4:0] };
@@ -363,11 +383,17 @@ module ym6046
 		~(irq_b6_a | irq_uart_a | irq_b6_b | irq_uart_b | irq_b6_c | irq_uart_c) :
 		~((PORT_A_d[6] & ~PORT_A_i[6]) | (PORT_B_d[6] & ~PORT_B_i[6]));
 	
+
+	assign ss_out = ss_step16_reg_3f;
 endmodule
 
 
 module ym6046_controller_port
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input [6:0] port_i,
 	input [7:0] data_bus,
@@ -423,27 +449,33 @@ module ym6046_controller_port
 	wire [7:0] rx_shifter_q;
 	reg [7:0] rx_shifter_q_delay = 0;
 	
-	ym_sdffr #(.DATA_WIDTH(8)) p_control(.MCLK(MCLK), .clk(write_p_control), .val(data_bus), .reset(reset & m3), .q(p_control_q));
+	wire ss_step1_p_control;
+	ym_sdffr #(.DATA_WIDTH(8)) p_control(.MCLK(MCLK), .clk(write_p_control), .val(data_bus), .reset(reset & m3), .q(p_control_q), .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_p_control));
 	
 	assign port_d = ((~p_control_q[6:0]) & (s_control_q[1] ? 7'h6f : 7'h7f)) | (s_control_q[2] ? 7'h20 : 7'h0);
 	
-	ym_sdffr #(.DATA_WIDTH(8)) p_data(.MCLK(MCLK), .clk(write_p_data), .val(data_bus), .reset(1'h1), .q(p_data_q));
+	wire ss_step2_p_data;
+	ym_sdffr #(.DATA_WIDTH(8)) p_data(.MCLK(MCLK), .clk(write_p_data), .val(data_bus), .reset(1'h1), .q(p_data_q), .ss_en(ss_en), .ss_in(ss_step1_p_control), .ss_out(ss_step2_p_data));
 	
 	assign port_o[6:5] = p_data_q[6:5];
 	assign port_o[4] = s_control_q[1] ? tx_bit_q : p_data_q[4];
 	assign port_o[3:0] = p_data_q[3:0];
 	
-	ym_sdffr #(.DATA_WIDTH(5)) s_control(.MCLK(MCLK), .clk(write_s_control), .val(data_bus[7:3]), .reset(reset & m3), .q(s_control_q));
+	wire ss_step3_s_control;
+	ym_sdffr #(.DATA_WIDTH(5)) s_control(.MCLK(MCLK), .clk(write_s_control), .val(data_bus[7:3]), .reset(reset & m3), .q(s_control_q), .ss_en(ss_en), .ss_in(ss_step2_p_data), .ss_out(ss_step3_s_control));
 	
-	ym_slatch #(.DATA_WIDTH(8)) tx_data_sl(.MCLK(MCLK), .en(~write_tx_data), .inp(data_bus), .val(tx_data));
+	wire ss_step4_tx_data_sl;
+	ym_slatch #(.DATA_WIDTH(8)) tx_data_sl(.MCLK(MCLK), .en(~write_tx_data), .inp(data_bus), .val(tx_data), .ss_en(ss_en), .ss_in(ss_step3_s_control), .ss_out(ss_step4_tx_data_sl));
 	
 	assign uart_clk1 = uart_clk_i1[s_control_q[4:3]];
 	assign uart_clk2 = uart_clk_i2[s_control_q[4:3]];
 	
+	wire ss_step5_tx_shifter;
 	ym_sdffr #(.DATA_WIDTH(8)) tx_shifter(.MCLK(MCLK), .clk(uart_clk2), .val(tx_step ? { 1'h0, tx_shifter_q[7:1] } : ~tx_data),
-		.reset(s_control_q[1]), .q(tx_shifter_q));
+		.reset(s_control_q[1]), .q(tx_shifter_q), .ss_en(ss_en), .ss_in(ss_step4_tx_data_sl), .ss_out(ss_step5_tx_shifter));
 	
-	ym_sdffs tx_bit(.MCLK(MCLK), .clk(uart_clk2), .val(~tx_shifter_q[0] & tx_step), .set(s_control_q[1]), .q(tx_bit_q));
+	wire ss_step6_tx_bit;
+	ym_sdffs tx_bit(.MCLK(MCLK), .clk(uart_clk2), .val(~tx_shifter_q[0] & tx_step), .set(s_control_q[1]), .q(tx_bit_q), .ss_en(ss_en), .ss_in(ss_step5_tx_shifter), .ss_out(ss_step6_tx_bit));
 	
 	wire t_i1 = (tx_fsm4_q & tx_fsm1_nq)
 		| (tx_fsm1_nq & tx_fsm4_nq & tx_state2_l_q)
@@ -460,22 +492,31 @@ module ym6046_controller_port
 		| (tx_fsm4_q & tx_fsm2_q);
 	wire t_i5 = ~(tx_fsm1_nq & tx_fsm2_nq & tx_fsm3_nq & tx_fsm4_q);
 	
-	ym_sdffr tx_fsm1(.MCLK(MCLK), .clk(uart_clk2), .val(t_i1), .reset(reset), .q(tx_fsm1_q), .nq(tx_fsm1_nq));
-	ym_sdffr tx_fsm2(.MCLK(MCLK), .clk(uart_clk2), .val(t_i2), .reset(reset), .q(tx_fsm2_q), .nq(tx_fsm2_nq));
-	ym_sdffr tx_fsm3(.MCLK(MCLK), .clk(uart_clk2), .val(t_i3), .reset(reset), .q(tx_fsm3_q), .nq(tx_fsm3_nq));
-	ym_sdffr tx_fsm4(.MCLK(MCLK), .clk(uart_clk2), .val(t_i4), .reset(reset), .q(tx_fsm4_q), .nq(tx_fsm4_nq));
-	ym_sdffs tx_fsm5(.MCLK(MCLK), .clk(uart_clk2), .val(t_i5), .set(reset), .q(tx_fsm5_q));
+	wire ss_step7_tx_fsm1;
+	ym_sdffr tx_fsm1(.MCLK(MCLK), .clk(uart_clk2), .val(t_i1), .reset(reset), .q(tx_fsm1_q), .nq(tx_fsm1_nq), .ss_en(ss_en), .ss_in(ss_step6_tx_bit), .ss_out(ss_step7_tx_fsm1));
+	wire ss_step8_tx_fsm2;
+	ym_sdffr tx_fsm2(.MCLK(MCLK), .clk(uart_clk2), .val(t_i2), .reset(reset), .q(tx_fsm2_q), .nq(tx_fsm2_nq), .ss_en(ss_en), .ss_in(ss_step7_tx_fsm1), .ss_out(ss_step8_tx_fsm2));
+	wire ss_step9_tx_fsm3;
+	ym_sdffr tx_fsm3(.MCLK(MCLK), .clk(uart_clk2), .val(t_i3), .reset(reset), .q(tx_fsm3_q), .nq(tx_fsm3_nq), .ss_en(ss_en), .ss_in(ss_step8_tx_fsm2), .ss_out(ss_step9_tx_fsm3));
+	wire ss_step10_tx_fsm4;
+	ym_sdffr tx_fsm4(.MCLK(MCLK), .clk(uart_clk2), .val(t_i4), .reset(reset), .q(tx_fsm4_q), .nq(tx_fsm4_nq), .ss_en(ss_en), .ss_in(ss_step9_tx_fsm3), .ss_out(ss_step10_tx_fsm4));
+	wire ss_step11_tx_fsm5;
+	ym_sdffs tx_fsm5(.MCLK(MCLK), .clk(uart_clk2), .val(t_i5), .set(reset), .q(tx_fsm5_q), .ss_en(ss_en), .ss_in(ss_step10_tx_fsm4), .ss_out(ss_step11_tx_fsm5));
 	
 	assign tx_step = ~(tx_state2_l_q & tx_fsm1_nq & tx_fsm2_nq & tx_fsm3_nq & tx_fsm4_nq);
 	
+	wire ss_step12_tx_state1;
 	ym_sdffsr tx_state1(.MCLK(MCLK), .clk(uart_clk2), .val(~tx_step & tx_state1_q), .set(write_tx_data), .reset(reset),
-		.q(tx_state1_q), .nq(tx_state1_nq));
+		.q(tx_state1_q), .nq(tx_state1_nq), .ss_en(ss_en), .ss_in(ss_step11_tx_fsm5), .ss_out(ss_step12_tx_state1));
+	wire ss_step13_tx_state2;
 	ym_sdffsr tx_state2(.MCLK(MCLK), .clk(tx_fsm5_q), .val(1'h0), .set(tx_state1_nq), .reset(reset),
-		.q(tx_state2_q));
+		.q(tx_state2_q), .ss_en(ss_en), .ss_in(ss_step12_tx_state1), .ss_out(ss_step13_tx_state2));
 	
-	ym_sdff tx_state2_l(.MCLK(MCLK), .clk(uart_clk1), .val(tx_state2_q), .q(tx_state2_l_q));
+	wire ss_step14_tx_state2_l;
+	ym_sdff tx_state2_l(.MCLK(MCLK), .clk(uart_clk1), .val(tx_state2_q), .q(tx_state2_l_q), .ss_en(ss_en), .ss_in(ss_step13_tx_state2), .ss_out(ss_step14_tx_state2_l));
 	
-	ym_sdffs rx_input_bit(.MCLK(MCLK), .clk(uart_clk1), .val(port_i[5]), .set(s_control_q[2]), .q(rx_input_bit_q), .nq(rx_input_bit_nq));
+	wire ss_step15_rx_input_bit;
+	ym_sdffs rx_input_bit(.MCLK(MCLK), .clk(uart_clk1), .val(port_i[5]), .set(s_control_q[2]), .q(rx_input_bit_q), .nq(rx_input_bit_nq), .ss_en(ss_en), .ss_in(ss_step14_tx_state2_l), .ss_out(ss_step15_rx_input_bit));
 	
 	wire r1_j = ~(rx_fsm1_1_nq | ~(rx_fsm2_1_nq & rx_fsm2_4_nq) | rx_input_bit_q);
 	wire r1_i1 = ~((rx_fsm1_2_q | r1_j) & (rx_fsm1_1_nq | r1_j));
@@ -493,11 +534,16 @@ module ym6046_controller_port
 		| (rx_fsm1_5_q & rx_fsm1_4_nq);
 	wire r1_i5 = ~(r1_j | rx_fsm1_5_q);
 	
-	ym_sdffr rx_fsm1_1(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i1), .reset(reset), .nq(rx_fsm1_1_nq));
-	ym_sdffs rx_fsm1_2(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i2), .set(reset), .q(rx_fsm1_2_q), .nq(rx_fsm1_2_nq));
-	ym_sdffs rx_fsm1_3(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i3), .set(reset), .q(rx_fsm1_3_q), .nq(rx_fsm1_3_nq));
-	ym_sdffs rx_fsm1_4(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i4), .set(reset), .q(rx_fsm1_4_q), .nq(rx_fsm1_4_nq));
-	ym_sdffr rx_fsm1_5(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i5), .reset(reset), .q(rx_fsm1_5_q), .nq(rx_fsm1_5_nq));
+	wire ss_step16_rx_fsm1_1;
+	ym_sdffr rx_fsm1_1(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i1), .reset(reset), .nq(rx_fsm1_1_nq), .ss_en(ss_en), .ss_in(ss_step15_rx_input_bit), .ss_out(ss_step16_rx_fsm1_1));
+	wire ss_step17_rx_fsm1_2;
+	ym_sdffs rx_fsm1_2(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i2), .set(reset), .q(rx_fsm1_2_q), .nq(rx_fsm1_2_nq), .ss_en(ss_en), .ss_in(ss_step16_rx_fsm1_1), .ss_out(ss_step17_rx_fsm1_2));
+	wire ss_step18_rx_fsm1_3;
+	ym_sdffs rx_fsm1_3(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i3), .set(reset), .q(rx_fsm1_3_q), .nq(rx_fsm1_3_nq), .ss_en(ss_en), .ss_in(ss_step17_rx_fsm1_2), .ss_out(ss_step18_rx_fsm1_3));
+	wire ss_step19_rx_fsm1_4;
+	ym_sdffs rx_fsm1_4(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i4), .set(reset), .q(rx_fsm1_4_q), .nq(rx_fsm1_4_nq), .ss_en(ss_en), .ss_in(ss_step18_rx_fsm1_3), .ss_out(ss_step19_rx_fsm1_4));
+	wire ss_step20_rx_fsm1_5;
+	ym_sdffr rx_fsm1_5(.MCLK(MCLK), .clk(uart_clk1), .val(r1_i5), .reset(reset), .q(rx_fsm1_5_q), .nq(rx_fsm1_5_nq), .ss_en(ss_en), .ss_in(ss_step19_rx_fsm1_4), .ss_out(ss_step20_rx_fsm1_5));
 	
 	assign rx_clk = rx_fsm1_2_nq;
 
@@ -520,25 +566,44 @@ module ym6046_controller_port
 		| (rx_fsm2_1_q & rx_fsm2_3_q & rx_fsm2_4_nq);
 	wire r2_i5 = ~(rx_fsm2_1_q & rx_fsm2_2_nq & rx_fsm2_3_nq & rx_fsm2_4_nq);
 	
-	ym_sdffr rx_fsm2_1(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i1), .reset(reset), .q(rx_fsm2_1_q), .nq(rx_fsm2_1_nq));
-	ym_sdffr rx_fsm2_2(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i2), .reset(reset), .q(rx_fsm2_2_q), .nq(rx_fsm2_2_nq));
-	ym_sdffr rx_fsm2_3(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i3), .reset(reset), .q(rx_fsm2_3_q), .nq(rx_fsm2_3_nq));
-	ym_sdffr rx_fsm2_4(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i4), .reset(reset), .q(rx_fsm2_4_q), .nq(rx_fsm2_4_nq));
-	ym_sdffs rx_fsm2_5(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i5), .set(reset), .q(rx_fsm2_5_q));
+	wire ss_step21_rx_fsm2_1;
+	ym_sdffr rx_fsm2_1(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i1), .reset(reset), .q(rx_fsm2_1_q), .nq(rx_fsm2_1_nq), .ss_en(ss_en), .ss_in(ss_step20_rx_fsm1_5), .ss_out(ss_step21_rx_fsm2_1));
+	wire ss_step22_rx_fsm2_2;
+	ym_sdffr rx_fsm2_2(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i2), .reset(reset), .q(rx_fsm2_2_q), .nq(rx_fsm2_2_nq), .ss_en(ss_en), .ss_in(ss_step21_rx_fsm2_1), .ss_out(ss_step22_rx_fsm2_2));
+	wire ss_step23_rx_fsm2_3;
+	ym_sdffr rx_fsm2_3(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i3), .reset(reset), .q(rx_fsm2_3_q), .nq(rx_fsm2_3_nq), .ss_en(ss_en), .ss_in(ss_step22_rx_fsm2_2), .ss_out(ss_step23_rx_fsm2_3));
+	wire ss_step24_rx_fsm2_4;
+	ym_sdffr rx_fsm2_4(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i4), .reset(reset), .q(rx_fsm2_4_q), .nq(rx_fsm2_4_nq), .ss_en(ss_en), .ss_in(ss_step23_rx_fsm2_3), .ss_out(ss_step24_rx_fsm2_4));
+	wire ss_step25_rx_fsm2_5;
+	ym_sdffs rx_fsm2_5(.MCLK(MCLK), .clk(uart_clk1), .val(r2_i5), .set(reset), .q(rx_fsm2_5_q), .ss_en(ss_en), .ss_in(ss_step24_rx_fsm2_4), .ss_out(ss_step25_rx_fsm2_5));
 	assign rx_clk2 = rx_clk | rx_fsm2_5_q;
 	
+	wire ss_step26_rx_shifter;
 	ym_sdffr #(.DATA_WIDTH(8)) rx_shifter(.MCLK(MCLK), .clk(rx_clk), .val({ rx_shifter_q[6:0], rx_input_bit_q }),
-		.reset(s_control_q[2]), .q(rx_shifter_q));
+		.reset(s_control_q[2]), .q(rx_shifter_q), .ss_en(ss_en), .ss_in(ss_step25_rx_fsm2_5), .ss_out(ss_step26_rx_shifter));
 	
-	ym_sdffr rx_ready(.MCLK(MCLK), .clk(rx_clk2), .val(1'h1), .reset(reset & read_rx_data), .q(rx_ready_q));
-	ym_sdffr rx_error(.MCLK(MCLK), .clk(rx_clk2), .val(rx_input_bit_nq), .reset(reset & read_rx_data), .q(rx_error_q));
-	ym_sdffr #(.DATA_WIDTH(8)) rx_data(.MCLK(MCLK), .clk(rx_clk2), .val(rx_shifter_q_delay), .reset(1'h1), .q(rx_data_q));
+	wire ss_step27_rx_ready;
+	ym_sdffr rx_ready(.MCLK(MCLK), .clk(rx_clk2), .val(1'h1), .reset(reset & read_rx_data), .q(rx_ready_q), .ss_en(ss_en), .ss_in(ss_step26_rx_shifter), .ss_out(ss_step27_rx_ready));
+	wire ss_step28_rx_error;
+	ym_sdffr rx_error(.MCLK(MCLK), .clk(rx_clk2), .val(rx_input_bit_nq), .reset(reset & read_rx_data), .q(rx_error_q), .ss_en(ss_en), .ss_in(ss_step27_rx_ready), .ss_out(ss_step28_rx_error));
+	wire ss_step29_rx_data;
+	ym_sdffr #(.DATA_WIDTH(8)) rx_data(.MCLK(MCLK), .clk(rx_clk2), .val(rx_shifter_q_delay), .reset(1'h1), .q(rx_data_q), .ss_en(ss_en), .ss_in(ss_step28_rx_error), .ss_out(ss_step29_rx_data));
 	
 	assign irq_b6 = ~port_i[6] & p_control_q[7];
 	assign irq_uart = rx_ready_q & s_control_q[0];
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			rx_shifter_q_delay <= {rx_shifter_q_delay[6:0], ss_step29_rx_data};
+		end
+		else
+		begin
+
 		rx_shifter_q_delay <= rx_shifter_q;
-	end
+			end
+end
+
+	assign ss_out = rx_shifter_q_delay[7];
 endmodule
