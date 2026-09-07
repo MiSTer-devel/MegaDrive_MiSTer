@@ -45,7 +45,10 @@ module savestate
 	input       [9:0] bufb_addr,
 	output     [63:0] bufb_q,
 
-	output reg        ss_en = 0,
+	(* preserve, dont_merge *) output reg ss_en = 0,
+	(* preserve, dont_merge *) output reg ss_en_cpu = 0,
+	(* preserve, dont_merge *) output reg ss_en_vdp_fm = 0,
+	(* preserve, dont_merge *) output reg ss_en_vram = 0,
 	output reg        ss_in = 0,
 	input             ss_out,
 
@@ -277,10 +280,14 @@ module savestate
 		.clkb(bufb_clk), .web(bufb_we), .dinb(bufb_din), .addrb(bufb_addr), .qb(bufb_q)
 	);
 
+	// Blocking next-state temporary: every replica samples the same D on this
+	// edge, including hold, reset and the final watchdog override. No pipeline.
+	reg ss_en_next;
 	always @(posedge clk) begin
+		ss_en_next = ss_en;
 		if (reset) begin
 			state      <= ST_FILL1;
-			ss_en      <= 0;
+			ss_en_next = 0;
 			ss_in      <= 0;
 			fsm_busy       <= 0;
 			save_req   <= 0;
@@ -325,7 +332,7 @@ module savestate
 			// the chain and see whether one arrives. a chain cut anywhere by synthesis
 			// looks exactly like a lost marker later on, and the two need different fixes.
 			ST_FILL1: begin
-				ss_en  <= 1;
+				ss_en_next = 1;
 				ss_in  <= 1;
 				bitcnt <= bitcnt + 1'b1;
 				// only believe it once ones have had time to cross: at reset the chain
@@ -336,7 +343,7 @@ module savestate
 			// push zeros through first: the chain powers up holding reset values and
 			// if ss_out already reads 1 the marker looks like it arrived immediately
 			ST_FLUSH: begin
-				ss_en  <= 1;
+				ss_en_next = 1;
 				ss_in  <= 0;
 				bitcnt <= bitcnt + 1'b1;
 				if (bitcnt > 16'd40000) begin bitcnt <= 0; state <= ST_MARK; end
@@ -366,14 +373,14 @@ module savestate
 					widx       <= 0;
 					guard      <= 0;
 					state      <= ST_IDLE;
-					ss_en      <= 0;
+					ss_en_next = 0;
 				end
 				else if (bitcnt > 16'd60000) begin
 					// marker never came back, so the chain is not usable on this build.
 					// release the core anyway and simply refuse snapshots: a failed
 					// measurement must never leave the machine held in reset, which is
 					// a dead core with no picture and no OSD to escape with.
-					ss_en      <= 0;
+					ss_en_next = 0;
 					chain_len  <= 0;
 					calibrated <= 1;
 					widx       <= 0;
@@ -387,7 +394,7 @@ module savestate
 			// machine frozen: a diagnostic that can hang the core is worse than none.
 
 			ST_IDLE: begin
-				ss_en <= 0;
+				ss_en_next = 0;
 				pause_req <= 0;
 				fsm_busy  <= 0;
 				// once, a couple of seconds after calibration, run the round trip by
@@ -531,7 +538,7 @@ module savestate
 						state    <= ST_MIN;
 					end
 					else begin
-						ss_en <= 1;
+						ss_en_next = 1;
 						state <= ST_OUT;
 					end
 				end
@@ -615,7 +622,7 @@ module savestate
 
 			ST_DONE: begin
 				loading       <= 0;
-				ss_en         <= 0;
+				ss_en_next = 0;
 				// a real save keeps the machine paused and walks its memories out after
 				// the chain. the self test has nowhere to put them and stops here.
 				if (saving) begin
@@ -765,7 +772,7 @@ module savestate
 									// memories are back; the chain goes in last, so the
 									// processors resume with registers that match them.
 									//
-									ss_en  <= 1;
+									ss_en_next = 1;
 									bitcnt <= 0;
 									widx   <= 0;
 									bidx   <= 0;
@@ -794,13 +801,17 @@ module savestate
 					// which is just as dead as staying frozen. clear calibrated so
 					// cal_busy holds the core in reset and the whole sequence restarts.
 					state      <= ST_FILL1;
-					ss_en      <= 0;
+					ss_en_next = 0;
 					fsm_busy       <= 0;
 					bitcnt     <= 0;
 					calibrated <= 0;
 				end
 			end
 		end
+		ss_en        <= ss_en_next;
+		ss_en_cpu    <= ss_en_next;
+		ss_en_vdp_fm <= ss_en_next;
+		ss_en_vram   <= ss_en_next;
 	end
 
 endmodule

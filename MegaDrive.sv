@@ -618,6 +618,7 @@ always @(posedge clk_md) begin
 end
 
 wire        ss_en, ss_in, ss_out, ss_busy;
+wire        ss_en_cpu, ss_en_vdp_fm, ss_en_vram;
 wire [15:0] ss_mem_addr, ss_mem_din, ss_mem_dout;
 wire  [3:0] ss_mem_sel;
 wire        ss_mem_wr, ss_mem_wr_hold;
@@ -714,6 +715,7 @@ savestate savestate
 	// working one, so cart_cs could not tell a crash from health. Writes to work RAM
 	// track the program actually storing results.
 	.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+	.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
 	.save_req(ss_save_pending), .load_req(ss_load_pending), .xfer_ack(ss_xfer_ack),
 	.blk_off(ss_blk_off), .blk_len(ss_blk_len), .blk_base(ss_blk_base),
 	.blk_hdr(ss_blk_hdr), .hdr_words32(ss_hdr_words32), .hdr_present(ss_hdr_present),
@@ -721,10 +723,11 @@ savestate savestate
 	.mem_wr(ss_mem_wr), .mem_wr_hold(ss_mem_wr_hold), .mem_dout(ss_mem_dout)
 );
 
-md_board md_board
+md_board #(.SS_EN_SPLIT(1)) md_board
 (
 	.MCLK2(clk_md),
 	.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+	.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
 	.ss_mem_sel(ss_vram_sel), .ss_mem_addr(ss_mem_addr),
 	.ss_mem_din(ss_mem_din[7:0]), .ss_mem_wr(ss_mem_wr & ss_vram_sel),
 	.ss_mem_dout(ss_vram_q),

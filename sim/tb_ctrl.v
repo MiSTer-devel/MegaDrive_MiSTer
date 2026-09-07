@@ -19,6 +19,11 @@ module tb_ctrl;
 	reg ctrl_reset = 1;
 
 	wire ss_en, ss_in, ss_out, ss_busy;
+	wire ss_en_cpu, ss_en_vdp_fm, ss_en_vram;
+	// Check both enable edges after nonblocking updates, on every controller cycle.
+	always @(negedge MCLK2)
+		if ({ss_en_cpu, ss_en_vdp_fm, ss_en_vram} !== {3{ss_en}})
+			$fatal(1, "scan enable replicas differ");
 	wire cal_busy;
 	reg  ss_save = 0, ss_load = 0;
 
@@ -94,10 +99,11 @@ module tb_ctrl;
 	end
 	wire [15:0] cart_data = rom[ca[11:0]];
 
-	md_board dut (
+	md_board #(.SS_EN_SPLIT(1)) dut (
 		.MCLK2(MCLK2), .ext_reset(ext_reset), .reset_button(1'b0),
 		.ext_vres(ext_vres), .ext_zres(ext_zres),
 		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+		.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
 		.ss_arr_sel(mem_sel == 4'd3), .ss_arr_addr(mem_addr), .ss_arr_din(mem_din),
 		.ss_arr_wr(mem_wr & (mem_sel == 4'd3)), .ss_arr_dout(arr_q),
 		.ss_mem_sel(mem_sel == 4'd2), .ss_mem_addr(mem_addr),
@@ -272,7 +278,9 @@ module tb_ctrl;
 	savestate ctrl (
 		.clk(MCLK2), .reset(ctrl_reset),
 		.ss_save(ss_save), .ss_load(ss_load), .busy(ss_busy), .cal_busy(cal_busy),
-		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out), .bus_free(1'b1),
+		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+		.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
+		.bus_free(1'b1),
 		.pause_req(),
 		.bufb_clk(MCLK2), .bufb_addr(dmp_addr), .bufb_q(dmp_q),
 		.bufb_we(dmp_we), .bufb_din(dmp_din),

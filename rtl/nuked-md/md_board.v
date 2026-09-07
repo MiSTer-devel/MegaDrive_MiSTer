@@ -25,9 +25,12 @@
 //`define EXT_CLOCKS
 //`define VRAM_128K
 
-module md_board
+module md_board #(parameter SS_EN_SPLIT = 0)
 	(
 	input ss_en,
+	input ss_en_cpu,
+	input ss_en_vdp_fm,
+	input ss_en_vram,
 	input ss_in,
 	output ss_out,
 	input ss_arr_sel,
@@ -153,6 +156,12 @@ module md_board
 	output vdp_dma
 	
 	);
+	// The integrated controller supplies same-cycle, unmerged enable replicas.
+	// Standalone board users can retain the single-enable interface.
+	wire scan_cpu = SS_EN_SPLIT ? ss_en_cpu : ss_en;
+	wire scan_vdp_fm = SS_EN_SPLIT ? ss_en_vdp_fm : ss_en;
+	wire scan_vram = SS_EN_SPLIT ? ss_en_vram : ss_en;
+
 	
 	wire [7:0] SD;
 	wire SE1;
@@ -520,7 +529,7 @@ end
 		.ym2612_status_enable(ym2612_status_enable),
 		.vdp_dma_oe_early(vdp_dma_oe_early),
 		.vdp_dma(vdp_dma)
-		, .ss_en(ss_en), .ss_in(MCLK_e), .ss_out(ss_step2_ym)
+		, .ss_en(scan_vdp_fm), .ss_in(MCLK_e), .ss_out(ss_step2_ym)
 		, .ss_arr_sel(ss_arr_sel), .ss_arr_addr(ss_arr_addr), .ss_arr_din(ss_arr_din)
 		, .ss_arr_wr(ss_arr_wr), .ss_arr_dout(ss_arr_dout));
 	
@@ -595,7 +604,7 @@ end
 		.UDS(m68k_UDS_o),
 		.strobe_z(m68k_S_d),
 		.VPA(VPA)
-		, .ss_en(ss_en), .ss_in(ss_step2_ym), .ss_out(ss_step3_m68k));
+		, .ss_en(scan_cpu), .ss_in(ss_step2_ym), .ss_out(ss_step3_m68k));
 
 `ifdef M68K_CHEAT
 	assign m68k_addr = m68k_VA_o;
@@ -653,7 +662,7 @@ end
 		.BUSRQ(ZBR),
 		.BUSAK(ZBAK),
 		.RESET(ZRES)
-		, .ss_en(ss_en), .ss_in(ss_step3_m68k), .ss_out(ss_step4_z80));
+		, .ss_en(scan_cpu), .ss_in(ss_step3_m68k), .ss_out(ss_step4_z80));
 	
 `ifdef Z80_CHEAT
 	assign z80_addr = z80_ZA_o;
@@ -681,7 +690,7 @@ end
 		.RD_d(vram1_AD_d),
 		.SD_o(vram1_SD_o),
 		.SD_d(vram1_SD_d)
-		, .ss_en(ss_en), .ss_in(ss_step4_z80), .ss_out(ss_step5_vram1)
+		, .ss_en(scan_vram), .ss_in(ss_step4_z80), .ss_out(ss_step5_vram1)
 		, .ss_mem_sel(ss_mem_sel), .ss_mem_addr(ss_mem_addr), .ss_mem_din(ss_mem_din)
 		, .ss_mem_wr(ss_mem_wr), .ss_mem_dout(ss_mem_dout));
 
