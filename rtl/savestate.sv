@@ -66,6 +66,7 @@ module savestate
 	output reg        blk_hdr = 0,
 	output     [31:0] hdr_words32,
 	input             hdr_present,
+	input      [15:0] hdr_chain,
 	output reg [15:0] blk_off = 0,     // word offset of this transfer inside the slot
 	output reg  [9:0] blk_len = 0,     // 0 means the chain, whose length is measured
 	output reg  [9:0] blk_base = 0,    // where in the buffer the transfer reads or writes
@@ -476,7 +477,10 @@ module savestate
 			ST_HDRCHK: begin
 				if (xfer_idle) begin
 					blk_hdr <= 0;
-					if (xfer_ok && hdr_present) begin
+					// a slot written by a build with a different chain would shift the
+					// wrong number of bits into every register and hang the machine
+					// without saying anything, so the length in the header has to match.
+					if (xfer_ok && hdr_present && (hdr_chain == chain_len)) begin
 						load_req <= 1;
 						state    <= ST_FETCH;
 					end

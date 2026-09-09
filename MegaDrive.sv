@@ -652,6 +652,7 @@ wire [15:0] ss_blk_off;
 wire  [9:0] ss_blk_len;
 wire  [9:0] ss_blk_base;
 wire        ss_blk_hdr, ss_hdr_present;
+wire [15:0] ss_hdr_chain;
 wire [31:0] ss_hdr_words32;
 wire        dg_buf_we;
 wire [63:0] dg_buf_din;
@@ -685,6 +686,7 @@ ss_ddr ss_ddr
 	.req_save(ss_save_pending), .req_load(ss_load_pending), .slot(ss_slot),
 	.blk_off(ss_blk_off), .blk_len(ss_blk_len), .blk_base(ss_blk_base),
 	.blk_hdr(ss_blk_hdr), .hdr_words32(ss_hdr_words32), .hdr_present(ss_hdr_present),
+	.hdr_chain(ss_hdr_chain),
 	.save_sd(~status[47]),
 	.ack(ss_xfer_ack),
 	.buf_we(dg_buf_we), .buf_din(dg_buf_din),
@@ -719,6 +721,7 @@ savestate savestate
 	.save_req(ss_save_pending), .load_req(ss_load_pending), .xfer_ack(ss_xfer_ack),
 	.blk_off(ss_blk_off), .blk_len(ss_blk_len), .blk_base(ss_blk_base),
 	.blk_hdr(ss_blk_hdr), .hdr_words32(ss_hdr_words32), .hdr_present(ss_hdr_present),
+	.hdr_chain(ss_hdr_chain),
 	.mem_addr(ss_mem_addr), .mem_sel(ss_mem_sel), .mem_din(ss_mem_din),
 	.mem_wr(ss_mem_wr), .mem_wr_hold(ss_mem_wr_hold), .mem_dout(ss_mem_dout)
 );

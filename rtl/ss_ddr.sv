@@ -53,6 +53,8 @@ module ss_ddr #(
 	input             save_sd,
 	input      [31:0] hdr_words32,
 	output reg        hdr_present = 0,
+	// the chain length the slot was written with, read back out of the header
+	output reg [15:0] hdr_chain = 0,
 	output reg        ack = 0,
 	output reg        ddr_rd = 0,
 	input      [63:0] ddr_dout,
@@ -102,7 +104,11 @@ module ss_ddr #(
 	// detector and the high half as the size, and the size is not a constant
 	// here: the controller hands over where its own walk ended.
 	reg [31:0] save_count = 0;
-	wire [63:0] hdr_word = {hdr_words32, save_sd ? save_count : 32'hFFFFFFFF};
+	// the low half is main's change detector, which only has to move on every
+	// save, so half of it carries the chain length instead. a slot written by a
+	// build with a different chain shifts into a different machine and hangs it,
+	// and nothing else in the slot says how long the chain was.
+	wire [63:0] hdr_word = {hdr_words32, s_len, save_sd ? save_count[15:0] : 16'hFFFF};
 
 
 
@@ -169,7 +175,10 @@ module ss_ddr #(
 				// a header read answers one question: is there a state in this slot at
 				// all. main zeroes a slot it has no file for, so a size of zero means
 				// empty and the restore has to be refused rather than shifted in.
-				if (blk_hdr) hdr_present <= |ddr_dout[63:32];
+				if (blk_hdr) begin
+					hdr_present <= |ddr_dout[63:32];
+					hdr_chain   <= ddr_dout[31:16];
+				end
 				else begin
 					buf_din <= ddr_dout;
 					wa      <= blk_base + xw;

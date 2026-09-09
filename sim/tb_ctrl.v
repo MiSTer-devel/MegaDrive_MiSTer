@@ -183,6 +183,7 @@ module tb_ctrl;
 	// main zeroes a slot it has no file for, so a size of zero is what an empty
 	// slot looks like. this one has a state in it.
 	wire       hdr_present = |hdrmodel[63:32];
+	wire [15:0] hdr_chain  = hdrmodel[31:16];
 	integer    hdr_writes = 0, hdr_reads = 0;
 	reg [63:0] hdr_written = 0;
 	// ss_ddr is on the other clock and answers through a synchroniser, so a
@@ -202,7 +203,9 @@ module tb_ctrl;
 		else if (xhold != 3'd4) xhold <= xhold + 1'b1;
 		else if (!xfer_ack) begin
 			if (save_req && blk_hdr) begin
-				hdrmodel    = {hdr_words32, 32'd1};
+				// the header carries the chain length the slot was written with, the
+				// same as ss_ddr puts there, so the restore below has to accept it
+				hdrmodel    = {hdr_words32, ctrl.chain_len, 16'd1};
 				hdr_written = hdrmodel;
 				hdr_writes  = hdr_writes + 1;
 				xfer_ack   <= 1;
@@ -287,6 +290,7 @@ module tb_ctrl;
 		.save_req(save_req), .load_req(load_req), .xfer_ack(xfer_ack),
 		.blk_off(blk_off), .blk_len(blk_len), .blk_base(blk_base),
 		.blk_hdr(blk_hdr), .hdr_words32(hdr_words32), .hdr_present(hdr_present),
+		.hdr_chain(hdr_chain),
 		.mem_addr(mem_addr), .mem_sel(mem_sel), .mem_din(mem_din),
 		.mem_wr(mem_wr), .mem_wr_hold(mem_wr_hold), .mem_dout(mem_dout)
 	);

@@ -38,7 +38,7 @@ module tb_ddr;
 		.buf_addr(buf_addr), .buf_q(bufmem), .buf_we(bw), .buf_din(bd),
 		.req_save(req_save), .req_load(req_load), .slot(2'd0), .ack(ack),
 		.blk_off(16'd0), .blk_len(10'd0), .blk_base(10'd0),
-		.blk_hdr(1'b0), .save_sd(1'b1), .hdr_words32(32'd57856), .hdr_present(),
+		.blk_hdr(1'b0), .save_sd(1'b1), .hdr_words32(32'd57856), .hdr_present(), .hdr_chain(),
 		.ddr_rd(rd), .ddr_dout(dout), .ddr_dout_ready(dout_ready)
 	);
 
