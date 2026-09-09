@@ -162,6 +162,7 @@ module savestate
 	reg  [8:0] widx = 0;
 	reg  [5:0] bidx = 0;
 	reg [63:0] shreg = 0;
+	reg        out_pad = 0;   // the capture is past chain_len, filling the last word
 	reg [23:0] guard = 0;
 	reg [21:0] save_guard = 0;
 	reg        saving = 0;
@@ -216,16 +217,15 @@ module savestate
 	// That is what stopped the header from ever being written: the header request
 	// follows the last memory chunk immediately, with nothing in between.
 	wire xfer_idle = ~save_req & ~load_req & ~ack_sync[1];
-
-
 	wire [63:0] nextword = {shreg[62:0], ss_out};
-	// the last word is partial when the chain does not divide by 64: 12409 bits
-	// is 193 full words plus 57. those 57 bits sit at the low end of the shift
-	// register, but ST_IN feeds the chain from bit 63 downwards, so a right
-	// aligned tail replays seven stale bits and drops seven real ones, leaving
-	// the last stretch of the chain shifted into itself.
-	wire  [6:0] tailrem  = chain_len[5:0];
-	wire [63:0] tailword = (tailrem == 0) ? nextword : (nextword << (7'd64 - tailrem));
+	// the last word is partial when the chain does not divide by 64: 14534 bits is
+	// 227 full words plus 6. those bits sit at the low end of the shift register
+	// while ST_IN feeds the chain from bit 63 downwards, so the tail has to reach
+	// the top of the word. it used to get there through a 64 bit variable shift,
+	// which is six stages of 64 multiplexers and was a third of this module's area.
+	// shifting the capture on to the word boundary does the same job for nothing:
+	// ST_OUT feeds zeros into the chain, so the padding bits are the zeros the
+	// alignment would have inserted anyway, and ST_IN still stops at chain_len.
 
 
 	// continuous assignments, not an always @* block: that block waits for an event
@@ -254,9 +254,9 @@ module savestate
 	// four 16-bit words shifted in from the top make one buffer word, so the word
 	// at the lowest memory address ends up in the lowest bits
 	wire [63:0] mpack_next = {mem_dout, mpack[63:16]};
-	wire [63:0] bufword  = mem_phase ? mpack_next : ((&bidx) ? nextword : tailword);
+	wire [63:0] bufword  = mem_phase ? mpack_next : nextword;
 	wire        in_phase = (state == ST_PRE) || (state == ST_IN);
-	wire        buf_we   = ((state == ST_OUT) && ((&bidx) || (bitcnt == chain_len - 1'b1)))
+	wire        buf_we   = ((state == ST_OUT) && (&bidx))
 	                     || ((state == ST_MREAD) && (mrd == 2'd2) && (mphase == 3'd3));
 	wire  [9:0] addra = mem_phase ? (CHUNK_BASE + {1'b0, mword})
 	                              : {1'b0, in_phase ? rdaddr : widx};
@@ -296,6 +296,7 @@ module savestate
 			save_guard <= 0;
 			xfer_ok    <= 0;
 			bitcnt     <= 0;
+			out_pad    <= 0;
 			chain_len  <= 0;
 			calibrated <= 0;
 			blk_off    <= 0;
@@ -567,12 +568,14 @@ module savestate
 
 				if (&bidx) widx <= widx + 1'b1;
 
-				if (bitcnt == chain_len - 1'b1) begin
-					rdaddr <= 0;
-					bitcnt <= 0;
-					widx   <= 0;
-					bidx   <= 0;
-					state  <= ST_PRE;
+				if (bitcnt == chain_len - 1'b1) out_pad <= 1;
+				if ((&bidx) && (out_pad || (bitcnt == chain_len - 1'b1))) begin
+					rdaddr  <= 0;
+					bitcnt  <= 0;
+					widx    <= 0;
+					bidx    <= 0;
+					out_pad <= 0;
+					state   <= ST_PRE;
 				end
 			end
 
@@ -802,8 +805,9 @@ module savestate
 					// cal_busy holds the core in reset and the whole sequence restarts.
 					state      <= ST_FILL1;
 					ss_en_next = 0;
-					fsm_busy       <= 0;
+					fsm_busy   <= 0;
 					bitcnt     <= 0;
+					out_pad    <= 0;
 					calibrated <= 0;
 				end
 			end
