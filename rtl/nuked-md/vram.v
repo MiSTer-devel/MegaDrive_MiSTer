@@ -28,6 +28,8 @@ module vram
 	reg [15:0] addr = 0;
 	reg dt = 0;
 	reg [7:0] addr_ser = 0;
+	// not in the scan chain: parallel loaded from VRAM, and the VDP reloads it on
+	// every read transfer, so a restore is stale for at most one access slot
 	reg [2047:0] ser = 0;
 	
 	reg o_OE = 0;
@@ -85,8 +87,7 @@ module vram
 		if (ss_en)
 		begin
 			addr_ser <= {addr_ser[6:0], ss_in};
-			ser <= {ser[2046:0], addr_ser[7]};
-			vram_ser <= {vram_ser[6:0], ser[2047]};
+			vram_ser <= {vram_ser[6:0], addr_ser[7]};
 			dt <= vram_ser[7];
 			addr <= {addr[14:0], dt};
 			RD_o <= {RD_o[6:0], addr[15]};

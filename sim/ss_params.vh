@@ -1,1 +1,1 @@
-`define SS_CHAIN_LEN 16581
+`define SS_CHAIN_LEN 14533
