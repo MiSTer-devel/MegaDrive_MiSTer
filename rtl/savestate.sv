@@ -192,6 +192,11 @@ module savestate
 	// be believed. these ask only whether the chain output moves at all.
 
 	// save_ack comes back on the DDRAM clock
+	// the header check is a sixteen bit compare and the state machine that reads
+	// it also drives the scan enable, so leaving the compare in that cone put it
+	// in front of every enable replica and cost several nanoseconds. the answer
+	// is stable long before the state machine looks at it.
+	reg        hdr_ok = 0;
 	reg  [1:0] ack_sync = 0;
 	always @(posedge clk) ack_sync <= {ack_sync[0], xfer_ack};
 
@@ -480,7 +485,7 @@ module savestate
 					// a slot written by a build with a different chain would shift the
 					// wrong number of bits into every register and hang the machine
 					// without saying anything, so the length in the header has to match.
-					if (xfer_ok && hdr_present && (hdr_chain == chain_len)) begin
+					if (xfer_ok && hdr_present && hdr_ok) begin
 						load_req <= 1;
 						state    <= ST_FETCH;
 					end
@@ -816,6 +821,7 @@ module savestate
 				end
 			end
 		end
+		hdr_ok       <= (hdr_chain == chain_len);
 		ss_en        <= ss_en_next;
 		ss_en_cpu    <= ss_en_next;
 		ss_en_vdp_fm <= ss_en_next;
