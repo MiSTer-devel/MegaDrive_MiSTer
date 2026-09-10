@@ -6936,11 +6936,9 @@ end
 	
 	always @(posedge MCLK)
 	begin
+		// not in the scan chain: parallel loaded from linebuffer, which is not saved
 		if (ss_en)
 		begin
-			linebuffer_out <= {linebuffer_out[54:0], sprdata_out_0[33]};
-			linebuffer_out_1 <= {linebuffer_out_1[54:0], linebuffer_out[55]};
-			linebuffer_out_0 <= {linebuffer_out_0[54:0], linebuffer_out_1[55]};
 		end
 		else
 		begin
@@ -6985,7 +6983,7 @@ end
 	// VRAM interface block
 	
 	wire ss_step748_dl564;
-	ym_dlatch_1 dl564(.MCLK(MCLK), .c1(hclk1), .inp(l116), .nval(l564), .ss_en(ss_en), .ss_in(linebuffer_out_0[55]), .ss_out(ss_step748_dl564));
+	ym_dlatch_1 dl564(.MCLK(MCLK), .c1(hclk1), .inp(l116), .nval(l564), .ss_en(ss_en), .ss_in(sprdata_out_0[33]), .ss_out(ss_step748_dl564));
 	
 	wire ss_step749_sr565;
 	ym_sr_bit sr565(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l564), .sr_out(l565), .ss_en(ss_en), .ss_in(ss_step748_dl564), .ss_out(ss_step749_sr565));
