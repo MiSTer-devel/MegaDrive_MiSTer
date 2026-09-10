@@ -2299,7 +2299,10 @@ module ym7101
 	assign mclk_and1 = mclk_and1_r;
 	wire mclk_and1_next = MCLK_e ? (prescaler_dff2_l2 & ~prescaler_dff1_l2) : (prescaler_dff1_l2 & ~reset_comb);
 	always @(posedge MCLK)
-		mclk_and1_r <= mclk_and1_next;
+		if (ss_en)
+			mclk_and1_r <= ss_step3_prescaler_dff2;
+		else
+			mclk_and1_r <= mclk_and1_next;
 
 	// CLK1_i is CLK1_o on this board, the test pins keep CLK_d low
 	wire mclk_clk2_next = ~mclk_and1_next & (MCLK_e ? prescaler_dff7_l2 : ~mclk_and1_r & ~(prescaler_dff5_l2 & prescaler_dff6_l2));
@@ -2311,10 +2314,16 @@ module ym7101
 	assign mclk_cpu_clk1 = cpu_clk1_r;
 	assign mclk_cpu_clk0 = cpu_clk0_r;
 	always @(posedge MCLK)
-	begin
-		cpu_clk1_r <= cpu_clk1_next;
-		cpu_clk0_r <= cpu_clk0_next;
-	end
+		if (ss_en)
+		begin
+			cpu_clk1_r <= mclk_and1_r;
+			cpu_clk0_r <= cpu_clk1_r;
+		end
+		else
+		begin
+			cpu_clk1_r <= cpu_clk1_next;
+			cpu_clk0_r <= cpu_clk0_next;
+		end
 	// next CPU clock for the top level: one gate from two registers; the reset term stays live because the
 	// prescaler reset acts one clock after reset_comb falls
 	reg clk1_a_r = 0, clk1_h_r = 0;
@@ -2326,7 +2335,7 @@ module ym7101
 	assign CLK1_next = clk1_a_r & ~(clk1_h_r & ~reset_comb);
 	assign CLK0_next = cpu_clk0_next;
 	wire ss_step4_prescaler_dff3;
-	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2), .ss_en(ss_en), .ss_in(ss_step3_prescaler_dff2), .ss_out(ss_step4_prescaler_dff3));
+	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2), .ss_en(ss_en), .ss_in(cpu_clk0_r), .ss_out(ss_step4_prescaler_dff3));
 	wire ss_step5_prescaler_dff4;
 	ym7101_dff prescaler_dff4(.MCLK(MCLK), .clk(MCLK_e), .inp(~prescaler_dff3_l2), .rst(mclk_and1), .outp(prescaler_dff4_l2), .ss_en(ss_en), .ss_in(ss_step4_prescaler_dff3), .ss_out(ss_step5_prescaler_dff4));
 	wire ss_step6_prescaler_dff5;
@@ -8326,7 +8335,7 @@ module ym7101_dff #(parameter DATA_WIDTH = 1)
 	wire [DATA_WIDTH-1:0] l2_assign = rst ? {DATA_WIDTH{1'h0}} : (clk ? l1 : l2);
 	
 	assign outp = ss_en ? l2 : l2_assign;
-	assign outp_nr = clk ? l1 : l2;
+	assign outp_nr = ss_en ? l2 : (clk ? l1 : l2);
 	//assign outp = l2;
 	
 	always @(posedge MCLK)
