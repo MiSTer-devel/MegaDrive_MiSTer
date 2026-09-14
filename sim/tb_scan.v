@@ -1,13 +1,5 @@
-// Acceptance gate for savestate scan chain.
-//
-// Proof obligation: the scanned bits fully determine the machine's future.
-//   run R  -> capture chain as S1
-//   run M  -> capture chain as S2
-//   restore S1, run M -> capture chain as S3
-//   S3 must equal S2.
-//
-// Capture is circular (ss_in fed from ss_out) so reading the chain does not
-// disturb it: after SS_CHAIN_LEN shifts the state is back where it started.
+// proof obligation: run R, capture S1; run M, capture S2; restore S1, run M,
+// capture S3; S3 must equal S2, i.e. the scanned bits fully determine the future.
 `timescale 1ns/1ps
 `include "ss_params.vh"
 
@@ -41,6 +33,7 @@ module tb_scan;
 		.MCLK2(MCLK2), .ext_reset(ext_reset), .reset_button(1'b0),
 		.ext_vres(ext_vres), .ext_zres(ext_zres),
 		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+		.ss_sat_sel(1'b0), .ss_sat_addr(16'd0), .ss_sat_din(16'd0), .ss_sat_wr(1'b0), .ss_sat_dout(),
 		.ram_68k_address(ra), .ram_68k_byteena(rb), .ram_68k_data(rd), .ram_68k_wren(rw), .ram_68k_o(ro),
 		.ram_z80_address(za), .ram_z80_data(zd), .ram_z80_wren(zw), .ram_z80_o(zo),
 		.M3(1'b1), .cart_data(cart_data), .cart_data_en(1'b1),
@@ -73,29 +66,23 @@ module tb_scan;
 		begin for (k=0;k<c;k=k+1) @(posedge MCLK2); end
 	endtask
 
-	// Driven and sampled on the falling edge. Both tasks used the rising one, the
-	// same edge the chain samples on: iverilog resolved the ordering the same wrong
-	// way every run, so the bench failed identically on builds that were bit exact
-	// on hardware. tb_shift had the same defect and tb_ctrl had it fixed once.
-	// destructive read: the chain is filled with zeros as it is shifted out,
-	// so every capture must be followed by a restore. no feedback path from
-	// ss_out back to ss_in, which is what real hardware does too.
+	// falling edge, not rising: event ordering on the chain's own sampling edge
+	// is undefined. destructive read: zeros fill the chain as it shifts out, so
+	// every capture must be followed by a restore.
 	task capture(output reg [`SS_CHAIN_LEN-1:0] buf_o);
 		integer k;
 		begin
-			// align to a falling edge only when the chain is not already
-			// shifting. A wait here between two back-to-back tasks would let one
-			// more clock through with ss_en high, which shifts the chain by a bit
-			// and loses the last one.
+			// align to a falling edge only when not already shifting: a wait between
+			// two back-to-back tasks would let one more clock through with ss_en
+			// high, shifting the chain by a bit and losing the last one.
 			if (!ss_en) @(negedge MCLK2);
 			ss_en = 1; ss_in = 0;
 			for (k=0;k<`SS_CHAIN_LEN;k=k+1) begin
 				buf_o[k] = ss_out;
 				@(negedge MCLK2);
 			end
-			// leave ss_en high: dropping it here would let the machine run a free
-			// clock between capture and restore, which changes state and makes the
-			// round-trip look broken when it is not.
+			// leave ss_en high: dropping it lets the machine run a free clock
+			// between capture and restore, changing state
 			ss_in = 0;
 		end
 	endtask
@@ -108,9 +95,8 @@ module tb_scan;
 				ss_in = buf_i[k];
 				@(negedge MCLK2);
 			end
-			// leave ss_en high: dropping it here would let the machine run a free
-			// clock between capture and restore, which changes state and makes the
-			// round-trip look broken when it is not.
+			// leave ss_en high: dropping it lets the machine run a free clock
+			// between capture and restore, changing state
 			ss_in = 0;
 		end
 	endtask
@@ -131,9 +117,7 @@ module tb_scan;
 		for (n=0;n<`SS_CHAIN_LEN;n=n+1) if (s1[n] !== s1b[n]) diff = diff + 1;
 		$display("round-trip fidelity: %0d/%0d bits differ on immediate re-read", diff, `SS_CHAIN_LEN);
 
-		// ss_en down, or run_cycles shifts the chain instead of running the
-		// machine: every "resumes identically" result to date was measured with
-		// the enable still high, comparing two chains full of shifted-in zeros.
+		// ss_en down, or run_cycles shifts the chain instead of running the machine
 		ss_en = 0;
 		run_cycles(STEP);
 		capture(s2); restore(s2);
@@ -143,15 +127,9 @@ module tb_scan;
 		run_cycles(STEP);
 		capture(s3);
 
-		// X in a capture is simulation, not hardware. The VDP's arrays have no
-		// initial content in a bench and the chain carries their output
-		// registers; on the chip every flop and every M10K comes up from the
-		// bitstream. An X that stays X compares equal to itself under !==, so it
-		// cannot hide a divergence below. A chain that has gone mostly X is a
-		// different matter, and that is what this checks.
-		//
-		// This used to be `if (^s1 === 1'bx) $finish`, which aborted every run
-		// before the comparison the bench exists for.
+		// X here is simulation only: the VDP's arrays have no initial content in a
+		// bench. An X that stays X compares equal to itself under !==, so it can't
+		// hide a divergence below; a chain gone mostly X is what this checks for.
 		xcnt = 0;
 		for (n=0;n<`SS_CHAIN_LEN;n=n+1) if (s1[n] === 1'bx) xcnt = xcnt + 1;
 		$display("bits X in the capture: %0d/%0d (simulation only)", xcnt, `SS_CHAIN_LEN);

@@ -1,8 +1,6 @@
 `timescale 1ns/1ps
-// Does a one clock strobe at 107.37 MHz reach a register on the 53.69 MHz clock
-// beside it? Both clocks rise together out of the same PLL. The walk writes one
-// word every three clocks, four words per 64-bit buffer word and then a three
-// clock gap for the fetch, which is the timing this reproduces.
+// does a one-clock strobe at 107.37 MHz reach a register on the 53.69 MHz clock
+// beside it? reproduces the walk's three-clocks-per-word timing.
 module tb_phase;
 	reg md = 0; always #4.657 md = ~md;
 	reg sys = 0;

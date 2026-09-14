@@ -1,10 +1,6 @@
-// Exercises the savestate controller against the real core, which is what the
-// chain tests never did: they drove ss_en by hand. Here the controller drives
-// it, so calibration, the shift count and the release are all under test.
-//
-// The bar is simple and matches what the hardware showed us: after a snapshot
-// the machine must still be running. A core that stops fetching is a core that
-// stopped generating video, which on a TV looks like snow.
+// exercises the savestate controller against the real core, driving ss_en itself
+// rather than by hand: a snapshot must leave the machine still fetching, or it
+// stops generating video, which on a TV looks like snow.
 `timescale 1ns/1ps
 
 module tb_ctrl;
@@ -12,6 +8,18 @@ module tb_ctrl;
 
 	reg MCLK2 = 0; always #4.657 MCLK2 = ~MCLK2;
 	reg ext_reset = 1, ext_vres = 1, ext_zres = 1;
+	// the board's own reset button, shaped by the real md_reset (small DIV,
+	// stock width is too slow for a bench) so reset_button carries the actual
+	// btn_reset pulse WRES sees rather than a raw hand-held level
+	reg  reset_req = 0;
+	wire reset_button;
+	wire rstgen_md, rstgen_s, rstgen_ss;
+	wire [3:1] rstgen_ram_a;
+	md_reset #(.DIV(3)) rstgen (
+		.clk(MCLK2), .loading(1'b0), .reset(reset_req), .cal_busy(1'b0), .hold(1'b0),
+		.md_reset(rstgen_md), .s_reset(rstgen_s), .btn_reset(reset_button),
+		.ss_reset(rstgen_ss), .ram_rst_a(rstgen_ram_a)
+	);
 
 	// the controller has its own reset in the real core (sys_reset), separate
 	// from the machine reset it holds down during calibration. tying them
@@ -26,6 +34,7 @@ module tb_ctrl;
 			$fatal(1, "scan enable replicas differ");
 	wire cal_busy;
 	reg  ss_save = 0, ss_load = 0;
+	reg  bus_free_r = 1;
 
 	wire [14:0] ra; wire [1:0] rb; wire [15:0] rd, ro; wire rw;
 	wire [12:0] za; wire [7:0] zd, zo; wire zw;
@@ -44,6 +53,7 @@ module tb_ctrl;
 	wire  [7:0] ss_zq;
 	wire [15:0] arr_q;
 	wire [15:0] cart_q;
+	wire [15:0] sat_q;
 	reg  [15:0] cartmodel [0:15];
 	integer ci;
 	initial for (ci = 0; ci < 16; ci = ci + 1) cartmodel[ci] = ci * 16'h1111 + 16'h37;
@@ -54,14 +64,9 @@ module tb_ctrl;
 	end
 	assign cart_q = cq;
 
-	// The cartridge is the one savestate memory that does not run on the
-	// controller's clock: it is on clk_sys, half of clk_md, both rising together
-	// out of the same PLL. A write pulse one clock wide at 107 MHz therefore
-	// lands between two 53.69 MHz edges whenever it starts on an even clock, and
-	// which words start on an even clock is fixed by the walk, so the same half
-	// of the cartridge vector was dropped on every restore. This model samples
-	// the same stream on the slow clock and has to end up with what the fast one
-	// has.
+	// the cartridge runs on clk_sys, half of clk_md: a one-clock write at 107 MHz
+	// falls between clk_sys edges on words that start on an even clock. this model
+	// samples the same stream on the slow clock and must end up with what the fast one has.
 	reg clk53 = 0;
 	initial begin
 		#4.657;
@@ -85,12 +90,9 @@ module tb_ctrl;
 		if (zw) wr_during_scan = wr_during_scan + 1;
 	end
 
-	// The VDP arrays cannot be checked from here: iverilog will not bind a
-	// hierarchical reference into a memory, with a variable index or a constant one.
-	// They are guarded structurally instead - tools/gen_scan.sh refuses to write RTL
-	// in which an always block that assigns to an array is not wrapped in
-	// if (ss_en) - which is a stronger check than a simulation that only ever sees
-	// one machine state.
+	// VDP arrays can't be checked here: iverilog won't bind a hierarchical reference
+	// into a memory. Guarded structurally instead: tools/gen_scan.sh refuses RTL
+	// where an array-assigning always block is not wrapped in if (ss_en).
 
 	initial begin
 		for (i=0;i<4096;i=i+1) rom[i]=16'h4E71;
@@ -100,12 +102,14 @@ module tb_ctrl;
 	wire [15:0] cart_data = rom[ca[11:0]];
 
 	md_board #(.SS_EN_SPLIT(1)) dut (
-		.MCLK2(MCLK2), .ext_reset(ext_reset), .reset_button(1'b0),
+		.MCLK2(MCLK2), .ext_reset(ext_reset), .reset_button(reset_button),
 		.ext_vres(ext_vres), .ext_zres(ext_zres),
 		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
 		.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
 		.ss_arr_sel(mem_sel == 4'd3), .ss_arr_addr(mem_addr), .ss_arr_din(mem_din),
 		.ss_arr_wr(mem_wr & (mem_sel == 4'd3)), .ss_arr_dout(arr_q),
+		.ss_sat_sel(mem_sel == 4'd5), .ss_sat_addr(mem_addr), .ss_sat_din(mem_din),
+		.ss_sat_wr(mem_wr & (mem_sel == 4'd5)), .ss_sat_dout(sat_q),
 		.ss_mem_sel(mem_sel == 4'd2), .ss_mem_addr(mem_addr),
 		.ss_mem_din(mem_din[7:0]), .ss_mem_wr(mem_wr & (mem_sel == 4'd2)),
 		.ss_mem_dout(),
@@ -148,21 +152,20 @@ module tb_ctrl;
 		vq <= vmodel[mem_addr];
 	end
 
-	// the VDP's palette and scroll answer through the real ym7101 port, so this
-	// one is not a model: it reads what the chip holds. Only 104 of the 1024 words
-	// in its window mean anything, the rest read zero and go nowhere, and both
-	// sides see the same thing, so the comparison stays honest.
+	// the VDP's palette/scroll and sprite cache answer through the real ym7101
+	// port, not a model: both sides see what the chip holds, so the comparison
+	// stays honest even though most of each 1024-word window reads zero.
 	assign mem_dout = (mem_sel == 4'd0) ? ss_wq :
 	                  (mem_sel == 4'd1) ? {8'd0, ss_zq} :
 	                  (mem_sel == 4'd2) ? {8'd0, vq} :
-	                  (mem_sel == 4'd3) ? arr_q : cart_q;
+	                  (mem_sel == 4'd3) ? arr_q :
+	                  (mem_sel == 4'd4) ? cart_q : sat_q;
 
-	// stand in for ss_ddr: answer either request after a while and hold the ack
-	// up until the request drops, which is the handshake the real module uses. it
-	// deliberately leaves the buffer alone, so a restore here replays whatever the
-	// last capture put there - which is what makes the check below meaningful.
+	// stand-in for ss_ddr: holds ack until the request drops, like the real module,
+	// but leaves the buffer alone, so a restore replays the last capture on purpose
 	wire save_req, load_req;
 	wire blk_hdr;
+	wire blk_id;
 	wire [31:0] hdr_words32;
 	reg  xfer_ack = 0;
 	integer saw_save_req = 0, saw_load_req = 0;
@@ -170,12 +173,11 @@ module tb_ctrl;
 		if (save_req) saw_save_req = saw_save_req + 1;
 		if (load_req) saw_load_req = saw_load_req + 1;
 	end
-	// a model of the slot in DDR3, and a walk over the buffer's port B that moves
-	// a block either way. answering a request without moving anything would let a
-	// restore replay the capture that is still sitting in the buffer and pass a
-	// test it never earned.
+	// models the slot in DDR3 and moves a block over the buffer's port B, so a
+	// restore can't pass by replaying whatever capture is still sitting there
 	reg [63:0] ddrmodel [0:65535];
 	reg [63:0] hdrmodel = 0;         // slot word 0, the header main polls
+	reg [63:0] idmodel = 0;          // slot word 1, the chain identity
 	reg  [9:0] xn = 0;
 	reg  [1:0] xs = 0;
 	wire [9:0] xlen  = (blk_len == 0) ? ((ctrl.chain_len + 16'd63) >> 6) : blk_len;
@@ -183,14 +185,16 @@ module tb_ctrl;
 	// main zeroes a slot it has no file for, so a size of zero is what an empty
 	// slot looks like. this one has a state in it.
 	wire       hdr_present = |hdrmodel[63:32];
-	wire [15:0] hdr_chain  = hdrmodel[31:16];
+	wire [15:0] hdr_chain  = (idmodel[63:32] == 32'h4D445353) ? idmodel[15:0] : 16'd0;
 	integer    hdr_writes = 0, hdr_reads = 0;
+	integer    id_writes = 0, id_reads = 0;
+	// set the first time id_writes reaches 1 with hdr_writes still at 0: the
+	// identity word has to reach the slot before the header does, or main can
+	// see a file worth loading before its content is actually there.
+	reg        id_before_hdr = 0;
 	reg [63:0] hdr_written = 0;
-	// ss_ddr is on the other clock and answers through a synchroniser, so a
-	// request that is dropped again after a clock or two never reaches it. The
-	// model used to act on the first clock of a request, which made a stale
-	// acknowledge invisible here and let the header write pass in simulation
-	// while doing nothing at all on the board.
+	// ss_ddr answers through a synchroniser: a request dropped again after a
+	// clock or two never reaches it, so this model must not act on clock one either
 	reg [2:0] xhold = 0;
 	always @(posedge MCLK2) begin
 		dmp_we <= 0;
@@ -203,9 +207,7 @@ module tb_ctrl;
 		else if (xhold != 3'd4) xhold <= xhold + 1'b1;
 		else if (!xfer_ack) begin
 			if (save_req && blk_hdr) begin
-				// the header carries the chain length the slot was written with, the
-				// same as ss_ddr puts there, so the restore below has to accept it
-				hdrmodel    = {hdr_words32, ctrl.chain_len, 16'd1};
+				hdrmodel    = {hdr_words32, 16'd0, 16'd1};
 				hdr_written = hdrmodel;
 				hdr_writes  = hdr_writes + 1;
 				xfer_ack   <= 1;
@@ -213,6 +215,16 @@ module tb_ctrl;
 			else if (load_req && blk_hdr) begin
 				hdr_reads <= hdr_reads + 1;
 				xfer_ack  <= 1;
+			end
+			else if (save_req && blk_id) begin
+				idmodel   = {32'h4D445353, 16'd0, ctrl.chain_len};
+				id_writes = id_writes + 1;
+				if (id_writes == 1 && hdr_writes == 0) id_before_hdr = 1;
+				xfer_ack <= 1;
+			end
+			else if (load_req && blk_id) begin
+				id_reads <= id_reads + 1;
+				xfer_ack <= 1;
 			end
 			else if (save_req) begin
 				// two clocks for the buffer to answer, then take the word
@@ -239,10 +251,9 @@ module tb_ctrl;
 	// and stand in for the transfers ss_ddr would do
 
 
-	// what the save read out of the memory, and what the restore wrote back. the
-	// restore has to touch the same addresses in the same order with the same
-	// values: that covers the address arithmetic, the packing into 64-bit words
-	// and the two-clock latency of the block RAM in one comparison.
+	// what the save read and the restore wrote back must match address for address
+	// and value for value: covers the address arithmetic, the 64-bit packing and
+	// the block RAM's two-clock latency in one comparison.
 	reg [19:0] sav_a [0:131071];
 	reg [15:0] sav_d [0:131071];
 	reg [19:0] ld_a  [0:131071];
@@ -261,6 +272,9 @@ module tb_ctrl;
 		end
 	end
 
+	// golden sat values go into the real register, so a walk that skips sat cannot pass
+	reg  [20:0] sat_golden [0:79];
+
 	// every bit the controller pushes into the chain during a restore, in order.
 	// the chain samples ss_in on the clock after ST_IN drives it, so the value is
 	// recorded one cycle late on purpose.
@@ -278,42 +292,37 @@ module tb_ctrl;
 		end
 	end
 
-	savestate ctrl (
+	// the default guard is 24 bits, a real give-up test would take 2^24 clocks.
+	// 20 clears a real transfer (past 5*10^5 clocks) with room, keeps ST_PAUSE's
+	// settle check (bit 16) intact, and cuts the wait to a sixteenth of the 24-bit try.
+	savestate #(.GUARD_BITS(20)) ctrl (
 		.clk(MCLK2), .reset(ctrl_reset),
 		.ss_save(ss_save), .ss_load(ss_load), .busy(ss_busy), .cal_busy(cal_busy),
 		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
 		.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
-		.bus_free(1'b1),
+		.bus_free(bus_free_r),
 		.pause_req(),
 		.bufb_clk(MCLK2), .bufb_addr(dmp_addr), .bufb_q(dmp_q),
 		.bufb_we(dmp_we), .bufb_din(dmp_din),
 		.save_req(save_req), .load_req(load_req), .xfer_ack(xfer_ack),
 		.blk_off(blk_off), .blk_len(blk_len), .blk_base(blk_base),
-		.blk_hdr(blk_hdr), .hdr_words32(hdr_words32), .hdr_present(hdr_present),
+		.blk_hdr(blk_hdr), .blk_id(blk_id), .hdr_words32(hdr_words32), .hdr_present(hdr_present),
 		.hdr_chain(hdr_chain),
 		.mem_addr(mem_addr), .mem_sel(mem_sel), .mem_din(mem_din),
 		.mem_wr(mem_wr), .mem_wr_hold(mem_wr_hold), .mem_dout(mem_dout)
 	);
 
-	// The first transfer of a restore has to be the chain: offset 0 in the slot,
-	// length 0 (which ss_ddr reads as "the measured chain length"), into buffer
-	// word 0. It used to be whatever descriptor the previous operation left
-	// behind - after a save, the last memory chunk at offset 28672 into buffer
-	// word 512 - so the chain was never fetched at all and the shift ran on
-	// whatever the last save had left in the bottom of the buffer. Restoring the
-	// slot you had just saved worked by accident; restoring any other one put
-	// that slot's memories under the other slot's registers.
+	// the first transfer of a restore must be the chain: offset 0, length 0
+	// (ss_ddr reads that as "the measured chain length"), into buffer word 0
 	reg     ld_seen = 0;
 	reg     old_ldreq = 0;
 	integer ld_errors = 0;
 	reg     ld_hdr_first = 0;
+	reg     ld_id_seen = 0;
 
-	// The cartridge puts its bank registers back when its select line drops, so
-	// the walk has to let go of the memories before the machine resumes - not
-	// after, which is what made Super Street Fighter II fetch a few instructions
-	// from the wrong half of its ROM and die. Checked where the chain shift
-	// starts: everything after that is the shift itself, sixteen thousand clocks
-	// of it, and the machine is still frozen for all of them.
+	// cartridge banking latches when select drops: the walk must let go of the
+	// memories before the chain shift starts, not after, or a banked game fetches
+	// from the wrong ROM half on resume.
 	reg [4:0] st_prev = 0;
 	always @(posedge MCLK2) begin
 		st_prev <= ctrl.state;
@@ -325,14 +334,14 @@ module tb_ctrl;
 	always @(posedge MCLK2) begin
 		old_ldreq <= load_req;
 		if (!old_ldreq && load_req && !ld_seen) begin
-			// the first transfer of a restore is the header, the second is the chain
 			if (blk_hdr) ld_hdr_first = 1;
+			else if (blk_id) ld_id_seen = 1;
 			else begin
 				ld_seen = 1;
-				$display("restore, first payload transfer: off=%0d len=%0d base=%0d",
+				$display("restore, first chain transfer: off=%0d len=%0d base=%0d",
 				         blk_off, blk_len, blk_base);
-				if (blk_off !== 16'd0 || blk_len !== 10'd0 || blk_base !== 10'd0) begin
-					$display("FAIL: a restore must fetch its chain first, from 0/0/0");
+				if (blk_off !== 16'd1 || blk_len !== 10'd0 || blk_base !== 10'd0) begin
+					$display("FAIL: a restore must fetch its chain from payload offset 1");
 					ld_errors = ld_errors + 1;
 				end
 			end
@@ -348,7 +357,8 @@ module tb_ctrl;
 		if (rw && !rw_d && !ss_busy) rw_before = rw_before + 1;
 	end
 
-	integer acc_before = 0, acc_during = 0, acc_after = 0, k;
+	integer acc_before = 0, acc_during = 0, acc_after = 0, acc_resume = 0, k;
+	integer ld_n_before, bad2;
 	integer bad;
 	integer lastbad = -1;
 	reg [15:0] b;
@@ -360,6 +370,16 @@ module tb_ctrl;
 			else if (ss_busy) acc_during = acc_during + 1;
 			else acc_after = acc_after + 1;
 		end
+	end
+
+	// a real WRES restart is only proven by the 68000 refetching its reset
+	// vector: armed around the mid-restore reset below, so a cart fetch at
+	// address 0..7 from unrelated traffic elsewhere cannot count
+	reg vec_watch = 0, vec_seen = 0;
+	reg cs_d2 = 1;
+	always @(posedge MCLK2) begin
+		cs_d2 <= cart_cs;
+		if (vec_watch && cs_d2 && !cart_cs && ca < 23'd8) vec_seen = 1;
 	end
 
 	initial begin
@@ -382,10 +402,17 @@ module tb_ctrl;
 
 		$display("work-RAM writes in that window: %0d", rw_before);
 		$display("state before save       : %0d busy=%0b", ctrl.state, ss_busy);
-		// drive the request off the falling edge. driving it on the rising edge is a
-		// race with the controller sampling it there, and the request was silently
-		// lost: the snapshot never started and every counter below then read zero,
-		// which looks exactly like a snapshot that did nothing wrong.
+
+		// seed the VDP's own sprite cache through its hierarchy, not through the
+		// walk under test, so the save captures known content.
+		@(negedge MCLK2);
+		for (i = 0; i < 80; i = i + 1) begin
+			sat_golden[i] = 21'h100000 + i[20:0];
+			dut.ym.vdp.sat[i] = sat_golden[i];
+		end
+
+		// off the falling edge: on the rising one it races the controller's own
+		// sampling and the request is silently lost
 		@(negedge MCLK2); ss_save = 1;
 		repeat (4) @(negedge MCLK2); ss_save = 0;
 		k = 0;
@@ -429,6 +456,11 @@ module tb_ctrl;
 			$finish;
 		end
 		$display("RESULT: PASS - machine still running after the snapshot");
+
+		// poison sat before the restore, as if a different machine's sprites were
+		// still sitting there: a restore that skips the sat walk would leave this
+		// instead of the golden values written above.
+		for (i = 0; i < 80; i = i + 1) dut.ym.vdp.sat[i] = 21'h1FFFFF;
 
 		// restore. the stand-in answers the fetch without touching the buffer, so
 		// what gets shifted in is the capture that is still sitting there, and the
@@ -479,8 +511,8 @@ module tb_ctrl;
 			$finish;
 		end
 
-		$display("memory words read on save : %0d (expect 108544)", sav_n);
-		$display("memory words written back : %0d (expect 108544)", ld_n);
+		$display("memory words read on save : %0d (expect 109568)", sav_n);
+		$display("memory words written back : %0d (expect 109568)", ld_n);
 		for (i = 0; i < 4; i = i + 1)
 			$display("  save[%0d] sel=%0h addr=%0h data=%0h   load[%0d] sel=%0h addr=%0h data=%0h",
 				i, sav_a[i][19:16], sav_a[i][15:0], sav_d[i],
@@ -511,19 +543,152 @@ module tb_ctrl;
 			$display("FAIL: a save must write the header exactly once");
 			ld_errors = ld_errors + 1;
 		end
+		if (id_writes != 1) begin
+			$display("FAIL: a save must write the identity word exactly once");
+			ld_errors = ld_errors + 1;
+		end
+		if (!id_before_hdr) begin
+			$display("FAIL: a save must write the identity word before the header");
+			ld_errors = ld_errors + 1;
+		end
 		if (!ld_hdr_first) begin
 			$display("FAIL: a restore must read the header before anything else");
 			ld_errors = ld_errors + 1;
 		end
-		// the payload is 28928 words of 64 bits; main counts in 32-bit words
-		if (hdr_written[63:32] !== 32'd57856) begin
-			$display("FAIL: header size is %0d, expected 57856", hdr_written[63:32]);
+		if (!ld_id_seen) begin
+			$display("FAIL: a restore must read the identity word before the chain");
 			ld_errors = ld_errors + 1;
 		end
-		if (sav_n == 108544 && ld_n == 108544 && bad == 0 && ld_errors == 0)
+		// the payload is 29184 words of 64 bits, sat's chunk included; main
+		// counts in 32-bit words
+		if (hdr_written[63:32] !== 32'd58368) begin
+			$display("FAIL: header size is %0d, expected 58368", hdr_written[63:32]);
+			ld_errors = ld_errors + 1;
+		end
+		if (sav_n == 109568 && ld_n == 109568 && bad == 0 && ld_errors == 0)
 			$display("RESULT: PASS - every memory goes out and comes back word for word");
 		else
 			$display("RESULT: FAIL - the memory walk does not round trip");
+
+		// sat, the VDP's sprite cache, was poisoned above after the save: read the
+		// real register back and compare it to what was written before the save.
+		// a walk that skips sat (N_MEM reverted) fails on content, not word counts.
+		bad = 0;
+		for (i = 0; i < 80; i = i + 1)
+			if (dut.ym.vdp.sat[i] !== sat_golden[i]) begin
+				if (bad < 4) $display("  sat entry %0d: expected %h restored %h", i, sat_golden[i], dut.ym.vdp.sat[i]);
+				bad = bad + 1;
+			end
+		$display("sat entries the restore did not carry over: %0d of 80", bad);
+		if (sav_n < 109568 || ld_n < 109568 || bad != 0) begin
+			$display("RESULT: FAIL - the VDP sprite cache does not survive a restore");
+			$finish;
+		end
+		$display("RESULT: PASS - the VDP sprite cache survives a restore");
+
+		// main stomps word 0 to 0xFFFFFFFF after a file load. The restore must
+		// still be accepted because the chain identity lives elsewhere now.
+		hdrmodel[31:0] = 32'hFFFFFFFF;
+		ld_seen = 0; ld_hdr_first = 0; ld_id_seen = 0;
+		@(negedge MCLK2); ss_load = 1;
+		repeat (4) @(negedge MCLK2); ss_load = 0;
+		k = 0;
+		while (!ss_busy && k < 1000) begin @(posedge MCLK2); k = k + 1; end
+		k = 0;
+		while (ss_busy && k < 2000000) begin @(posedge MCLK2); k = k + 1; end
+		$display("second restore after word0=FFFFFFFF: hdr=%0b id=%0b chain=%0b",
+		         ld_hdr_first, ld_id_seen, ld_seen);
+		if (!ld_hdr_first || !ld_id_seen || !ld_seen) begin
+			$display("RESULT: FAIL - a slot loaded from SD is refused");
+			$finish;
+		end
+		$display("RESULT: PASS - a slot loaded from SD is still accepted");
+
+		// ST_PAUSE give-up: with bus_free held low the whole pause, the state
+		// must return to idle on its own guard once it times out, not sit
+		// frozen waiting for a bus that will never come free.
+		bus_free_r = 0;
+		@(negedge MCLK2); ss_save = 1;
+		repeat (4) @(negedge MCLK2); ss_save = 0;
+		k = 0;
+		while (!ss_busy && k < 1000) begin @(posedge MCLK2); k = k + 1; end
+		if (!ss_busy) begin
+			$display("RESULT: FAIL - the controller never accepted the pause request");
+			$finish;
+		end
+		k = 0;
+		while (ss_busy && k < 1100000) begin @(posedge MCLK2); k = k + 1; end
+		bus_free_r = 1;
+		$display("pause with no bus_free took : %0d cycles", k);
+		$display("state after give-up   : %0d (expect ST_IDLE=3)", ctrl.state);
+		$display("calibrated after give-up : %0b (expect 1)", ctrl.calibrated);
+		if (ss_busy || ctrl.state !== 5'd3 || !ctrl.calibrated) begin
+			$display("RESULT: FAIL - the watchdog recalibrated instead of the pause giving up");
+			$finish;
+		end
+		// the test ROM is a tight register-only loop and never writes work RAM,
+		// so resumption has to be read off cart fetches (acc_after), the same
+		// signal that proved the machine was still running after the first save.
+		acc_resume = acc_after;
+		repeat (5000) @(posedge MCLK2);
+		$display("cart fetches after give-up : %0d (must be > 0)", acc_after - acc_resume);
+		if (acc_after == acc_resume) begin
+			$display("RESULT: FAIL - the machine did not resume after the pause gave up");
+			$finish;
+		end
+		$display("RESULT: PASS - a pause with no bus_free resumes the machine and returns to idle");
+
+		// a reset on WRES mid-restore must not corrupt the walk; ld_n restarts for this run
+		ld_n = 0;
+		ld_n_before = 0;
+		ld_seen = 0; ld_hdr_first = 0; ld_id_seen = 0;
+		@(negedge MCLK2); ss_load = 1;
+		repeat (4) @(negedge MCLK2); ss_load = 0;
+		k = 0;
+		while (!ss_busy && k < 1000) begin @(posedge MCLK2); k = k + 1; end
+		if (!ss_busy) begin
+			$display("RESULT: FAIL - the restore was never accepted");
+			$finish;
+		end
+		// well into the memory walk, past the chain shift
+		while (ld_n < ld_n_before + 2000) @(posedge MCLK2);
+		vec_seen = 0; vec_watch = 1;
+		@(negedge MCLK2) reset_req = 1;
+		repeat (4) @(negedge MCLK2) reset_req = 0;
+		while (reset_button) @(posedge MCLK2);
+		k = 0;
+		while (ss_busy && k < 2000000) begin @(posedge MCLK2); k = k + 1; end
+		$display("restore with a mid-walk reset took: %0d cycles, words written: %0d (expect %0d)",
+		         k, ld_n - ld_n_before, sav_n);
+
+		bad2 = 0;
+		for (i = 0; i < sav_n; i = i + 1) begin
+			if (sav_a[i] !== ld_a[ld_n_before + i] || sav_d[i] !== ld_d[ld_n_before + i])
+				bad2 = bad2 + 1;
+		end
+		$display("addresses or values differing: %0d", bad2);
+		if (ld_n - ld_n_before != sav_n || bad2 != 0) begin
+			$display("RESULT: FAIL - a reset mid-restore corrupts the memory walk");
+			$finish;
+		end
+
+		// the machine-side proof that WRES actually landed: the 68000 must
+		// refetch its reset vector, not just resume fetching wherever it was
+		repeat (5000) @(posedge MCLK2);
+		vec_watch = 0;
+		$display("68000 refetched its reset vector after the pulse: %0b (must be 1)", vec_seen);
+		if (!vec_seen) begin
+			$display("RESULT: FAIL - the machine did not restart on a reset mid-restore");
+			$finish;
+		end
+		acc_resume = acc_after;
+		repeat (5000) @(posedge MCLK2);
+		$display("cart fetches after a mid-restore reset : %0d (must be > 0)", acc_after - acc_resume);
+		if (acc_after == acc_resume) begin
+			$display("RESULT: FAIL - the machine did not resume after a reset mid-restore");
+			$finish;
+		end
+		$display("RESULT: PASS - a reset mid-restore does not corrupt the walk, machine resumes");
 		$finish;
 	end
 endmodule

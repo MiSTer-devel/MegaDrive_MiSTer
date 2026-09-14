@@ -1,8 +1,5 @@
-// Pure structural test of the scan chain: no machine state involved.
-// Shift a known pattern in, shift it straight back out. A correct chain is a
-// plain shift register of SS_CHAIN_LEN bits, so the readback must equal the
-// pattern exactly. Any mismatch is a stage that is not behaving as a shift
-// register of the length the chain accounts for.
+// structural test, no machine state: shift a known pattern in, shift it straight
+// back out, and expect the exact pattern back from a plain SS_CHAIN_LEN-bit shift.
 `timescale 1ns/1ps
 `include "ss_params.vh"
 
@@ -18,6 +15,7 @@ module tb_shift;
 		.MCLK2(MCLK2), .ext_reset(1'b1), .reset_button(1'b0),
 		.ext_vres(1'b1), .ext_zres(1'b1),
 		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+		.ss_sat_sel(1'b0), .ss_sat_addr(16'd0), .ss_sat_din(16'd0), .ss_sat_wr(1'b0), .ss_sat_dout(),
 		.ram_68k_address(ra), .ram_68k_byteena(rb), .ram_68k_data(rd), .ram_68k_wren(rw), .ram_68k_o(16'h0),
 		.ram_z80_address(za), .ram_z80_data(zd), .ram_z80_wren(zw), .ram_z80_o(8'h0),
 		.M3(1'b1), .cart_data(16'h4E71), .cart_data_en(1'b1),
@@ -48,12 +46,8 @@ module tb_shift;
 
 		repeat (50) @(posedge MCLK2);
 
-		// flush any power-up content out, then push the pattern in
-		// drive and sample on the falling edge. Both loops used to do it on the
-		// rising one, the same edge the chain samples: whether the DUT saw the old
-		// or the new value was down to event ordering, and iverilog resolved it the
-		// same wrong way every run, so the bench failed identically on builds that
-		// were bit exact on hardware. tb_ctrl had this fixed once already.
+		// drive and sample on the falling edge: on the rising edge, the same one the
+		// chain samples on, event ordering decides whether the DUT sees old or new.
 		@(negedge MCLK2) ss_en = 1; ss_in = 0;
 		repeat (`SS_CHAIN_LEN) @(negedge MCLK2);
 		for (i = 0; i < `SS_CHAIN_LEN; i = i + 1) begin
