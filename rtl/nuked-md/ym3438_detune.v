@@ -1,5 +1,9 @@
 module ym3438_detune
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input c1,
 	input c2,
@@ -12,6 +16,7 @@ module ym3438_detune
 	
 	wire [2:0] dt_sr_o;
 	
+	wire ss_step1_dt_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(3)) dt_sr
 		(
 		.MCLK(MCLK),
@@ -19,10 +24,11 @@ module ym3438_detune
 		.c2(c2),
 		.data_in(dt),
 		.data_out(dt_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_dt_sr));
 	
 	assign dt_sign_1 = dt_sr_o[2];
 	
+	wire ss_step2_dt_sr2;
 	ym_sr_bit dt_sr2
 		(
 		.MCLK(MCLK),
@@ -30,7 +36,7 @@ module ym3438_detune
 		.c2(c2),
 		.bit_in(dt_sign_1),
 		.sr_out(dt_sign_2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_dt_sr), .ss_out(ss_step2_dt_sr2));
 	
 	wire dt_1_2_3 = dt_sr_o[0] | dt_sr_o[1];
 	wire dt_3 = dt_sr_o[0] & dt_sr_o[1];
@@ -71,4 +77,6 @@ module ym3438_detune
 	assign dt_value[4] = dt_shift_9;
 	
 
+
+	assign ss_out = ss_step2_dt_sr2;
 endmodule

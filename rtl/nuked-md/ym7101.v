@@ -28,6 +28,20 @@
 
 module ym7101
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+	input ss_arr_sel,
+	input [15:0] ss_arr_addr,
+	input [15:0] ss_arr_din,
+	input ss_arr_wr,
+	output [15:0] ss_arr_dout,
+	input ss_sat_sel,
+	input [15:0] ss_sat_addr,
+	input [15:0] ss_sat_din,
+	input ss_sat_wr,
+	output [15:0] ss_sat_dout,
+
 	input MCLK,
 	input [7:0] SD,
 	output SE1,
@@ -198,7 +212,7 @@ module ym7101
 	wire io_m1_s3;
 	wire io_m1_s4;
 	wire io_m1_s5;
-	reg [22:0] io_address;
+	reg [22:0] io_address = 0;
 	wire io_address_22o;
 	wire io_oe0;
 	wire w1153;
@@ -209,7 +223,7 @@ module ym7101
 	wire io_wr;
 	wire io_ipl1;
 	wire io_ipl2;
-	reg [15:0] io_data;
+	reg [15:0] io_data = 0;
 	wire w1;
 	wire dff1_l2;
 	wire dff2_l2;
@@ -2182,8 +2196,8 @@ module ym7101
 	
 	assign reset_comb = ~(RESET & w100);
 	
-	reg [16:0] vram_address;
-	reg [15:0] vram_data;
+	reg [16:0] vram_address = 0;
+	reg [15:0] vram_data = 0;
 	wire [7:0] vram_serial;
 	
 	//reg [16:0] vram_address_mem;
@@ -2194,39 +2208,38 @@ module ym7101
 	wire [1:0] color_pal;
 	
 	reg [10:0] vsram[0:39];
-	reg [10:0] vsram_out;
-	reg [10:0] vsram_out_0;
-	reg [10:0] vsram_out_1;
+	reg [10:0] vsram_out = 0;
+	reg [10:0] vsram_out_0 = 0;
+	reg [10:0] vsram_out_1 = 0;
 	
 	reg [20:0] sat[0:79];
-	reg [20:0] sat_out;
-	reg [20:0] sat_out_0;
-	reg [20:0] sat_out_1;
-	reg [20:0] sat_out_2;
-	reg [20:0] sat_out_3;
+	reg [20:0] sat_out = 0;
+	reg [20:0] sat_out_0 = 0;
+	reg [20:0] sat_out_1 = 0;
+	reg [20:0] sat_out_2 = 0;
+	reg [20:0] sat_out_3 = 0;
 	
 	reg [33:0] sprdata[0:19];
-	reg [33:0] sprdata_out;
-	reg [33:0] sprdata_out_0;
-	reg [33:0] sprdata_out_1;
+	reg [33:0] sprdata_out = 0;
+	reg [33:0] sprdata_out_0 = 0;
+	reg [33:0] sprdata_out_1 = 0;
 	
 	reg [55:0] linebuffer[0:39];
-	reg [55:0] linebuffer_out;
-	reg [55:0] linebuffer_out_0;
-	reg [55:0] linebuffer_out_1;
+	reg [55:0] linebuffer_out = 0;
+	reg [55:0] linebuffer_out_0 = 0;
+	reg [55:0] linebuffer_out_1 = 0;
 	
 	reg [8:0] color_ram[0:63];
-	reg [8:0] color_ram_out;
+	reg [8:0] color_ram_out = 0;
 	
 	// extra
 	wire [5:0] w1076_dp;
 	wire [5:0] l617_dp;
-	reg [8:0] color_ram_out_dp;
+	reg [8:0] color_ram_out_dp = 0;
 	
 	
 	// prescaler
 	
-	assign mclk_and1 = prescaler_dff2_l2 & ~prescaler_dff1_l2;
 	
 	assign mclk_clk1 = prescaler_dff4_l2;
 	
@@ -2240,7 +2253,6 @@ module ym7101
 	
 	assign mclk_sbcr = PAL ? mclk_clk4 : mclk_clk5;
 	
-	assign mclk_cpu_clk0 = reg_test1[0] ? CLK1_i : mclk_clk5;
 	
 	assign mclk_dclk = (reg_rs0 | reg_test1[0]) ? EDCLK_i : (reg_rs1 ? mclk_clk1 : mclk_clk2);
 	//assign mclk_dclk = reg_rs1 ? mclk_clk1 : mclk_clk2;
@@ -2282,33 +2294,89 @@ module ym7101
 		end
 	end*/
 	
-	reg mclk_clk3_l;
+	reg mclk_clk3_l = 0;
 	
-	assign mclk_cpu_clk1 = ~(mclk_clk3 | mclk_clk3_l);
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			mclk_clk3_l <= ss_in;
+		end
+		else
+		begin
+
 		mclk_clk3_l <= mclk_clk3;
-	end
+			end
+end
 	
-	ym7101_dff prescaler_dff1(.MCLK(MCLK), .clk(MCLK_e), .inp(reset_comb), .rst(1'h0), .outp(prescaler_dff1_l2));
-	ym7101_dff prescaler_dff2(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff1_l2), .rst(1'h0), .outp(prescaler_dff2_l2));
-	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2));
-	ym7101_dff prescaler_dff4(.MCLK(MCLK), .clk(MCLK_e), .inp(~prescaler_dff3_l2), .rst(mclk_and1), .outp(prescaler_dff4_l2));
-	ym7101_dff prescaler_dff5(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff7_l2), .rst(mclk_and1), .outp(prescaler_dff5_l2));
-	ym7101_dff prescaler_dff6(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff5_l2), .rst(mclk_and1), .outp(prescaler_dff6_l2));
-	ym7101_dff prescaler_dff7(.MCLK(MCLK), .clk(MCLK_e), .inp(~(prescaler_dff5_l2 & prescaler_dff6_l2)), .rst(mclk_and1), .outp(prescaler_dff7_l2));
-	ym7101_dff prescaler_dff8(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff11_l2), .rst(mclk_and1), .outp(prescaler_dff8_l2));
-	ym7101_dff prescaler_dff9(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff8_l2), .rst(mclk_and1), .outp(prescaler_dff9_l2));
-	ym7101_dff prescaler_dff10(.MCLK(MCLK), .clk(MCLK_e), .inp(~(prescaler_dff8_l2 & prescaler_dff9_l2)), .rst(mclk_and1), .outp(prescaler_dff10_l2));
-	ym7101_dff prescaler_dff11(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff10_l2), .rst(mclk_and1), .outp(prescaler_dff11_l2));
+	wire ss_step2_prescaler_dff1;
+	ym7101_dff prescaler_dff1(.MCLK(MCLK), .clk(MCLK_e), .inp(reset_comb), .rst(1'h0), .outp(prescaler_dff1_l2), .ss_en(ss_en), .ss_in(mclk_clk3_l), .ss_out(ss_step2_prescaler_dff1));
+	wire ss_step3_prescaler_dff2;
+	ym7101_dff prescaler_dff2(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff1_l2), .rst(1'h0), .outp(prescaler_dff2_l2), .ss_en(ss_en), .ss_in(ss_step2_prescaler_dff1), .ss_out(ss_step3_prescaler_dff2));
+	// registered: the next value of dff2 & ~dff1, so it matches the old wire on every
+	// clock and every divider starts from a register instead of a look-up table
+	reg mclk_and1_r = 0;
+	assign mclk_and1 = mclk_and1_r;
+	wire mclk_and1_next = MCLK_e ? (prescaler_dff2_l2 & ~prescaler_dff1_l2) : (prescaler_dff1_l2 & ~reset_comb);
+	always @(posedge MCLK)
+		if (ss_en)
+			mclk_and1_r <= ss_step3_prescaler_dff2;
+		else
+			mclk_and1_r <= mclk_and1_next;
+
+	// the two cpu clocks the same way, from the next values of the dividers that
+	// make them. CLK1_i is CLK1_o on this board, since the test pins keep CLK_d low
+	wire mclk_clk2_next = ~mclk_and1_next & (MCLK_e ? prescaler_dff7_l2 : ~mclk_and1_r & ~(prescaler_dff5_l2 & prescaler_dff6_l2));
+	wire dff16_next = ~mclk_and1_next & (mclk_clk2_next ? ~mclk_and1_r & (prescaler_dff7_l2 ? prescaler_dff16_l2 : prescaler_dff15_l2) : prescaler_dff16_l2);
+	wire dff17_next = ~mclk_and1_next & (~mclk_clk2_next ? ~mclk_and1_r & (~prescaler_dff7_l2 ? prescaler_dff17_l2 : prescaler_dff16_l2) : prescaler_dff17_l2);
+	wire cpu_clk1_next = prescaler_dff11_l2 & ~mclk_and1_next & (MCLK_e | (~mclk_and1_r & prescaler_dff10_l2));
+	wire cpu_clk0_next = (reset_ext ? 1'b0 : (w85 ? io_data[0] : reg_test1[0])) ? cpu_clk1_next : (dff16_next | dff17_next);
+	reg cpu_clk1_r = 0, cpu_clk0_r = 0;
+	assign mclk_cpu_clk1 = cpu_clk1_r;
+	assign mclk_cpu_clk0 = cpu_clk0_r;
+	always @(posedge MCLK)
+		if (ss_en)
+		begin
+			cpu_clk1_r <= mclk_and1_r;
+			cpu_clk0_r <= cpu_clk1_r;
+		end
+		else
+		begin
+			cpu_clk1_r <= cpu_clk1_next;
+			cpu_clk0_r <= cpu_clk0_next;
+		end
+	wire ss_step4_prescaler_dff3;
+	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2), .ss_en(ss_en), .ss_in(cpu_clk0_r), .ss_out(ss_step4_prescaler_dff3));
+	wire ss_step5_prescaler_dff4;
+	ym7101_dff prescaler_dff4(.MCLK(MCLK), .clk(MCLK_e), .inp(~prescaler_dff3_l2), .rst(mclk_and1), .outp(prescaler_dff4_l2), .ss_en(ss_en), .ss_in(ss_step4_prescaler_dff3), .ss_out(ss_step5_prescaler_dff4));
+	wire ss_step6_prescaler_dff5;
+	ym7101_dff prescaler_dff5(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff7_l2), .rst(mclk_and1), .outp(prescaler_dff5_l2), .ss_en(ss_en), .ss_in(ss_step5_prescaler_dff4), .ss_out(ss_step6_prescaler_dff5));
+	wire ss_step7_prescaler_dff6;
+	ym7101_dff prescaler_dff6(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff5_l2), .rst(mclk_and1), .outp(prescaler_dff6_l2), .ss_en(ss_en), .ss_in(ss_step6_prescaler_dff5), .ss_out(ss_step7_prescaler_dff6));
+	wire ss_step8_prescaler_dff7;
+	ym7101_dff prescaler_dff7(.MCLK(MCLK), .clk(MCLK_e), .inp(~(prescaler_dff5_l2 & prescaler_dff6_l2)), .rst(mclk_and1), .outp(prescaler_dff7_l2), .ss_en(ss_en), .ss_in(ss_step7_prescaler_dff6), .ss_out(ss_step8_prescaler_dff7));
+	wire ss_step9_prescaler_dff8;
+	ym7101_dff prescaler_dff8(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff11_l2), .rst(mclk_and1), .outp(prescaler_dff8_l2), .ss_en(ss_en), .ss_in(ss_step8_prescaler_dff7), .ss_out(ss_step9_prescaler_dff8));
+	wire ss_step10_prescaler_dff9;
+	ym7101_dff prescaler_dff9(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff8_l2), .rst(mclk_and1), .outp(prescaler_dff9_l2), .ss_en(ss_en), .ss_in(ss_step9_prescaler_dff8), .ss_out(ss_step10_prescaler_dff9));
+	wire ss_step11_prescaler_dff10;
+	ym7101_dff prescaler_dff10(.MCLK(MCLK), .clk(MCLK_e), .inp(~(prescaler_dff8_l2 & prescaler_dff9_l2)), .rst(mclk_and1), .outp(prescaler_dff10_l2), .ss_en(ss_en), .ss_in(ss_step10_prescaler_dff9), .ss_out(ss_step11_prescaler_dff10));
+	wire ss_step12_prescaler_dff11;
+	ym7101_dff prescaler_dff11(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff10_l2), .rst(mclk_and1), .outp(prescaler_dff11_l2), .ss_en(ss_en), .ss_in(ss_step11_prescaler_dff10), .ss_out(ss_step12_prescaler_dff11));
 	
-	ym7101_dff prescaler_dff12(.MCLK(MCLK), .clk(mclk_clk1), .inp(~(prescaler_dff12_l2 | prescaler_dff13_l2)), .rst(mclk_and1), .outp(prescaler_dff12_l2));
-	ym7101_dff prescaler_dff13(.MCLK(MCLK), .clk(mclk_clk1), .inp(prescaler_dff12_l2), .rst(mclk_and1), .outp(prescaler_dff13_l2));
-	ym7101_dff prescaler_dff14(.MCLK(MCLK), .clk(~mclk_clk1), .inp(prescaler_dff13_l2), .rst(mclk_and1), .outp(prescaler_dff14_l2));
-	ym7101_dff prescaler_dff15(.MCLK(MCLK), .clk(mclk_clk2), .inp(~(prescaler_dff15_l2 | prescaler_dff16_l2)), .rst(mclk_and1), .outp(prescaler_dff15_l2));
-	ym7101_dff prescaler_dff16(.MCLK(MCLK), .clk(mclk_clk2), .inp(prescaler_dff15_l2), .rst(mclk_and1), .outp(prescaler_dff16_l2));
-	ym7101_dff prescaler_dff17(.MCLK(MCLK), .clk(~mclk_clk2), .inp(prescaler_dff16_l2), .rst(mclk_and1), .outp(prescaler_dff17_l2));
+	wire ss_step13_prescaler_dff12;
+	ym7101_dff prescaler_dff12(.MCLK(MCLK), .clk(mclk_clk1), .inp(~(prescaler_dff12_l2 | prescaler_dff13_l2)), .rst(mclk_and1), .outp(prescaler_dff12_l2), .ss_en(ss_en), .ss_in(ss_step12_prescaler_dff11), .ss_out(ss_step13_prescaler_dff12));
+	wire ss_step14_prescaler_dff13;
+	ym7101_dff prescaler_dff13(.MCLK(MCLK), .clk(mclk_clk1), .inp(prescaler_dff12_l2), .rst(mclk_and1), .outp(prescaler_dff13_l2), .ss_en(ss_en), .ss_in(ss_step13_prescaler_dff12), .ss_out(ss_step14_prescaler_dff13));
+	wire ss_step15_prescaler_dff14;
+	ym7101_dff prescaler_dff14(.MCLK(MCLK), .clk(~mclk_clk1), .inp(prescaler_dff13_l2), .rst(mclk_and1), .outp(prescaler_dff14_l2), .ss_en(ss_en), .ss_in(ss_step14_prescaler_dff13), .ss_out(ss_step15_prescaler_dff14));
+	wire ss_step16_prescaler_dff15;
+	ym7101_dff prescaler_dff15(.MCLK(MCLK), .clk(mclk_clk2), .inp(~(prescaler_dff15_l2 | prescaler_dff16_l2)), .rst(mclk_and1), .outp(prescaler_dff15_l2), .ss_en(ss_en), .ss_in(ss_step15_prescaler_dff14), .ss_out(ss_step16_prescaler_dff15));
+	wire ss_step17_prescaler_dff16;
+	ym7101_dff prescaler_dff16(.MCLK(MCLK), .clk(mclk_clk2), .inp(prescaler_dff15_l2), .rst(mclk_and1), .outp(prescaler_dff16_l2), .ss_en(ss_en), .ss_in(ss_step16_prescaler_dff15), .ss_out(ss_step17_prescaler_dff16));
+	wire ss_step18_prescaler_dff17;
+	ym7101_dff prescaler_dff17(.MCLK(MCLK), .clk(~mclk_clk2), .inp(prescaler_dff16_l2), .rst(mclk_and1), .outp(prescaler_dff17_l2), .ss_en(ss_en), .ss_in(ss_step17_prescaler_dff16), .ss_out(ss_step18_prescaler_dff17));
 	
 	assign SBCR = mclk_sbcr;
 	assign CLK0 = mclk_cpu_clk0;
@@ -2324,25 +2392,36 @@ module ym7101
 	// clk1, clk2
 	
 	
-	reg dclk_l;
-	reg dclk_l2;
-	reg dclk_l3;
-	reg dclk_l4;
+	reg dclk_l = 0;
+	reg dclk_l2 = 0;
+	reg dclk_l3 = 0;
+	reg dclk_l4 = 0;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			dclk_l <= ss_step18_prescaler_dff17;
+			dclk_l2 <= dclk_l;
+			dclk_l3 <= dclk_l2;
+			dclk_l4 <= dclk_l3;
+		end
+		else
+		begin
+
 		dclk_l <= dclk_l2;
 		dclk_l2 <= dclk_l3;
 		dclk_l3 <= dclk_l4;
 		dclk_l4 <= mclk_dclk;
-	end
+			end
+end
 	
 	assign clk1 = ~mclk_dclk & dclk_l;
 	assign clk2 = mclk_dclk & ~dclk_l;
 	
 	/*reg dclk_l;
-	reg tclk1_l;
-	reg tclk2_l;
+	reg tclk1_l = 0;
+	reg tclk2_l = 0;
 	
 	wire tclk1 = ~mclk_dclk & dclk_l;
 	wire tclk2 = mclk_dclk & ~dclk_l;
@@ -2363,8 +2442,10 @@ module ym7101
 	wire reset_l1_o;
 	wire reset_l2_o;
 	wire reset_pulse = reset_l1_o & ~reset_l2_o;
-	ym_sr_bit reset_l1(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~reset_comb), .sr_out(reset_l1_o)); // static latch
-	ym_sr_bit reset_l2(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(reset_l1_o), .sr_out(reset_l2_o));
+	wire ss_step20_reset_l1;
+	ym_sr_bit reset_l1(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~reset_comb), .sr_out(reset_l1_o), .ss_en(ss_en), .ss_in(dclk_l4), .ss_out(ss_step20_reset_l1)); // static latch
+	wire ss_step21_reset_l2;
+	ym_sr_bit reset_l2(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(reset_l1_o), .sr_out(reset_l2_o), .ss_en(ss_en), .ss_in(ss_step20_reset_l1), .ss_out(ss_step21_reset_l2));
 	
 	wire dclk_prescaler_l1_o;
 	wire dclk_prescaler_l2_o;
@@ -2373,11 +2454,16 @@ module ym7101
 	wire dclk_prescaler_dff2_l2;
 	assign hclk1 = ~dclk_prescaler_dff1_l2;
 	assign hclk2 = ~dclk_prescaler_dff2_l2;
-	ym_sr_bit dclk_prescaler_l1(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~(dclk_prescaler_l1_o | reset_pulse)), .sr_out(dclk_prescaler_l1_o));
-	ym_dlatch_1 dclk_prescaler_l2(.MCLK(MCLK), .c1(clk1), .inp(dclk_prescaler_l1_o), .val(dclk_prescaler_l2_o));
-	ym_dlatch_1 dclk_prescaler_l3(.MCLK(MCLK), .c1(clk1), .inp(~dclk_prescaler_l1_o), .val(dclk_prescaler_l3_o));
-	ym7101_dff dclk_prescaler_dff1(.MCLK(MCLK), .clk(~clk1), .inp(1'h1), .rst(dclk_prescaler_l2_o & clk2), .outp(dclk_prescaler_dff1_l2));
-	ym7101_dff dclk_prescaler_dff2(.MCLK(MCLK), .clk(~clk1), .inp(1'h1), .rst(dclk_prescaler_l3_o & clk2), .outp(dclk_prescaler_dff2_l2));
+	wire ss_step22_dclk_prescaler_l1;
+	ym_sr_bit dclk_prescaler_l1(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~(dclk_prescaler_l1_o | reset_pulse)), .sr_out(dclk_prescaler_l1_o), .ss_en(ss_en), .ss_in(ss_step21_reset_l2), .ss_out(ss_step22_dclk_prescaler_l1));
+	wire ss_step23_dclk_prescaler_l2;
+	ym_dlatch_1 dclk_prescaler_l2(.MCLK(MCLK), .c1(clk1), .inp(dclk_prescaler_l1_o), .val(dclk_prescaler_l2_o), .ss_en(ss_en), .ss_in(ss_step22_dclk_prescaler_l1), .ss_out(ss_step23_dclk_prescaler_l2));
+	wire ss_step24_dclk_prescaler_l3;
+	ym_dlatch_1 dclk_prescaler_l3(.MCLK(MCLK), .c1(clk1), .inp(~dclk_prescaler_l1_o), .val(dclk_prescaler_l3_o), .ss_en(ss_en), .ss_in(ss_step23_dclk_prescaler_l2), .ss_out(ss_step24_dclk_prescaler_l3));
+	wire ss_step25_dclk_prescaler_dff1;
+	ym7101_dff dclk_prescaler_dff1(.MCLK(MCLK), .clk(~clk1), .inp(1'h1), .rst(dclk_prescaler_l2_o & clk2), .outp(dclk_prescaler_dff1_l2), .ss_en(ss_en), .ss_in(ss_step24_dclk_prescaler_l3), .ss_out(ss_step25_dclk_prescaler_dff1));
+	wire ss_step26_dclk_prescaler_dff2;
+	ym7101_dff dclk_prescaler_dff2(.MCLK(MCLK), .clk(~clk1), .inp(1'h1), .rst(dclk_prescaler_l3_o & clk2), .outp(dclk_prescaler_dff2_l2), .ss_en(ss_en), .ss_in(ss_step25_dclk_prescaler_dff1), .ss_out(ss_step26_dclk_prescaler_dff2));
 	
 	// IO, DMA/FIFO block
 	
@@ -2397,13 +2483,17 @@ module ym7101
 	assign cpu_pal = PAL;
 	assign cpu_pen = HL;
 	
-	ym7101_dff io_m1_dff1(.MCLK(MCLK), .clk(cpu_clk0), .inp(cpu_m1), .rst(1'h0), .outp(io_m1_dff1_l2));
-	ym7101_dff io_m1_dff2(.MCLK(MCLK), .clk(cpu_clk0), .inp(io_m1_dff1_l2), .rst(1'h0), .outp(io_m1_dff2_l2));
-	ym7101_dff io_m1_dff3(.MCLK(MCLK), .clk(~cpu_clk0), .inp(io_m1_dff2_l2), .rst(1'h0), .outp(io_m1_dff3_l2));
+	wire ss_step27_io_m1_dff1;
+	ym7101_dff io_m1_dff1(.MCLK(MCLK), .clk(cpu_clk0), .inp(cpu_m1), .rst(1'h0), .outp(io_m1_dff1_l2), .ss_en(ss_en), .ss_in(ss_step26_dclk_prescaler_dff2), .ss_out(ss_step27_io_m1_dff1));
+	wire ss_step28_io_m1_dff2;
+	ym7101_dff io_m1_dff2(.MCLK(MCLK), .clk(cpu_clk0), .inp(io_m1_dff1_l2), .rst(1'h0), .outp(io_m1_dff2_l2), .ss_en(ss_en), .ss_in(ss_step27_io_m1_dff1), .ss_out(ss_step28_io_m1_dff2));
+	wire ss_step29_io_m1_dff3;
+	ym7101_dff io_m1_dff3(.MCLK(MCLK), .clk(~cpu_clk0), .inp(io_m1_dff2_l2), .rst(1'h0), .outp(io_m1_dff3_l2), .ss_en(ss_en), .ss_in(ss_step28_io_m1_dff2), .ss_out(ss_step29_io_m1_dff3));
 	
 	assign io_m1_s1 = io_m1_dff3_l2 & io_m1_dff2_l2;
 	assign io_m1_s2 = ~io_m1_s1 & io_m1_s4;
-	ym7101_dff io_m1_dff4(.MCLK(MCLK), .clk(~cpu_clk0), .inp(io_m1_s2), .rst(1'h0), .outp(io_m1_dff4_l2));
+	wire ss_step30_io_m1_dff4;
+	ym7101_dff io_m1_dff4(.MCLK(MCLK), .clk(~cpu_clk0), .inp(io_m1_s2), .rst(1'h0), .outp(io_m1_dff4_l2), .ss_en(ss_en), .ss_in(ss_step29_io_m1_dff3), .ss_out(ss_step30_io_m1_dff4));
 	
 	assign io_m1_s3 = io_m1_dff4_l2 & io_m1_s2;
 	
@@ -2429,40 +2519,56 @@ module ym7101
 	assign io_uwr = cpu_uds & io_wr;
 	
 	assign w1 = ~cpu_rw & (cpu_uds | cpu_lds);
-	ym7101_dff dff1(.MCLK(MCLK), .clk(~cpu_clk1), .inp(w23), .rst(1'h0), .outp(dff1_l2));
+	wire ss_step31_dff1;
+	ym7101_dff dff1(.MCLK(MCLK), .clk(~cpu_clk1), .inp(w23), .rst(1'h0), .outp(dff1_l2), .ss_en(ss_en), .ss_in(ss_step30_io_m1_dff4), .ss_out(ss_step31_dff1));
 	
-	ym7101_dff dff2(.MCLK(MCLK), .clk(cpu_clk1), .inp(cpu_bg), .rst(1'h0), .outp(dff2_l2));
+	wire ss_step32_dff2;
+	ym7101_dff dff2(.MCLK(MCLK), .clk(cpu_clk1), .inp(cpu_bg), .rst(1'h0), .outp(dff2_l2), .ss_en(ss_en), .ss_in(ss_step31_dff1), .ss_out(ss_step32_dff2));
 	
-	ym7101_rs_trig rs1(.MCLK(MCLK), .set(cpu_bg | reset_comb), .rst(~reg_data_l2[7] & w227 & reg_m5), .q(t1));
+	wire ss_step33_rs1;
+	ym7101_rs_trig rs1(.MCLK(MCLK), .set(cpu_bg | reset_comb), .rst(~reg_data_l2[7] & w227 & reg_m5), .q(t1), .ss_en(ss_en), .ss_in(ss_step32_dff2), .ss_out(ss_step33_rs1));
 	
 	assign w2 = w35 & (&io_address[22:20]);
 	
 	assign io_address_22o = ~(l4 & w247 & (l6 | ~l7));
 	
-	ym7101_dff dff4(.MCLK(MCLK), .clk(hclk2), .inp(w3), .rst(w4), .outp(dff4_l2));
-	ym7101_dff dff3(.MCLK(MCLK), .clk(hclk2), .inp(dff4_l2), .rst(w4), .outp(dff3_l2));
+	wire ss_step34_dff4;
+	ym7101_dff dff4(.MCLK(MCLK), .clk(hclk2), .inp(w3), .rst(w4), .outp(dff4_l2), .ss_en(ss_en), .ss_in(ss_step33_rs1), .ss_out(ss_step34_dff4));
+	wire ss_step35_dff3;
+	ym7101_dff dff3(.MCLK(MCLK), .clk(hclk2), .inp(dff4_l2), .rst(w4), .outp(dff3_l2), .ss_en(ss_en), .ss_in(ss_step34_dff4), .ss_out(ss_step35_dff3));
 	
 	assign w3 = t2 | t3;
 	
 	assign w4 = reset_comb | l48;
 	
-	ym7101_rs_trig rs2(.MCLK(MCLK), .set(w63), .rst(w4), .q(t2));
-	ym7101_rs_trig rs3(.MCLK(MCLK), .set(w5), .rst(w4), .q(t3));
-	ym7101_rs_trig rs4(.MCLK(MCLK), .set(w62), .rst(w4 | w5), .q(t4));
+	wire ss_step36_rs2;
+	ym7101_rs_trig rs2(.MCLK(MCLK), .set(w63), .rst(w4), .q(t2), .ss_en(ss_en), .ss_in(ss_step35_dff3), .ss_out(ss_step36_rs2));
+	wire ss_step37_rs3;
+	ym7101_rs_trig rs3(.MCLK(MCLK), .set(w5), .rst(w4), .q(t3), .ss_en(ss_en), .ss_in(ss_step36_rs2), .ss_out(ss_step37_rs3));
+	wire ss_step38_rs4;
+	ym7101_rs_trig rs4(.MCLK(MCLK), .set(w62), .rst(w4 | w5), .q(t4), .ss_en(ss_en), .ss_in(ss_step37_rs3), .ss_out(ss_step38_rs4));
 	
 	assign w5 = dff22_l2 & cpu_bgack & DTACK_i & dff2_l2 & cpu_sel & w37;
 	
 	assign io_ipl1 = ~(w11 & cpu_sel);
 	assign io_ipl2 = ~(w12 & cpu_sel);
 	
-	ym_sr_bit sr1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l108), .sr_out(l1));
-	ym_sr_bit sr2(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l1), .sr_out(l2));
-	ym_sr_bit sr3(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l2), .sr_out(l3));
-	ym_sr_bit sr4(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~(l108 | l1 | l2 | l3)), .sr_out(l4));
-	ym_sr_bit sr5(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w267), .sr_out(l5));
-	ym_dlatch_1 dl6(.MCLK(MCLK), .c1(hclk1), .inp(~(w7 & w8 & l116)), .nval(l6));
-	ym_dlatch_1 dl7(.MCLK(MCLK), .c1(clk1), .inp(l6), .nval(l7));
-	ym_dlatch_2 dl8(.MCLK(MCLK), .c2(clk2), .inp(l7), .nval(l8));
+	wire ss_step39_sr1;
+	ym_sr_bit sr1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l108), .sr_out(l1), .ss_en(ss_en), .ss_in(ss_step38_rs4), .ss_out(ss_step39_sr1));
+	wire ss_step40_sr2;
+	ym_sr_bit sr2(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l1), .sr_out(l2), .ss_en(ss_en), .ss_in(ss_step39_sr1), .ss_out(ss_step40_sr2));
+	wire ss_step41_sr3;
+	ym_sr_bit sr3(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l2), .sr_out(l3), .ss_en(ss_en), .ss_in(ss_step40_sr2), .ss_out(ss_step41_sr3));
+	wire ss_step42_sr4;
+	ym_sr_bit sr4(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~(l108 | l1 | l2 | l3)), .sr_out(l4), .ss_en(ss_en), .ss_in(ss_step41_sr3), .ss_out(ss_step42_sr4));
+	wire ss_step43_sr5;
+	ym_sr_bit sr5(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w267), .sr_out(l5), .ss_en(ss_en), .ss_in(ss_step42_sr4), .ss_out(ss_step43_sr5));
+	wire ss_step44_dl6;
+	ym_dlatch_1 dl6(.MCLK(MCLK), .c1(hclk1), .inp(~(w7 & w8 & l116)), .nval(l6), .ss_en(ss_en), .ss_in(ss_step43_sr5), .ss_out(ss_step44_dl6));
+	wire ss_step45_dl7;
+	ym_dlatch_1 dl7(.MCLK(MCLK), .c1(clk1), .inp(l6), .nval(l7), .ss_en(ss_en), .ss_in(ss_step44_dl6), .ss_out(ss_step45_dl7));
+	wire ss_step46_dl8;
+	ym_dlatch_2 dl8(.MCLK(MCLK), .c2(clk2), .inp(l7), .nval(l8), .ss_en(ss_en), .ss_in(ss_step45_dl7), .ss_out(ss_step46_dl8));
 	
 	assign w6 = ~(l1 | l3);
 	assign w7 = ~(w6 & w252);
@@ -2501,20 +2607,25 @@ module ym7101
 	
 	assign w25 = cpu_rd & l17;
 	
-	ym7101_dff dff5(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff6_l2), .rst(w10), .outp(dff5_l2));
-	ym7101_dff dff6(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff7_l2), .rst(w10), .outp(dff6_l2));
+	wire ss_step47_dff5;
+	ym7101_dff dff5(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff6_l2), .rst(w10), .outp(dff5_l2), .ss_en(ss_en), .ss_in(ss_step46_dl8), .ss_out(ss_step47_dff5));
+	wire ss_step48_dff6;
+	ym7101_dff dff6(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff7_l2), .rst(w10), .outp(dff6_l2), .ss_en(ss_en), .ss_in(ss_step47_dff5), .ss_out(ss_step48_dff6));
 	
 	assign w26 = ~(~dff6_l2 & dff8_l2);
 	
-	ym7101_dff dff7(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff8_l2), .rst(w10), .outp(dff7_l2));
+	wire ss_step49_dff7;
+	ym7101_dff dff7(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff8_l2), .rst(w10), .outp(dff7_l2), .ss_en(ss_en), .ss_in(ss_step48_dff6), .ss_out(ss_step49_dff7));
 	
 	assign w27 = dff17_l2 & ~dff19_l2;
 	
 	assign w28 = dff16_l2 & ~dff19_l2;
 	
-	ym7101_dff dff8(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff9_l2), .rst(w10), .outp(dff8_l2));
+	wire ss_step50_dff8;
+	ym7101_dff dff8(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff9_l2), .rst(w10), .outp(dff8_l2), .ss_en(ss_en), .ss_in(ss_step49_dff7), .ss_out(ss_step50_dff8));
 	
-	ym7101_dff dff9(.MCLK(MCLK), .clk(cpu_clk1), .inp(w30), .rst(w10), .outp(dff9_l2));
+	wire ss_step51_dff9;
+	ym7101_dff dff9(.MCLK(MCLK), .clk(cpu_clk1), .inp(w30), .rst(w10), .outp(dff9_l2), .ss_en(ss_en), .ss_in(ss_step50_dff8), .ss_out(ss_step51_dff9));
 	
 	assign w29 = ~(w10 | dff9_l2);
 	
@@ -2522,8 +2633,10 @@ module ym7101
 	
 	assign w31 = reset_comb | dff21_l2 | dff13_l2;
 	
-	ym7101_dff dff10(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff11_l2), .rst(w33), .outp(dff10_l2));
-	ym7101_dff dff11(.MCLK(MCLK), .clk(cpu_clk1), .inp(w36), .rst(w33), .outp(dff11_l2));
+	wire ss_step52_dff10;
+	ym7101_dff dff10(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff11_l2), .rst(w33), .outp(dff10_l2), .ss_en(ss_en), .ss_in(ss_step51_dff9), .ss_out(ss_step52_dff10));
+	wire ss_step53_dff11;
+	ym7101_dff dff11(.MCLK(MCLK), .clk(cpu_clk1), .inp(w36), .rst(w33), .outp(dff11_l2), .ss_en(ss_en), .ss_in(ss_step52_dff10), .ss_out(ss_step53_dff11));
 	
 	assign w32 = dff11_l2 & w1;
 	
@@ -2537,15 +2650,25 @@ module ym7101
 	
 	assign w37 = ~cpu_as;
 	
-	ym7101_dff dff12(.MCLK(MCLK), .clk(w37), .inp(1'h1), .rst(w10), .outp(dff12_l2));
+	wire ss_step54_dff12;
+	ym7101_dff dff12(.MCLK(MCLK), .clk(w37), .inp(1'h1), .rst(w10), .outp(dff12_l2), .ss_en(ss_en), .ss_in(ss_step53_dff11), .ss_out(ss_step54_dff12));
 	
-	assign w38 = dff12_l2 | reset_comb;
+	// dff12_l2 is constant zero: it and dff13 reset each other, and that loop
+	// cost two ns on most of the worst paths
+	assign w38 = reset_comb;
 	
-	ym7101_dff dff13(.MCLK(MCLK), .clk(w34), .inp(w44), .rst(w38), .outp(dff13_l2));
+	wire ss_step55_dff13;
+	// dff13's clock without the loop through dff15's reset. it differs only when a
+	// refresh and a CPU access start on one clock, and then the refresh wins
+	wire dff15_nr;
+	wire w34_13 = w2 & cpu_as & (reset_comb | dff21_l2 | ~dff15_nr);
+	ym7101_dff dff13(.MCLK(MCLK), .clk(w34_13), .inp(w44), .rst(w38), .outp(dff13_l2), .ss_en(ss_en), .ss_in(ss_step54_dff12), .ss_out(ss_step55_dff13));
 	
-	ym7101_dff dff14(.MCLK(MCLK), .clk(cpu_clk1), .inp(w43), .rst(1'h0), .outp(dff14_l2));
+	wire ss_step56_dff14;
+	ym7101_dff dff14(.MCLK(MCLK), .clk(cpu_clk1), .inp(w43), .rst(1'h0), .outp(dff14_l2), .ss_en(ss_en), .ss_in(ss_step55_dff13), .ss_out(ss_step56_dff14));
 	
-	ym7101_dff dff15(.MCLK(MCLK), .clk(dff14_l2), .inp(w44), .rst(w31), .outp(dff15_l2));
+	wire ss_step57_dff15;
+	ym7101_dff dff15(.MCLK(MCLK), .clk(dff14_l2), .inp(w44), .rst(w31), .outp(dff15_l2), .outp_nr(dff15_nr), .ss_en(ss_en), .ss_in(ss_step56_dff14), .ss_out(ss_step57_dff15));
 	
 	assign w39 = ~dff15_l2;
 	
@@ -2553,27 +2676,41 @@ module ym7101
 	
 	assign w41 = ~(~dff21_l2 & cpu_sel & w26);
 	
-	ym7101_dff dff16(.MCLK(MCLK), .clk(cpu_clk1), .inp(1'h1), .rst(w39), .outp(dff16_l2));
-	ym7101_dff dff17(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff16_l2), .rst(w39), .outp(dff17_l2));
-	ym7101_dff dff18(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff17_l2), .rst(w39), .outp(dff18_l2));
-	ym7101_dff dff19(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff18_l2), .rst(w39), .outp(dff19_l2));
-	ym7101_dff dff20(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff19_l2), .rst(w39), .outp(dff20_l2));
+	wire ss_step58_dff16;
+	ym7101_dff dff16(.MCLK(MCLK), .clk(cpu_clk1), .inp(1'h1), .rst(w39), .outp(dff16_l2), .ss_en(ss_en), .ss_in(ss_step57_dff15), .ss_out(ss_step58_dff16));
+	wire ss_step59_dff17;
+	ym7101_dff dff17(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff16_l2), .rst(w39), .outp(dff17_l2), .ss_en(ss_en), .ss_in(ss_step58_dff16), .ss_out(ss_step59_dff17));
+	wire ss_step60_dff18;
+	ym7101_dff dff18(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff17_l2), .rst(w39), .outp(dff18_l2), .ss_en(ss_en), .ss_in(ss_step59_dff17), .ss_out(ss_step60_dff18));
+	wire ss_step61_dff19;
+	ym7101_dff dff19(.MCLK(MCLK), .clk(~cpu_clk1), .inp(dff18_l2), .rst(w39), .outp(dff19_l2), .ss_en(ss_en), .ss_in(ss_step60_dff18), .ss_out(ss_step61_dff19));
+	wire ss_step62_dff20;
+	ym7101_dff dff20(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff19_l2), .rst(w39), .outp(dff20_l2), .ss_en(ss_en), .ss_in(ss_step61_dff19), .ss_out(ss_step62_dff20));
 	
-	ym7101_dff dff21(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff20_l2), .rst(1'h0), .outp(dff21_l2));
+	wire ss_step63_dff21;
+	ym7101_dff dff21(.MCLK(MCLK), .clk(cpu_clk1), .inp(dff20_l2), .rst(1'h0), .outp(dff21_l2), .ss_en(ss_en), .ss_in(ss_step62_dff20), .ss_out(ss_step63_dff21));
 	
-	ym7101_dff dff22(.MCLK(MCLK), .clk(cpu_clk1), .inp(t4), .rst(1'h0), .outp(dff22_l2));
+	wire ss_step64_dff22;
+	ym7101_dff dff22(.MCLK(MCLK), .clk(cpu_clk1), .inp(t4), .rst(1'h0), .outp(dff22_l2), .ss_en(ss_en), .ss_in(ss_step63_dff21), .ss_out(ss_step64_dff22));
 	
 	assign w42 = ~(dff22_l2 & cpu_sel);
 	
 	wire [6:0] i_sum = {6'h0, w64} + { dff29_l2, dff28_l2, dff27_l2, dff26_l2, dff25_l2, dff24_l2, dff23_l2 };
 	
-	ym7101_dff dff23(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[0]), .rst(w41), .outp(dff23_l2));
-	ym7101_dff dff24(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[1]), .rst(w41), .outp(dff24_l2));
-	ym7101_dff dff25(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[2]), .rst(w41), .outp(dff25_l2));
-	ym7101_dff dff26(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[3]), .rst(w41), .outp(dff26_l2));
-	ym7101_dff dff27(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[4]), .rst(w41), .outp(dff27_l2));
-	ym7101_dff dff28(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[5]), .rst(w41), .outp(dff28_l2));
-	ym7101_dff dff29(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[6]), .rst(w41), .outp(dff29_l2));
+	wire ss_step65_dff23;
+	ym7101_dff dff23(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[0]), .rst(w41), .outp(dff23_l2), .ss_en(ss_en), .ss_in(ss_step64_dff22), .ss_out(ss_step65_dff23));
+	wire ss_step66_dff24;
+	ym7101_dff dff24(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[1]), .rst(w41), .outp(dff24_l2), .ss_en(ss_en), .ss_in(ss_step65_dff23), .ss_out(ss_step66_dff24));
+	wire ss_step67_dff25;
+	ym7101_dff dff25(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[2]), .rst(w41), .outp(dff25_l2), .ss_en(ss_en), .ss_in(ss_step66_dff24), .ss_out(ss_step67_dff25));
+	wire ss_step68_dff26;
+	ym7101_dff dff26(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[3]), .rst(w41), .outp(dff26_l2), .ss_en(ss_en), .ss_in(ss_step67_dff25), .ss_out(ss_step68_dff26));
+	wire ss_step69_dff27;
+	ym7101_dff dff27(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[4]), .rst(w41), .outp(dff27_l2), .ss_en(ss_en), .ss_in(ss_step68_dff26), .ss_out(ss_step69_dff27));
+	wire ss_step70_dff28;
+	ym7101_dff dff28(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[5]), .rst(w41), .outp(dff28_l2), .ss_en(ss_en), .ss_in(ss_step69_dff27), .ss_out(ss_step70_dff28));
+	wire ss_step71_dff29;
+	ym7101_dff dff29(.MCLK(MCLK), .clk(cpu_clk1), .inp(i_sum[6]), .rst(w41), .outp(dff29_l2), .ss_en(ss_en), .ss_in(ss_step70_dff28), .ss_out(ss_step71_dff29));
 	
 	assign w43 = dff25_l2 & dff24_l2 & dff26_l2 & w44;
 	
@@ -2585,41 +2722,52 @@ module ym7101
 	
 	assign w47 = cpu_m1 & cpu_iorq;
 	
-	ym7101_rs_trig rs5(.MCLK(MCLK), .set(w46), .rst(l9), .q(t5));
+	wire ss_step72_rs5;
+	ym7101_rs_trig rs5(.MCLK(MCLK), .set(w46), .rst(l9), .q(t5), .ss_en(ss_en), .ss_in(ss_step71_dff29), .ss_out(ss_step72_rs5));
 	
 	assign w48 = t5 & reg_m5;
 	
-	ym_sr_bit sr9(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w48), .sr_out(l9));
-	ym_dlatch_1 dl10(.MCLK(MCLK), .c1(clk1), .inp(l9), .nval(l10));
-	ym_dlatch_2 dl11(.MCLK(MCLK), .c2(clk2), .inp(l10), .nval(l11));
+	wire ss_step73_sr9;
+	ym_sr_bit sr9(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w48), .sr_out(l9), .ss_en(ss_en), .ss_in(ss_step72_rs5), .ss_out(ss_step73_sr9));
+	wire ss_step74_dl10;
+	ym_dlatch_1 dl10(.MCLK(MCLK), .c1(clk1), .inp(l9), .nval(l10), .ss_en(ss_en), .ss_in(ss_step73_sr9), .ss_out(ss_step74_dl10));
+	wire ss_step75_dl11;
+	ym_dlatch_2 dl11(.MCLK(MCLK), .c2(clk2), .inp(l10), .nval(l11), .ss_en(ss_en), .ss_in(ss_step74_dl10), .ss_out(ss_step75_dl11));
 	
 	assign w49 = reset_comb | (l11 & l10);
 	
 	assign w50 = reset_comb | w114;
 	
-	ym7101_rs_trig rs6(.MCLK(MCLK), .set(w50), .rst(l13), .q(t6));
+	wire ss_step76_rs6;
+	ym7101_rs_trig rs6(.MCLK(MCLK), .set(w50), .rst(l13), .q(t6), .ss_en(ss_en), .ss_in(ss_step75_dl11), .ss_out(ss_step76_rs6));
 	
-	ym_sr_bit sr12(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t6), .sr_out(l12));
+	wire ss_step77_sr12;
+	ym_sr_bit sr12(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t6), .sr_out(l12), .ss_en(ss_en), .ss_in(ss_step76_rs6), .ss_out(ss_step77_sr12));
 	
 	assign w51 = ~(l12 | reset_comb);
 	
-	ym_sr_bit sr13(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l12), .sr_out(l13));
+	wire ss_step78_sr13;
+	ym_sr_bit sr13(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l12), .sr_out(l13), .ss_en(ss_en), .ss_in(ss_step77_sr12), .ss_out(ss_step78_sr13));
 	
 	assign w52 = ~(l13 & w51);
 	
-	ym_dlatch_1 dl14(.MCLK(MCLK), .c1(hclk1), .inp(w52), .nval(l14));
+	wire ss_step79_dl14;
+	ym_dlatch_1 dl14(.MCLK(MCLK), .c1(hclk1), .inp(w52), .nval(l14), .ss_en(ss_en), .ss_in(ss_step78_sr13), .ss_out(ss_step79_dl14));
 	
 	assign w53 = l14 & ~reg_m5;
 	
 	assign w54 = w53 | dff30_l2;
 	
-	ym7101_dff dff30(.MCLK(MCLK), .clk(~w48), .inp(w58), .rst(w49), .outp(dff30_l2));
+	wire ss_step80_dff30;
+	ym7101_dff dff30(.MCLK(MCLK), .clk(~w48), .inp(w58), .rst(w49), .outp(dff30_l2), .ss_en(ss_en), .ss_in(ss_step79_dl14), .ss_out(ss_step80_dff30));
 	
-	ym7101_dff dff31(.MCLK(MCLK), .clk(~w48), .inp(w57), .rst(w49), .outp(dff31_l2));
+	wire ss_step81_dff31;
+	ym7101_dff dff31(.MCLK(MCLK), .clk(~w48), .inp(w57), .rst(w49), .outp(dff31_l2), .ss_en(ss_en), .ss_in(ss_step80_dff30), .ss_out(ss_step81_dff31));
 	
 	assign w55 = w53 | dff31_l2;
 	
-	ym7101_dff dff32(.MCLK(MCLK), .clk(~w48), .inp(w60), .rst(w49), .outp(dff32_l2));
+	wire ss_step82_dff32;
+	ym7101_dff dff32(.MCLK(MCLK), .clk(~w48), .inp(w60), .rst(w49), .outp(dff32_l2), .ss_en(ss_en), .ss_in(ss_step81_dff31), .ss_out(ss_step82_dff32));
 	
 	assign w56 = w53 | dff32_l2;
 	
@@ -2627,9 +2775,11 @@ module ym7101
 	
 	assign w58 = ~w57 & ~w60 & t8 & reg_ie2;
 	
-	ym7101_rs_trig rs7(.MCLK(MCLK), .set(l15), .rst(w55), .q(t7));
+	wire ss_step83_rs7;
+	ym7101_rs_trig rs7(.MCLK(MCLK), .set(l15), .rst(w55), .q(t7), .ss_en(ss_en), .ss_in(ss_step82_dff32), .ss_out(ss_step83_rs7));
 	
-	ym7101_rs_trig rs8(.MCLK(MCLK), .set(w59), .rst(w54), .q(t8));
+	wire ss_step84_rs8;
+	ym7101_rs_trig rs8(.MCLK(MCLK), .set(w59), .rst(w54), .q(t8), .ss_en(ss_en), .ss_in(ss_step83_rs7), .ss_out(ss_step84_rs8));
 	
 	assign w59 = reg_m5 & l81;
 	
@@ -2647,11 +2797,14 @@ module ym7101
 	
 	assign w66 = ~t9 & w1154;
 	
-	ym7101_rs_trig rs9(.MCLK(MCLK), .set(w120), .rst(w56), .q(t9));
+	wire ss_step85_rs9;
+	ym7101_rs_trig rs9(.MCLK(MCLK), .set(w120), .rst(w56), .q(t9), .ss_en(ss_en), .ss_in(ss_step84_rs8), .ss_out(ss_step85_rs9));
 	
-	ym7101_rs_trig rs10(.MCLK(MCLK), .set(w66), .rst(l14), .q(t10));
+	wire ss_step86_rs10;
+	ym7101_rs_trig rs10(.MCLK(MCLK), .set(w66), .rst(l14), .q(t10), .ss_en(ss_en), .ss_in(ss_step85_rs9), .ss_out(ss_step86_rs10));
 	
-	ym7101_rs_trig rs11(.MCLK(MCLK), .set(l600), .rst(l14), .q(t11));
+	wire ss_step87_rs11;
+	ym7101_rs_trig rs11(.MCLK(MCLK), .set(l600), .rst(l14), .q(t11), .ss_en(ss_en), .ss_in(ss_step86_rs10), .ss_out(ss_step87_rs11));
 	
 	assign w67 = l115 | reg_test0[3];
 	
@@ -2659,12 +2812,14 @@ module ym7101
 	
 	wire cnt1_of;
 	
+	wire ss_step88_cnt1;
 	ym_cnt_bit_load #(.DATA_WIDTH(8)) cnt1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w67), .reset(1'h0), .load(w69), .load_val(reg_hit), .c_out(cnt1_of));
+		.c_in(w67), .reset(1'h0), .load(w69), .load_val(reg_hit), .c_out(cnt1_of), .ss_en(ss_en), .ss_in(ss_step87_rs11), .ss_out(ss_step88_cnt1));
 		
 	assign w69 = w68 | l15;
 	
-	ym_sr_bit sr15(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(cnt1_of & ~w68), .sr_out(l15));
+	wire ss_step89_sr15;
+	ym_sr_bit sr15(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(cnt1_of & ~w68), .sr_out(l15), .ss_en(ss_en), .ss_in(ss_step88_cnt1), .ss_out(ss_step89_sr15));
 	
 	assign w70 = cpu_sel & (io_address & 23'h738070) == 23'h600000;
 	
@@ -2714,7 +2869,8 @@ module ym7101
 	
 	assign w104 = reg_8b_b7 ? 1'h1 : (w101 ? 1'h1 : 1'h0);
 	
-	ym_dlatch_1 #(.DATA_WIDTH(8)) dl16(.MCLK(MCLK), .c1(hclk1), .inp({ w1070, w105, color_pal, color_index}), .val(l16));
+	wire ss_step90_dl16;
+	ym_dlatch_1 #(.DATA_WIDTH(8)) dl16(.MCLK(MCLK), .c1(hclk1), .inp({ w1070, w105, color_pal, color_index}), .val(l16), .ss_en(ss_en), .ss_in(ss_step89_sr15), .ss_out(ss_step90_dl16));
 	
 	assign w105 = reg_test0[0] ? color_priority : w1069;
 	
@@ -2738,7 +2894,8 @@ module ym7101
 	
 	assign w118 = (w1 & 1'h0) | (w32 & w116) | w19;
 	
-	ym_slatch sl17(.MCLK(MCLK), .en(cpu_clk0), .inp(cpu_rd), .val(l17));
+	wire ss_step91_sl17;
+	ym_slatch sl17(.MCLK(MCLK), .en(cpu_clk0), .inp(cpu_rd), .val(l17), .ss_en(ss_en), .ss_in(ss_step90_dl16), .ss_out(ss_step91_sl17));
 	
 	assign w119 = cpu_sel ? l110 : l115;
 	
@@ -2746,7 +2903,8 @@ module ym7101
 	
 	assign w121 = reset_comb | w360;
 	
-	ym7101_rs_trig rs12(.MCLK(MCLK), .set(w120), .rst(w121), .q(t12));
+	wire ss_step92_rs12;
+	ym7101_rs_trig rs12(.MCLK(MCLK), .set(w120), .rst(w121), .q(t12), .ss_en(ss_en), .ss_in(ss_step91_sl17), .ss_out(ss_step92_rs12));
 	
 	assign w122 = ~(cpu_sel ? t12 : w9); // z80 int
 	
@@ -2776,13 +2934,15 @@ module ym7101
 	
 	assign w135 = w124 & ~cpu_rw & io_address[3:2] == 2'h3;
 	
-	ym7101_rs_trig rs13(.MCLK(MCLK), .set(w163), .rst(w159), .q(t13));
+	wire ss_step93_rs13;
+	ym7101_rs_trig rs13(.MCLK(MCLK), .set(w163), .rst(w159), .q(t13), .ss_en(ss_en), .ss_in(ss_step92_rs12), .ss_out(ss_step93_rs13));
 	
 	assign w136 = l48 | reset_comb;
 	
 	assign w137 = t1 & t14 & w168;
 	
-	ym7101_rs_trig rs14(.MCLK(MCLK), .set(w138), .rst(w143), .q(t14));
+	wire ss_step94_rs14;
+	ym7101_rs_trig rs14(.MCLK(MCLK), .set(w138), .rst(w143), .q(t14), .ss_en(ss_en), .ss_in(ss_step93_rs13), .ss_out(ss_step94_rs14));
 	
 	assign w138 = reset_comb | l82;
 	
@@ -2794,29 +2954,37 @@ module ym7101
 	
 	assign w142 = w141 | w134; // HV cnt read
 	
-	ym_slatch sl18(.MCLK(MCLK), .en(~w139), .inp(w130), .val(l18));
+	wire ss_step95_sl18;
+	ym_slatch sl18(.MCLK(MCLK), .en(~w139), .inp(w130), .val(l18), .ss_en(ss_en), .ss_in(ss_step94_rs14), .ss_out(ss_step95_sl18));
 	
-	ym_slatch sl19(.MCLK(MCLK), .en(~w113), .inp(w130), .val(l19));
+	wire ss_step96_sl19;
+	ym_slatch sl19(.MCLK(MCLK), .en(~w113), .inp(w130), .val(l19), .ss_en(ss_en), .ss_in(ss_step95_sl18), .ss_out(ss_step96_sl19));
 	
 	assign w143 = ~l19 & w113;
 	
-	ym7101_rs_trig rs15(.MCLK(MCLK), .set(w173), .rst(w172), .q(t15), .nq(t15_n));
+	wire ss_step97_rs15;
+	ym7101_rs_trig rs15(.MCLK(MCLK), .set(w173), .rst(w172), .q(t15), .nq(t15_n), .ss_en(ss_en), .ss_in(ss_step96_sl19), .ss_out(ss_step97_rs15));
 	
-	ym7101_rs_trig rs16(.MCLK(MCLK), .set(w166), .rst(w174), .q(t16), .nq(t16_n));
+	wire ss_step98_rs16;
+	ym7101_rs_trig rs16(.MCLK(MCLK), .set(w166), .rst(w174), .q(t16), .nq(t16_n), .ss_en(ss_en), .ss_in(ss_step97_rs15), .ss_out(ss_step98_rs16));
 	
-	ym7101_rs_trig rs17(.MCLK(MCLK), .set(w175), .rst(w155), .q(t17));
+	wire ss_step99_rs17;
+	ym7101_rs_trig rs17(.MCLK(MCLK), .set(w175), .rst(w155), .q(t17), .ss_en(ss_en), .ss_in(ss_step98_rs16), .ss_out(ss_step99_rs17));
 	
 	assign w144 = (t17 & w154) | reset_comb;
 	
 	assign w145 = w154 & t25 & w192 & reg_m5;
 	
-	ym7101_rs_trig rs18(.MCLK(MCLK), .set(w145), .rst(w144), .q(t18), .nq(t18_n));
+	wire ss_step100_rs18;
+	ym7101_rs_trig rs18(.MCLK(MCLK), .set(w145), .rst(w144), .q(t18), .nq(t18_n), .ss_en(ss_en), .ss_in(ss_step99_rs17), .ss_out(ss_step100_rs18));
 	
 	assign w146 = w126 | w127 | w137 | w164 | w165;
 	
-	ym7101_rs_trig rs19(.MCLK(MCLK), .set(cpu_uds), .rst(w183), .q(t19));
+	wire ss_step101_rs19;
+	ym7101_rs_trig rs19(.MCLK(MCLK), .set(cpu_uds), .rst(w183), .q(t19), .ss_en(ss_en), .ss_in(ss_step100_rs18), .ss_out(ss_step101_rs19));
 	
-	ym7101_rs_trig rs20(.MCLK(MCLK), .set(cpu_lds), .rst(w183), .q(t20));
+	wire ss_step102_rs20;
+	ym7101_rs_trig rs20(.MCLK(MCLK), .set(cpu_lds), .rst(w183), .q(t20), .ss_en(ss_en), .ss_in(ss_step101_rs19), .ss_out(ss_step102_rs20));
 	
 	assign w147 = cpu_uds | cpu_lds;
 	
@@ -2824,7 +2992,8 @@ module ym7101
 	
 	assign w149 = t21 & w154;
 	
-	ym7101_rs_trig rs21(.MCLK(MCLK), .set(w169), .rst(w183), .q(t21));
+	wire ss_step103_rs21;
+	ym7101_rs_trig rs21(.MCLK(MCLK), .set(w169), .rst(w183), .q(t21), .ss_en(ss_en), .ss_in(ss_step102_rs20), .ss_out(ss_step103_rs21));
 	
 	assign w150 = t21 & w153;
 	
@@ -2850,7 +3019,8 @@ module ym7101
 	
 	assign w161 = w154 | reset_comb;
 	
-	ym7101_rs_trig rs22(.MCLK(MCLK), .set(w161), .rst(l82), .q(t22));
+	wire ss_step104_rs22;
+	ym7101_rs_trig rs22(.MCLK(MCLK), .set(w161), .rst(l82), .q(t22), .ss_en(ss_en), .ss_in(ss_step103_rs21), .ss_out(ss_step104_rs22));
 	
 	assign w162 = ~(t22 & w160);
 	
@@ -2870,9 +3040,11 @@ module ym7101
 	
 	assign w170 = w164 | w169 | w160 | w168 | w114;
 	
-	ym7101_rs_trig rs23(.MCLK(MCLK), .set(w168), .rst(w176), .q(t23));
+	wire ss_step105_rs23;
+	ym7101_rs_trig rs23(.MCLK(MCLK), .set(w168), .rst(w176), .q(t23), .ss_en(ss_en), .ss_in(ss_step104_rs22), .ss_out(ss_step105_rs23));
 	
-	ym7101_rs_trig rs24(.MCLK(MCLK), .set(w143), .rst(w176), .q(t24));
+	wire ss_step106_rs24;
+	ym7101_rs_trig rs24(.MCLK(MCLK), .set(w143), .rst(w176), .q(t24), .ss_en(ss_en), .ss_in(ss_step105_rs23), .ss_out(ss_step106_rs24));
 	
 	assign w171 = w160 | w169 | w168 | w114;
 	
@@ -2884,7 +3056,8 @@ module ym7101
 	
 	assign w175 = reset_comb | w171;
 	
-	ym7101_rs_trig rs25(.MCLK(MCLK), .set(w164), .rst(w176), .q(t25));
+	wire ss_step107_rs25;
+	ym7101_rs_trig rs25(.MCLK(MCLK), .set(w164), .rst(w176), .q(t25), .ss_en(ss_en), .ss_in(ss_step106_rs24), .ss_out(ss_step107_rs25));
 	
 	assign w176 = reset_comb | w155;
 	
@@ -2896,7 +3069,8 @@ module ym7101
 	
 	assign w180 = w245 | w346;
 	
-	ym_dlatch_1 dl20(.MCLK(MCLK), .c1(clk1), .inp(w18), .val(l20));
+	wire ss_step108_dl20;
+	ym_dlatch_1 dl20(.MCLK(MCLK), .c1(clk1), .inp(w18), .val(l20), .ss_en(ss_en), .ss_in(ss_step107_rs25), .ss_out(ss_step108_dl20));
 	
 	assign w181 = l20 | w164 | w168 | w191 | w261;
 	
@@ -2906,22 +3080,30 @@ module ym7101
 	
 	assign w184 = ~(l23 | l25);
 	
-	ym_dlatch_1 dl21(.MCLK(MCLK), .c1(clk1), .inp(~l22), .nval(l21));
-	ym_dlatch_2 dl22(.MCLK(MCLK), .c2(clk2), .inp(l23), .nval(l22));
-	ym_dlatch_1 dl23(.MCLK(MCLK), .c1(clk1), .inp(l24), .nval(l23));
+	wire ss_step109_dl21;
+	ym_dlatch_1 dl21(.MCLK(MCLK), .c1(clk1), .inp(~l22), .nval(l21), .ss_en(ss_en), .ss_in(ss_step108_dl20), .ss_out(ss_step109_dl21));
+	wire ss_step110_dl22;
+	ym_dlatch_2 dl22(.MCLK(MCLK), .c2(clk2), .inp(l23), .nval(l22), .ss_en(ss_en), .ss_in(ss_step109_dl21), .ss_out(ss_step110_dl22));
+	wire ss_step111_dl23;
+	ym_dlatch_1 dl23(.MCLK(MCLK), .c1(clk1), .inp(l24), .nval(l23), .ss_en(ss_en), .ss_in(ss_step110_dl22), .ss_out(ss_step111_dl23));
 	
-	ym_slatch dl24(.MCLK(MCLK), .en(clk2), .inp(l25), .val(l24));
-	ym_slatch dl25(.MCLK(MCLK), .en(clk1), .inp(t13), .val(l25));
+	wire ss_step112_dl24;
+	ym_slatch dl24(.MCLK(MCLK), .en(clk2), .inp(l25), .val(l24), .ss_en(ss_en), .ss_in(ss_step111_dl23), .ss_out(ss_step112_dl24));
+	wire ss_step113_dl25;
+	ym_slatch dl25(.MCLK(MCLK), .en(clk1), .inp(t13), .val(l25), .ss_en(ss_en), .ss_in(ss_step112_dl24), .ss_out(ss_step113_dl25));
 	
-	ym_dlatch_1 dl26(.MCLK(MCLK), .c1(hclk1), .inp(w191), .nval(l26));
+	wire ss_step114_dl26;
+	ym_dlatch_1 dl26(.MCLK(MCLK), .c1(hclk1), .inp(w191), .nval(l26), .ss_en(ss_en), .ss_in(ss_step113_dl25), .ss_out(ss_step114_dl26));
 	
 	assign w185 = l26 & l24;
 	
-	ym7101_rs_trig rs26(.MCLK(MCLK), .set(w157), .rst(w156), .q(t26), .nq(t26_n));
+	wire ss_step115_rs26;
+	ym7101_rs_trig rs26(.MCLK(MCLK), .set(w157), .rst(w156), .q(t26), .nq(t26_n), .ss_en(ss_en), .ss_in(ss_step114_dl26), .ss_out(ss_step115_rs26));
 	
 	assign w186 = t26 & l46 & l109;
 	
-	ym_sr_bit sr27(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w186), .sr_out(l27));
+	wire ss_step116_sr27;
+	ym_sr_bit sr27(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w186), .sr_out(l27), .ss_en(ss_en), .ss_in(ss_step115_rs26), .ss_out(ss_step116_sr27));
 	
 	assign w187 = l27 & w245;
 	
@@ -2941,11 +3123,13 @@ module ym7101
 	
 	assign w195 = l28 & w245;
 	
-	ym_sr_bit sr28(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w196), .sr_out(l28));
+	wire ss_step117_sr28;
+	ym_sr_bit sr28(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w196), .sr_out(l28), .ss_en(ss_en), .ss_in(ss_step116_sr27), .ss_out(ss_step117_sr28));
 	
 	assign w196 = t26_n & t27 & l46 & l109;
 	
-	ym7101_rs_trig rs27(.MCLK(MCLK), .set(w198), .rst(w197), .q(t27));
+	wire ss_step118_rs27;
+	ym7101_rs_trig rs27(.MCLK(MCLK), .set(w198), .rst(w197), .q(t27), .ss_en(ss_en), .ss_in(ss_step117_sr28), .ss_out(ss_step118_rs27));
 	
 	assign w197 = l28 | w136;
 	
@@ -2959,21 +3143,27 @@ module ym7101
 	
 	assign w202 = w189 & reg_code[3:2] == 2'h2;
 	
-	ym_sr_bit sr29(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w177), .sr_out(l29));
+	wire ss_step119_sr29;
+	ym_sr_bit sr29(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w177), .sr_out(l29), .ss_en(ss_en), .ss_in(ss_step118_rs27), .ss_out(ss_step119_sr29));
 	
-	ym_sr_bit sr30(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l29), .sr_out(l30));
+	wire ss_step120_sr30;
+	ym_sr_bit sr30(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l29), .sr_out(l30), .ss_en(ss_en), .ss_in(ss_step119_sr29), .ss_out(ss_step120_sr30));
 	
 	assign w203 = w154 & t24 & ~reg_m5;
 	
 	assign w204 = reset_comb | ~reg_m5;
 	
-	ym_dlatch_2 dl31(.MCLK(MCLK), .c2(hclk2), .inp(l34), .nval(l31));
+	wire ss_step121_dl31;
+	ym_dlatch_2 dl31(.MCLK(MCLK), .c2(hclk2), .inp(l34), .nval(l31), .ss_en(ss_en), .ss_in(ss_step120_sr30), .ss_out(ss_step121_dl31));
 	
-	ym_dlatch_2 dl32(.MCLK(MCLK), .c2(clk2), .inp(w193), .nval(l32));
+	wire ss_step122_dl32;
+	ym_dlatch_2 dl32(.MCLK(MCLK), .c2(clk2), .inp(w193), .nval(l32), .ss_en(ss_en), .ss_in(ss_step121_dl31), .ss_out(ss_step122_dl32));
 	
-	ym_sr_bit sr33(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l32), .sr_out(l33));
+	wire ss_step123_sr33;
+	ym_sr_bit sr33(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l32), .sr_out(l33), .ss_en(ss_en), .ss_in(ss_step122_dl32), .ss_out(ss_step123_sr33));
 	
-	ym_dlatch_2 dl34(.MCLK(MCLK), .c2(clk1), .inp(l32 | l33), .nval(l34));
+	wire ss_step124_dl34;
+	ym_dlatch_2 dl34(.MCLK(MCLK), .c2(clk1), .inp(l32 | l33), .nval(l34), .ss_en(ss_en), .ss_in(ss_step123_sr33), .ss_out(ss_step124_dl34));
 	
 	assign w205 = l31 & hclk1;
 	
@@ -3011,11 +3201,16 @@ module ym7101
 	
 	assign w235 = w250 & ~reg_test0[1];
 	
-	ym_slatch #(.DATA_WIDTH(17)) sl35(.MCLK(MCLK), .en(w299), .inp(vram_address), .val(l35));
-	ym_slatch #(.DATA_WIDTH(17)) sl36(.MCLK(MCLK), .en(w294), .inp(reg_data_l2), .val(l36));
-	ym_slatch #(.DATA_WIDTH(17)) sl37(.MCLK(MCLK), .en(w293), .inp(reg_data_l2), .val(l37));
-	ym_slatch #(.DATA_WIDTH(17)) sl38(.MCLK(MCLK), .en(w292), .inp(reg_data_l2), .val(l38));
-	ym_slatch #(.DATA_WIDTH(17)) sl39(.MCLK(MCLK), .en(w291), .inp(reg_data_l2), .val(l39));
+	wire ss_step125_sl35;
+	ym_slatch #(.DATA_WIDTH(17)) sl35(.MCLK(MCLK), .en(w299), .inp(vram_address), .val(l35), .ss_en(ss_en), .ss_in(ss_step124_dl34), .ss_out(ss_step125_sl35));
+	wire ss_step126_sl36;
+	ym_slatch #(.DATA_WIDTH(17)) sl36(.MCLK(MCLK), .en(w294), .inp(reg_data_l2), .val(l36), .ss_en(ss_en), .ss_in(ss_step125_sl35), .ss_out(ss_step126_sl36));
+	wire ss_step127_sl37;
+	ym_slatch #(.DATA_WIDTH(17)) sl37(.MCLK(MCLK), .en(w293), .inp(reg_data_l2), .val(l37), .ss_en(ss_en), .ss_in(ss_step126_sl36), .ss_out(ss_step127_sl37));
+	wire ss_step128_sl38;
+	ym_slatch #(.DATA_WIDTH(17)) sl38(.MCLK(MCLK), .en(w292), .inp(reg_data_l2), .val(l38), .ss_en(ss_en), .ss_in(ss_step127_sl37), .ss_out(ss_step128_sl38));
+	wire ss_step129_sl39;
+	ym_slatch #(.DATA_WIDTH(17)) sl39(.MCLK(MCLK), .en(w291), .inp(reg_data_l2), .val(l39), .ss_en(ss_en), .ss_in(ss_step128_sl38), .ss_out(ss_step129_sl39));
 	
 	assign w244 = reg_lg == 16'hfffe & w250;
 	
@@ -3024,11 +3219,13 @@ module ym7101
 	assign w247 = dff3_l2 & reg_dmd == 2'h0;
 	assign w248 = dff3_l2 & reg_dmd == 2'h2;
 	
-	ym_sr_bit sr40(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w18), .sr_out(l40));
+	wire ss_step130_sr40;
+	ym_sr_bit sr40(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w18), .sr_out(l40), .ss_en(ss_en), .ss_in(ss_step129_sl39), .ss_out(ss_step130_sr40));
 	
 	assign w249 = l40 & w18;
 	
-	ym_dlatch_2 dl41(.MCLK(MCLK), .c2(hclk2), .inp(w18), .val(l41));
+	wire ss_step131_dl41;
+	ym_dlatch_2 dl41(.MCLK(MCLK), .c2(hclk2), .inp(w18), .val(l41), .ss_en(ss_en), .ss_in(ss_step130_sr40), .ss_out(ss_step131_dl41));
 	
 	assign w250 = w187 | l50 | l41;
 	
@@ -3036,15 +3233,19 @@ module ym7101
 	
 	assign w251 = reg_lg_of | w234;
 	
-	ym_sr_bit sr42(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w264), .sr_out(l42));
+	wire ss_step132_sr42;
+	ym_sr_bit sr42(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w264), .sr_out(l42), .ss_en(ss_en), .ss_in(ss_step131_dl41), .ss_out(ss_step132_sr42));
 	
 	assign w252 = (~reset_comb & w295 & l43) | (~reset_comb & w295 & l42);
 	
-	ym_sr_bit sr43(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w252), .sr_out(l43));
+	wire ss_step133_sr43;
+	ym_sr_bit sr43(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w252), .sr_out(l43), .ss_en(ss_en), .ss_in(ss_step132_sr42), .ss_out(ss_step133_sr43));
 	
-	ym_sr_bit sr44(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l49), .sr_out(l44));
+	wire ss_step134_sr44;
+	ym_sr_bit sr44(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l49), .sr_out(l44), .ss_en(ss_en), .ss_in(ss_step133_sr43), .ss_out(ss_step134_sr44));
 	
-	ym_sr_bit sr45(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l44), .sr_out(l45));
+	wire ss_step135_sr45;
+	ym_sr_bit sr45(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l44), .sr_out(l45), .ss_en(ss_en), .ss_in(ss_step134_sr44), .ss_out(ss_step135_sr45));
 	
 	assign w253 = l44 & ~l45 & ~l52;
 	
@@ -3054,7 +3255,8 @@ module ym7101
 	
 	assign w255 = reg_sa_of | w234;
 	
-	ym_sr_bit sr46(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w254), .sr_out(l46));
+	wire ss_step136_sr46;
+	ym_sr_bit sr46(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w254), .sr_out(l46), .ss_en(ss_en), .ss_in(ss_step135_sr45), .ss_out(ss_step136_sr46));
 	
 	assign w256 = l49 & ~l52;
 	
@@ -3073,27 +3275,32 @@ module ym7101
 	
 	assign w265 = w245 & l46;
 	
-	ym_slatch sl47(.MCLK(MCLK), .en(w266), .inp(vram_address[0]), .val(l47));
+	wire ss_step137_sl47;
+	ym_slatch sl47(.MCLK(MCLK), .en(w266), .inp(vram_address[0]), .val(l47), .ss_en(ss_en), .ss_in(ss_step136_sr46), .ss_out(ss_step137_sl47));
 	
 	assign w266 = hclk1 & l116;
 	
 	assign w267 = w247 | w246;
 	
-	ym_sr_bit sr48(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w244), .sr_out(l48));
+	wire ss_step138_sr48;
+	ym_sr_bit sr48(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w244), .sr_out(l48), .ss_en(ss_en), .ss_in(ss_step137_sl47), .ss_out(ss_step138_sr48));
 	
 	assign w268 = ~w265 & l116;
 	
 	assign w269 = l109 & ~l46;
 	
-	ym_sr_bit sr49(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w269), .sr_out(l49));
+	wire ss_step139_sr49;
+	ym_sr_bit sr49(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w269), .sr_out(l49), .ss_en(ss_en), .ss_in(ss_step138_sr48), .ss_out(ss_step139_sr49));
 	
 	assign w270 = reset_comb | l48;
 	
 	assign w271 = dff3_l2 & l49;
 	
-	ym7101_rs_trig rs28(.MCLK(MCLK), .set(w271), .rst(w270), .q(t28));
+	wire ss_step140_rs28;
+	ym7101_rs_trig rs28(.MCLK(MCLK), .set(w271), .rst(w270), .q(t28), .ss_en(ss_en), .ss_in(ss_step139_sr49), .ss_out(ss_step140_rs28));
 	
-	ym_sr_bit sr50(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w272), .sr_out(l50));
+	wire ss_step141_sr50;
+	ym_sr_bit sr50(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w272), .sr_out(l50), .ss_en(ss_en), .ss_in(ss_step140_rs28), .ss_out(ss_step141_sr50));
 	
 	assign w272 = t28 & w263 & l109;
 	
@@ -3133,8 +3340,9 @@ module ym7101
 	
 	assign w290 = w149 | (w249 & clk1);
 	
+	wire ss_step142_cnt2;
 	ym_cnt_bit #(.DATA_WIDTH(2)) cnt2(.MCLK(MCLK), .c1(clk1), .c2(clk2),
-		.c_in(w264), .reset(reset_comb), .val(l51));
+		.c_in(w264), .reset(reset_comb), .val(l51), .ss_en(ss_en), .ss_in(ss_step141_sr50), .ss_out(ss_step142_cnt2));
 	
 	assign w291 = w290 & l51 == 2'h2;
 	assign w292 = w290 & l51 == 2'h3;
@@ -3148,9 +3356,12 @@ module ym7101
 	
 	wire [2:0] l52_sum = reset_comb ? 3'h0 : ({l54, l53, l52} + { 1'h0, w297, w296 });
 	
-	ym_sr_bit sr52(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l52_sum[0]), .sr_out(l52));
-	ym_sr_bit sr53(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l52_sum[1]), .sr_out(l53));
-	ym_sr_bit sr54(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l52_sum[2]), .sr_out(l54));
+	wire ss_step143_sr52;
+	ym_sr_bit sr52(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l52_sum[0]), .sr_out(l52), .ss_en(ss_en), .ss_in(ss_step142_cnt2), .ss_out(ss_step143_sr52));
+	wire ss_step144_sr53;
+	ym_sr_bit sr53(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l52_sum[1]), .sr_out(l53), .ss_en(ss_en), .ss_in(ss_step143_sr52), .ss_out(ss_step144_sr53));
+	wire ss_step145_sr54;
+	ym_sr_bit sr54(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l52_sum[2]), .sr_out(l54), .ss_en(ss_en), .ss_in(ss_step144_sr53), .ss_out(ss_step145_sr54));
 	
 	assign w298 = ~(l52 | w188);
 	
@@ -3158,30 +3369,54 @@ module ym7101
 	
 	assign w300 = w273 & l49 & l52;
 	
-	ym_slatch sl55(.MCLK(MCLK), .en(w292), .inp(w277), .val(l55));
-	ym_slatch sl56(.MCLK(MCLK), .en(w291), .inp(w277), .val(l56));
-	ym_slatch sl57(.MCLK(MCLK), .en(w294), .inp(w277), .val(l57));
-	ym_slatch sl58(.MCLK(MCLK), .en(w293), .inp(w277), .val(l58));
-	ym_slatch sl59(.MCLK(MCLK), .en(w292), .inp(w279), .val(l59));
-	ym_slatch sl60(.MCLK(MCLK), .en(w291), .inp(w279), .val(l60));
-	ym_slatch sl61(.MCLK(MCLK), .en(w294), .inp(w279), .val(l61));
-	ym_slatch sl62(.MCLK(MCLK), .en(w293), .inp(w279), .val(l62));
-	ym_slatch sl63(.MCLK(MCLK), .en(w292), .inp(reg_code[0]), .val(l63));
-	ym_slatch sl64(.MCLK(MCLK), .en(w291), .inp(reg_code[0]), .val(l64));
-	ym_slatch sl65(.MCLK(MCLK), .en(w294), .inp(reg_code[0]), .val(l65));
-	ym_slatch sl66(.MCLK(MCLK), .en(w293), .inp(reg_code[0]), .val(l66));
-	ym_slatch sl67(.MCLK(MCLK), .en(w292), .inp(reg_code[1]), .val(l67));
-	ym_slatch sl68(.MCLK(MCLK), .en(w291), .inp(reg_code[1]), .val(l68));
-	ym_slatch sl69(.MCLK(MCLK), .en(w294), .inp(reg_code[1]), .val(l69));
-	ym_slatch sl70(.MCLK(MCLK), .en(w293), .inp(reg_code[1]), .val(l70));
-	ym_slatch sl71(.MCLK(MCLK), .en(w292), .inp(reg_code[2]), .val(l71));
-	ym_slatch sl72(.MCLK(MCLK), .en(w291), .inp(reg_code[2]), .val(l72));
-	ym_slatch sl73(.MCLK(MCLK), .en(w294), .inp(reg_code[2]), .val(l73));
-	ym_slatch sl74(.MCLK(MCLK), .en(w293), .inp(reg_code[2]), .val(l74));
-	ym_slatch sl75(.MCLK(MCLK), .en(w292), .inp(reg_code[3]), .val(l75));
-	ym_slatch sl76(.MCLK(MCLK), .en(w291), .inp(reg_code[3]), .val(l76));
-	ym_slatch sl77(.MCLK(MCLK), .en(w294), .inp(reg_code[3]), .val(l77));
-	ym_slatch sl78(.MCLK(MCLK), .en(w293), .inp(reg_code[3]), .val(l78));
+	wire ss_step146_sl55;
+	ym_slatch sl55(.MCLK(MCLK), .en(w292), .inp(w277), .val(l55), .ss_en(ss_en), .ss_in(ss_step145_sr54), .ss_out(ss_step146_sl55));
+	wire ss_step147_sl56;
+	ym_slatch sl56(.MCLK(MCLK), .en(w291), .inp(w277), .val(l56), .ss_en(ss_en), .ss_in(ss_step146_sl55), .ss_out(ss_step147_sl56));
+	wire ss_step148_sl57;
+	ym_slatch sl57(.MCLK(MCLK), .en(w294), .inp(w277), .val(l57), .ss_en(ss_en), .ss_in(ss_step147_sl56), .ss_out(ss_step148_sl57));
+	wire ss_step149_sl58;
+	ym_slatch sl58(.MCLK(MCLK), .en(w293), .inp(w277), .val(l58), .ss_en(ss_en), .ss_in(ss_step148_sl57), .ss_out(ss_step149_sl58));
+	wire ss_step150_sl59;
+	ym_slatch sl59(.MCLK(MCLK), .en(w292), .inp(w279), .val(l59), .ss_en(ss_en), .ss_in(ss_step149_sl58), .ss_out(ss_step150_sl59));
+	wire ss_step151_sl60;
+	ym_slatch sl60(.MCLK(MCLK), .en(w291), .inp(w279), .val(l60), .ss_en(ss_en), .ss_in(ss_step150_sl59), .ss_out(ss_step151_sl60));
+	wire ss_step152_sl61;
+	ym_slatch sl61(.MCLK(MCLK), .en(w294), .inp(w279), .val(l61), .ss_en(ss_en), .ss_in(ss_step151_sl60), .ss_out(ss_step152_sl61));
+	wire ss_step153_sl62;
+	ym_slatch sl62(.MCLK(MCLK), .en(w293), .inp(w279), .val(l62), .ss_en(ss_en), .ss_in(ss_step152_sl61), .ss_out(ss_step153_sl62));
+	wire ss_step154_sl63;
+	ym_slatch sl63(.MCLK(MCLK), .en(w292), .inp(reg_code[0]), .val(l63), .ss_en(ss_en), .ss_in(ss_step153_sl62), .ss_out(ss_step154_sl63));
+	wire ss_step155_sl64;
+	ym_slatch sl64(.MCLK(MCLK), .en(w291), .inp(reg_code[0]), .val(l64), .ss_en(ss_en), .ss_in(ss_step154_sl63), .ss_out(ss_step155_sl64));
+	wire ss_step156_sl65;
+	ym_slatch sl65(.MCLK(MCLK), .en(w294), .inp(reg_code[0]), .val(l65), .ss_en(ss_en), .ss_in(ss_step155_sl64), .ss_out(ss_step156_sl65));
+	wire ss_step157_sl66;
+	ym_slatch sl66(.MCLK(MCLK), .en(w293), .inp(reg_code[0]), .val(l66), .ss_en(ss_en), .ss_in(ss_step156_sl65), .ss_out(ss_step157_sl66));
+	wire ss_step158_sl67;
+	ym_slatch sl67(.MCLK(MCLK), .en(w292), .inp(reg_code[1]), .val(l67), .ss_en(ss_en), .ss_in(ss_step157_sl66), .ss_out(ss_step158_sl67));
+	wire ss_step159_sl68;
+	ym_slatch sl68(.MCLK(MCLK), .en(w291), .inp(reg_code[1]), .val(l68), .ss_en(ss_en), .ss_in(ss_step158_sl67), .ss_out(ss_step159_sl68));
+	wire ss_step160_sl69;
+	ym_slatch sl69(.MCLK(MCLK), .en(w294), .inp(reg_code[1]), .val(l69), .ss_en(ss_en), .ss_in(ss_step159_sl68), .ss_out(ss_step160_sl69));
+	wire ss_step161_sl70;
+	ym_slatch sl70(.MCLK(MCLK), .en(w293), .inp(reg_code[1]), .val(l70), .ss_en(ss_en), .ss_in(ss_step160_sl69), .ss_out(ss_step161_sl70));
+	wire ss_step162_sl71;
+	ym_slatch sl71(.MCLK(MCLK), .en(w292), .inp(reg_code[2]), .val(l71), .ss_en(ss_en), .ss_in(ss_step161_sl70), .ss_out(ss_step162_sl71));
+	wire ss_step163_sl72;
+	ym_slatch sl72(.MCLK(MCLK), .en(w291), .inp(reg_code[2]), .val(l72), .ss_en(ss_en), .ss_in(ss_step162_sl71), .ss_out(ss_step163_sl72));
+	wire ss_step164_sl73;
+	ym_slatch sl73(.MCLK(MCLK), .en(w294), .inp(reg_code[2]), .val(l73), .ss_en(ss_en), .ss_in(ss_step163_sl72), .ss_out(ss_step164_sl73));
+	wire ss_step165_sl74;
+	ym_slatch sl74(.MCLK(MCLK), .en(w293), .inp(reg_code[2]), .val(l74), .ss_en(ss_en), .ss_in(ss_step164_sl73), .ss_out(ss_step165_sl74));
+	wire ss_step166_sl75;
+	ym_slatch sl75(.MCLK(MCLK), .en(w292), .inp(reg_code[3]), .val(l75), .ss_en(ss_en), .ss_in(ss_step165_sl74), .ss_out(ss_step166_sl75));
+	wire ss_step167_sl76;
+	ym_slatch sl76(.MCLK(MCLK), .en(w291), .inp(reg_code[3]), .val(l76), .ss_en(ss_en), .ss_in(ss_step166_sl75), .ss_out(ss_step167_sl76));
+	wire ss_step168_sl77;
+	ym_slatch sl77(.MCLK(MCLK), .en(w294), .inp(reg_code[3]), .val(l77), .ss_en(ss_en), .ss_in(ss_step167_sl76), .ss_out(ss_step168_sl77));
+	wire ss_step169_sl78;
+	ym_slatch sl78(.MCLK(MCLK), .en(w293), .inp(reg_code[3]), .val(l78), .ss_en(ss_en), .ss_in(ss_step168_sl77), .ss_out(ss_step169_sl78));
 	
 	assign w301 = w321 & (l50 | l49);
 	
@@ -3245,12 +3480,15 @@ module ym7101
 	
 	assign w334 = ~(~reg_m5 | reg_m3);
 	
-	ym_sr_bit sr79(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(cpu_pen), .sr_out(l79));
-	ym_sr_bit sr80(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l79), .sr_out(l80));
+	wire ss_step170_sr79;
+	ym_sr_bit sr79(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(cpu_pen), .sr_out(l79), .ss_en(ss_en), .ss_in(ss_step169_sl78), .ss_out(ss_step170_sr79));
+	wire ss_step171_sr80;
+	ym_sr_bit sr80(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l79), .sr_out(l80), .ss_en(ss_en), .ss_in(ss_step170_sr79), .ss_out(ss_step171_sr80));
 	
 	assign w335 = ~l79 & l80;
 	
-	ym_sr_bit sr81(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w335), .sr_out(l81));
+	wire ss_step172_sr81;
+	ym_sr_bit sr81(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w335), .sr_out(l81), .ss_en(ss_en), .ss_in(ss_step171_sr80), .ss_out(ss_step172_sr81));
 	
 	assign w336 = ~reg_m5 | w337;
 	
@@ -3258,24 +3496,32 @@ module ym7101
 	
 	assign w338 = ~(reg_code[3] | reg_code[2]);
 	
-	ym_sr_bit sr82(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l88), .sr_out(l82));
-	ym_sr_bit sr83(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l47), .sr_out(l83));
-	ym_sr_bit sr84(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l83), .sr_out(l84));
+	wire ss_step173_sr82;
+	ym_sr_bit sr82(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l88), .sr_out(l82), .ss_en(ss_en), .ss_in(ss_step172_sr81), .ss_out(ss_step173_sr82));
+	wire ss_step174_sr83;
+	ym_sr_bit sr83(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l47), .sr_out(l83), .ss_en(ss_en), .ss_in(ss_step173_sr82), .ss_out(ss_step174_sr83));
+	wire ss_step175_sr84;
+	ym_sr_bit sr84(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l83), .sr_out(l84), .ss_en(ss_en), .ss_in(ss_step174_sr83), .ss_out(ss_step175_sr84));
 	
 	assign w339 = ~(l84 & w346);
 	
 	assign w340 = ~(~l84 & w346);
 	
-	ym_sr_bit sr85(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l84), .sr_out(l85));
-	ym_sr_bit sr86(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w189), .sr_out(l86));
-	ym_sr_bit sr87(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l86), .sr_out(l87));
+	wire ss_step176_sr85;
+	ym_sr_bit sr85(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l84), .sr_out(l85), .ss_en(ss_en), .ss_in(ss_step175_sr84), .ss_out(ss_step176_sr85));
+	wire ss_step177_sr86;
+	ym_sr_bit sr86(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w189), .sr_out(l86), .ss_en(ss_en), .ss_in(ss_step176_sr85), .ss_out(ss_step177_sr86));
+	wire ss_step178_sr87;
+	ym_sr_bit sr87(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l86), .sr_out(l87), .ss_en(ss_en), .ss_in(ss_step177_sr86), .ss_out(ss_step178_sr87));
 	
 	assign w341 = l87 & w340;
 	
 	assign w342 = l87 & w339;
 	
-	ym_sr_bit sr88(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w341), .sr_out(l88));
-	ym_sr_bit sr89(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w342), .sr_out(l89));
+	wire ss_step179_sr88;
+	ym_sr_bit sr88(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w341), .sr_out(l88), .ss_en(ss_en), .ss_in(ss_step178_sr87), .ss_out(ss_step179_sr88));
+	wire ss_step180_sr89;
+	ym_sr_bit sr89(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w342), .sr_out(l89), .ss_en(ss_en), .ss_in(ss_step179_sr88), .ss_out(ss_step180_sr89));
 	
 	assign w343 = hclk1 & l88;
 	
@@ -3285,27 +3531,35 @@ module ym7101
 	
 	assign w346 = ~w109 & cpu_sel & w338;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl90(.MCLK(MCLK), .en(w336), .inp({ w355[7:1], w123}), .val(l90)); // v counter
+	wire ss_step181_sl90;
+	ym_slatch #(.DATA_WIDTH(8)) sl90(.MCLK(MCLK), .en(w336), .inp({ w355[7:1], w123}), .val(l90), .ss_en(ss_en), .ss_in(ss_step180_sr89), .ss_out(ss_step181_sl90)); // v counter
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl91(.MCLK(MCLK), .en(w337), .inp(l106[8:1]), .val(l91)); // h counter
+	wire ss_step182_sl91;
+	ym_slatch #(.DATA_WIDTH(8)) sl91(.MCLK(MCLK), .en(w337), .inp(l106[8:1]), .val(l91), .ss_en(ss_en), .ss_in(ss_step181_sl90), .ss_out(ss_step182_sl91)); // h counter
 	
 	assign w347 = w333 ? l91 : l90;
 	
 	assign w348 = w345 ? vram_data[15:8] : vram_data[7:0];
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl92(.MCLK(MCLK), .en(w344), .inp(w348), .val(l92));
+	wire ss_step183_sl92;
+	ym_slatch #(.DATA_WIDTH(8)) sl92(.MCLK(MCLK), .en(w344), .inp(w348), .val(l92), .ss_en(ss_en), .ss_in(ss_step182_sl91), .ss_out(ss_step183_sl92));
 	
 	assign w349 = w346 ? vram_data[7:0] : vram_data[15:8];
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl93(.MCLK(MCLK), .en(w343), .inp(w349), .val(l93));
+	wire ss_step184_sl93;
+	ym_slatch #(.DATA_WIDTH(8)) sl93(.MCLK(MCLK), .en(w343), .inp(w349), .val(l93), .ss_en(ss_en), .ss_in(ss_step183_sl92), .ss_out(ss_step184_sl93));
 	
 	assign w350 = cpu_sel ? io_data[15:8] : io_data[7:0];
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl94(.MCLK(MCLK), .en(w304), .inp(w350), .val(l94));
-	ym_slatch #(.DATA_WIDTH(8)) sl95(.MCLK(MCLK), .en(w304), .inp(io_data[7:0]), .val(l95));
+	wire ss_step185_sl94;
+	ym_slatch #(.DATA_WIDTH(8)) sl94(.MCLK(MCLK), .en(w304), .inp(w350), .val(l94), .ss_en(ss_en), .ss_in(ss_step184_sl93), .ss_out(ss_step185_sl94));
+	wire ss_step186_sl95;
+	ym_slatch #(.DATA_WIDTH(8)) sl95(.MCLK(MCLK), .en(w304), .inp(io_data[7:0]), .val(l95), .ss_en(ss_en), .ss_in(ss_step185_sl94), .ss_out(ss_step186_sl95));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl96(.MCLK(MCLK), .en(w294), .inp(l94), .val(l96));
-	ym_slatch #(.DATA_WIDTH(8)) sl97(.MCLK(MCLK), .en(w294), .inp(l95), .val(l97));
+	wire ss_step187_sl96;
+	ym_slatch #(.DATA_WIDTH(8)) sl96(.MCLK(MCLK), .en(w294), .inp(l94), .val(l96), .ss_en(ss_en), .ss_in(ss_step186_sl95), .ss_out(ss_step187_sl96));
+	wire ss_step188_sl97;
+	ym_slatch #(.DATA_WIDTH(8)) sl97(.MCLK(MCLK), .en(w294), .inp(l95), .val(l97), .ss_en(ss_en), .ss_in(ss_step187_sl96), .ss_out(ss_step188_sl97));
 	
 	assign w351 = w331 ? l96 : l97;
 	
@@ -3315,105 +3569,164 @@ module ym7101
 		(w329 ? l101 : 8'h0) |
 		(w326 ? l103 : 8'h0);
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl98(.MCLK(MCLK), .en(w291), .inp(l94), .val(l98));
-	ym_slatch #(.DATA_WIDTH(8)) sl99(.MCLK(MCLK), .en(w291), .inp(l95), .val(l99));
+	wire ss_step189_sl98;
+	ym_slatch #(.DATA_WIDTH(8)) sl98(.MCLK(MCLK), .en(w291), .inp(l94), .val(l98), .ss_en(ss_en), .ss_in(ss_step188_sl97), .ss_out(ss_step189_sl98));
+	wire ss_step190_sl99;
+	ym_slatch #(.DATA_WIDTH(8)) sl99(.MCLK(MCLK), .en(w291), .inp(l95), .val(l99), .ss_en(ss_en), .ss_in(ss_step189_sl98), .ss_out(ss_step190_sl99));
 	
 	assign w352 = w331 ? l98 : l99;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl100(.MCLK(MCLK), .en(w292), .inp(l94), .val(l100));
-	ym_slatch #(.DATA_WIDTH(8)) sl101(.MCLK(MCLK), .en(w292), .inp(l95), .val(l101));
+	wire ss_step191_sl100;
+	ym_slatch #(.DATA_WIDTH(8)) sl100(.MCLK(MCLK), .en(w292), .inp(l94), .val(l100), .ss_en(ss_en), .ss_in(ss_step190_sl99), .ss_out(ss_step191_sl100));
+	wire ss_step192_sl101;
+	ym_slatch #(.DATA_WIDTH(8)) sl101(.MCLK(MCLK), .en(w292), .inp(l95), .val(l101), .ss_en(ss_en), .ss_in(ss_step191_sl100), .ss_out(ss_step192_sl101));
 	
 	assign w353 = w331 ? l100 : l101;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl102(.MCLK(MCLK), .en(w293), .inp(l94), .val(l102));
-	ym_slatch #(.DATA_WIDTH(8)) sl103(.MCLK(MCLK), .en(w293), .inp(l95), .val(l103));
+	wire ss_step193_sl102;
+	ym_slatch #(.DATA_WIDTH(8)) sl102(.MCLK(MCLK), .en(w293), .inp(l94), .val(l102), .ss_en(ss_en), .ss_in(ss_step192_sl101), .ss_out(ss_step193_sl102));
+	wire ss_step194_sl103;
+	ym_slatch #(.DATA_WIDTH(8)) sl103(.MCLK(MCLK), .en(w293), .inp(l95), .val(l103), .ss_en(ss_en), .ss_in(ss_step193_sl102), .ss_out(ss_step194_sl103));
 	
 	assign w354 = w331 ? l102 : l103;
 	
-	ym_sr_bit_array #(.DATA_WIDTH(8)) sr104(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(unk_data), .data_out(l104));
+	wire ss_step195_sr104;
+	ym_sr_bit_array #(.DATA_WIDTH(8)) sr104(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(unk_data), .data_out(l104), .ss_en(ss_en), .ss_in(ss_step194_sl103), .ss_out(ss_step195_sr104));
 	
-	ym_slatch_r #(.DATA_WIDTH(8)) sl_hit(.MCLK(MCLK), .en(w229), .rst(reset_comb), .inp(~reg_data_l2[7:0]), .val(reg_hit));
+	wire ss_step196_sl_hit;
+	ym_slatch_r #(.DATA_WIDTH(8)) sl_hit(.MCLK(MCLK), .en(w229), .rst(reset_comb), .inp(~reg_data_l2[7:0]), .val(reg_hit), .ss_en(ss_en), .ss_in(ss_step195_sr104), .ss_out(ss_step196_sl_hit));
 	
-	ym_slatch sl_lsm0_latch(.MCLK(MCLK), .en(w457), .inp(reg_lsm0), .val(reg_lsm0_latch));
-	ym_slatch sl_lsm1_latch(.MCLK(MCLK), .en(w457), .inp(reg_lsm1), .val(reg_lsm1_latch));
+	wire ss_step197_sl_lsm0_latch;
+	ym_slatch sl_lsm0_latch(.MCLK(MCLK), .en(w457), .inp(reg_lsm0), .val(reg_lsm0_latch), .ss_en(ss_en), .ss_in(ss_step196_sl_hit), .ss_out(ss_step197_sl_lsm0_latch));
+	wire ss_step198_sl_lsm1_latch;
+	ym_slatch sl_lsm1_latch(.MCLK(MCLK), .en(w457), .inp(reg_lsm1), .val(reg_lsm1_latch), .ss_en(ss_en), .ss_in(ss_step197_sl_lsm0_latch), .ss_out(ss_step198_sl_lsm1_latch));
 	
-	ym_slatch_r #(.DATA_WIDTH(12)) sl_test_18(.MCLK(MCLK), .en(w128), .rst(reset_ext), .inp(io_data[11:0]), .val(reg_test_18));
+	wire ss_step199_sl_test_18;
+	ym_slatch_r #(.DATA_WIDTH(12)) sl_test_18(.MCLK(MCLK), .en(w128), .rst(reset_ext), .inp(io_data[11:0]), .val(reg_test_18), .ss_en(ss_en), .ss_in(ss_step198_sl_lsm1_latch), .ss_out(ss_step199_sl_test_18));
 	
-	ym_slatch_r #(.DATA_WIDTH(15)) sl_test0(.MCLK(MCLK), .en(w84), .rst(reset_ext), .inp(io_data[14:0]), .val(reg_test0));
+	wire ss_step200_sl_test0;
+	ym_slatch_r #(.DATA_WIDTH(15)) sl_test0(.MCLK(MCLK), .en(w84), .rst(reset_ext), .inp(io_data[14:0]), .val(reg_test0), .ss_en(ss_en), .ss_in(ss_step199_sl_test_18), .ss_out(ss_step200_sl_test0));
 	
-	ym_slatch_r #(.DATA_WIDTH(11)) sl_test1(.MCLK(MCLK), .en(w85), .rst(reset_ext), .inp(io_data[10:0]), .val(reg_test1));
+	wire ss_step201_sl_test1;
+	ym_slatch_r #(.DATA_WIDTH(11)) sl_test1(.MCLK(MCLK), .en(w85), .rst(reset_ext), .inp(io_data[10:0]), .val(reg_test1), .ss_en(ss_en), .ss_in(ss_step200_sl_test0), .ss_out(ss_step201_sl_test1));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl_code_01(.MCLK(MCLK), .en(w164), .inp(w350[7:6]), .val(reg_code[1:0]));
-	ym_slatch_r #(.DATA_WIDTH(3)) sl_code_234(.MCLK(MCLK), .en(w168), .rst(w204), .inp(io_data[6:4]), .val(reg_code[4:2]));
+	wire ss_step202_sl_code_01;
+	ym_slatch #(.DATA_WIDTH(2)) sl_code_01(.MCLK(MCLK), .en(w164), .inp(w350[7:6]), .val(reg_code[1:0]), .ss_en(ss_en), .ss_in(ss_step201_sl_test1), .ss_out(ss_step202_sl_code_01));
+	wire ss_step203_sl_code_234;
+	ym_slatch_r #(.DATA_WIDTH(3)) sl_code_234(.MCLK(MCLK), .en(w168), .rst(w204), .inp(io_data[6:4]), .val(reg_code[4:2]), .ss_en(ss_en), .ss_in(ss_step202_sl_code_01), .ss_out(ss_step203_sl_code_234));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl_addr_1(.MCLK(MCLK), .en(w165), .inp(io_data[7:0]), .val(reg_addr[7:0]));
-	ym_slatch #(.DATA_WIDTH(6)) sl_addr_2(.MCLK(MCLK), .en(w164), .inp(w350[5:0]), .val(reg_addr[13:8]));
-	ym_slatch_r #(.DATA_WIDTH(3)) sl_addr_3(.MCLK(MCLK), .en(w168), .rst(w204), .inp(io_data[2:0]), .val(reg_addr[16:14]));
+	wire ss_step204_sl_addr_1;
+	ym_slatch #(.DATA_WIDTH(8)) sl_addr_1(.MCLK(MCLK), .en(w165), .inp(io_data[7:0]), .val(reg_addr[7:0]), .ss_en(ss_en), .ss_in(ss_step203_sl_code_234), .ss_out(ss_step204_sl_addr_1));
+	wire ss_step205_sl_addr_2;
+	ym_slatch #(.DATA_WIDTH(6)) sl_addr_2(.MCLK(MCLK), .en(w164), .inp(w350[5:0]), .val(reg_addr[13:8]), .ss_en(ss_en), .ss_in(ss_step204_sl_addr_1), .ss_out(ss_step205_sl_addr_2));
+	wire ss_step206_sl_addr_3;
+	ym_slatch_r #(.DATA_WIDTH(3)) sl_addr_3(.MCLK(MCLK), .en(w168), .rst(w204), .inp(io_data[2:0]), .val(reg_addr[16:14]), .ss_en(ss_en), .ss_in(ss_step205_sl_addr_2), .ss_out(ss_step206_sl_addr_3));
 	
 	wire [16:0] reg_data_sum = reg_data_l2 + { 9'h0, reg_inc } + { 16'h0, ~reg_m5 };
 	wire [16:0] reg_data_mux = w185 ? reg_addr : reg_data_sum;
 	
+	wire ss_step207_reg_data_1;
 	ym7101_dff #(.DATA_WIDTH(14)) reg_data_1(.MCLK(MCLK), .clk(~w181), .inp(reg_data_mux[13:0]),
-		.rst(reset_comb), .outp(reg_data_l2[13:0]));
+		.rst(reset_comb), .outp(reg_data_l2[13:0]), .ss_en(ss_en), .ss_in(ss_step206_sl_addr_3), .ss_out(ss_step207_reg_data_1));
 	
+	wire ss_step208_reg_data_2;
 	ym7101_dff #(.DATA_WIDTH(3)) reg_data_2(.MCLK(MCLK), .clk(~w181), .inp(reg_data_mux[16:14]),
-		.rst(w204), .outp(reg_data_l2[16:14]));
+		.rst(w204), .outp(reg_data_l2[16:14]), .ss_en(ss_en), .ss_in(ss_step207_reg_data_1), .ss_out(ss_step208_reg_data_2));
 	
-	ym_slatch sl_80_b0(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[0]), .val(reg_80_b0));
-	ym_slatch sl_m3(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[1]), .val(reg_m3));
-	ym_slatch sl_80_b2(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[2]), .val(reg_80_b2));
-	ym_slatch sl_80_b3(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[3]), .val(reg_80_b3));
-	ym_slatch sl_ie1(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[4]), .val(reg_ie1));
-	ym_slatch sl_lcb(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[5]), .val(reg_lcb));
-	ym_slatch sl_80_b6(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[6]), .val(reg_80_b6));
-	ym_slatch sl_80_b7(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[7]), .val(reg_80_b7));
-	
-	
-	ym_slatch sl_rs1(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[0]), .val(reg_rs1));
-	ym_slatch sl_lsm0(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[1]), .val(reg_lsm0));
-	ym_slatch sl_lsm1(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[2]), .val(reg_lsm1));
-	ym_slatch sl_ste(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[3]), .val(reg_ste));
-	ym_slatch sl_8c_b4(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[4]), .val(reg_8c_b4));
-	ym_slatch sl_8c_b5(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[5]), .val(reg_8c_b5));
-	ym_slatch sl_8c_b6(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[6]), .val(reg_8c_b6));
-	ym_slatch sl_rs0(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[7]), .val(reg_rs0));
-	
-	ym_slatch sl_81_b0(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[0]), .val(reg_81_b0));
-	ym_slatch sl_81_b1(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[1]), .val(reg_81_b1));
-	ym_slatch sl_m5(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[2]), .val(reg_m5));
-	ym_slatch sl_m2(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[3]), .val(reg_m2));
-	ym_slatch sl_m1(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[4]), .val(reg_m1));
-	ym_slatch sl_ie0(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[5]), .val(reg_ie0));
-	ym_slatch sl_disp(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[6]), .val(reg_disp));
-	ym_slatch sl_81_b7(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[7]), .val(reg_81_b7));
+	wire ss_step209_sl_80_b0;
+	ym_slatch sl_80_b0(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[0]), .val(reg_80_b0), .ss_en(ss_en), .ss_in(ss_step208_reg_data_2), .ss_out(ss_step209_sl_80_b0));
+	wire ss_step210_sl_m3;
+	ym_slatch sl_m3(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[1]), .val(reg_m3), .ss_en(ss_en), .ss_in(ss_step209_sl_80_b0), .ss_out(ss_step210_sl_m3));
+	wire ss_step211_sl_80_b2;
+	ym_slatch sl_80_b2(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[2]), .val(reg_80_b2), .ss_en(ss_en), .ss_in(ss_step210_sl_m3), .ss_out(ss_step211_sl_80_b2));
+	wire ss_step212_sl_80_b3;
+	ym_slatch sl_80_b3(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[3]), .val(reg_80_b3), .ss_en(ss_en), .ss_in(ss_step211_sl_80_b2), .ss_out(ss_step212_sl_80_b3));
+	wire ss_step213_sl_ie1;
+	ym_slatch sl_ie1(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[4]), .val(reg_ie1), .ss_en(ss_en), .ss_in(ss_step212_sl_80_b3), .ss_out(ss_step213_sl_ie1));
+	wire ss_step214_sl_lcb;
+	ym_slatch sl_lcb(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[5]), .val(reg_lcb), .ss_en(ss_en), .ss_in(ss_step213_sl_ie1), .ss_out(ss_step214_sl_lcb));
+	wire ss_step215_sl_80_b6;
+	ym_slatch sl_80_b6(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[6]), .val(reg_80_b6), .ss_en(ss_en), .ss_in(ss_step214_sl_lcb), .ss_out(ss_step215_sl_80_b6));
+	wire ss_step216_sl_80_b7;
+	ym_slatch sl_80_b7(.MCLK(MCLK), .en(w216), .inp(reg_data_l2[7]), .val(reg_80_b7), .ss_en(ss_en), .ss_in(ss_step215_sl_80_b6), .ss_out(ss_step216_sl_80_b7));
 	
 	
-	ym_slatch sl_lscr(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[0]), .val(reg_lscr));
-	ym_slatch sl_hscr(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[1]), .val(reg_hscr));
-	ym_slatch sl_vscr(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[2]), .val(reg_vscr));
-	ym_slatch sl_ie2(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[3]), .val(reg_ie2));
-	ym_slatch sl_8b_b4(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[4]), .val(reg_8b_b4));
-	ym_slatch sl_8b_b5(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[5]), .val(reg_8b_b5));
-	ym_slatch sl_8b_b6(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[6]), .val(reg_8b_b6));
-	ym_slatch sl_8b_b7(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[7]), .val(reg_8b_b7));
+	wire ss_step217_sl_rs1;
+	ym_slatch sl_rs1(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[0]), .val(reg_rs1), .ss_en(ss_en), .ss_in(ss_step216_sl_80_b7), .ss_out(ss_step217_sl_rs1));
+	wire ss_step218_sl_lsm0;
+	ym_slatch sl_lsm0(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[1]), .val(reg_lsm0), .ss_en(ss_en), .ss_in(ss_step217_sl_rs1), .ss_out(ss_step218_sl_lsm0));
+	wire ss_step219_sl_lsm1;
+	ym_slatch sl_lsm1(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[2]), .val(reg_lsm1), .ss_en(ss_en), .ss_in(ss_step218_sl_lsm0), .ss_out(ss_step219_sl_lsm1));
+	wire ss_step220_sl_ste;
+	ym_slatch sl_ste(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[3]), .val(reg_ste), .ss_en(ss_en), .ss_in(ss_step219_sl_lsm1), .ss_out(ss_step220_sl_ste));
+	wire ss_step221_sl_8c_b4;
+	ym_slatch sl_8c_b4(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[4]), .val(reg_8c_b4), .ss_en(ss_en), .ss_in(ss_step220_sl_ste), .ss_out(ss_step221_sl_8c_b4));
+	wire ss_step222_sl_8c_b5;
+	ym_slatch sl_8c_b5(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[5]), .val(reg_8c_b5), .ss_en(ss_en), .ss_in(ss_step221_sl_8c_b4), .ss_out(ss_step222_sl_8c_b5));
+	wire ss_step223_sl_8c_b6;
+	ym_slatch sl_8c_b6(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[6]), .val(reg_8c_b6), .ss_en(ss_en), .ss_in(ss_step222_sl_8c_b5), .ss_out(ss_step223_sl_8c_b6));
+	wire ss_step224_sl_rs0;
+	ym_slatch sl_rs0(.MCLK(MCLK), .en(w215), .inp(reg_data_l2[7]), .val(reg_rs0), .ss_en(ss_en), .ss_in(ss_step223_sl_8c_b6), .ss_out(ss_step224_sl_rs0));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl_inc(.MCLK(MCLK), .en(w210), .inp(reg_data_l2[7:0]), .val(reg_inc));
+	wire ss_step225_sl_81_b0;
+	ym_slatch sl_81_b0(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[0]), .val(reg_81_b0), .ss_en(ss_en), .ss_in(ss_step224_sl_rs0), .ss_out(ss_step225_sl_81_b0));
+	wire ss_step226_sl_81_b1;
+	ym_slatch sl_81_b1(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[1]), .val(reg_81_b1), .ss_en(ss_en), .ss_in(ss_step225_sl_81_b0), .ss_out(ss_step226_sl_81_b1));
+	wire ss_step227_sl_m5;
+	ym_slatch sl_m5(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[2]), .val(reg_m5), .ss_en(ss_en), .ss_in(ss_step226_sl_81_b1), .ss_out(ss_step227_sl_m5));
+	wire ss_step228_sl_m2;
+	ym_slatch sl_m2(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[3]), .val(reg_m2), .ss_en(ss_en), .ss_in(ss_step227_sl_m5), .ss_out(ss_step228_sl_m2));
+	wire ss_step229_sl_m1;
+	ym_slatch sl_m1(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[4]), .val(reg_m1), .ss_en(ss_en), .ss_in(ss_step228_sl_m2), .ss_out(ss_step229_sl_m1));
+	wire ss_step230_sl_ie0;
+	ym_slatch sl_ie0(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[5]), .val(reg_ie0), .ss_en(ss_en), .ss_in(ss_step229_sl_m1), .ss_out(ss_step230_sl_ie0));
+	wire ss_step231_sl_disp;
+	ym_slatch sl_disp(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[6]), .val(reg_disp), .ss_en(ss_en), .ss_in(ss_step230_sl_ie0), .ss_out(ss_step231_sl_disp));
+	wire ss_step232_sl_81_b7;
+	ym_slatch sl_81_b7(.MCLK(MCLK), .en(w217), .inp(reg_data_l2[7]), .val(reg_81_b7), .ss_en(ss_en), .ss_in(ss_step231_sl_disp), .ss_out(ss_step232_sl_81_b7));
 	
-	ym_slatch #(.DATA_WIDTH(6)) sl_sa_high(.MCLK(MCLK), .en(w227), .inp(reg_data_l2[5:0]), .val(reg_sa_high));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl_dmd(.MCLK(MCLK), .en(w227), .inp(reg_data_l2[7:6]), .val(reg_dmd));
+	wire ss_step233_sl_lscr;
+	ym_slatch sl_lscr(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[0]), .val(reg_lscr), .ss_en(ss_en), .ss_in(ss_step232_sl_81_b7), .ss_out(ss_step233_sl_lscr));
+	wire ss_step234_sl_hscr;
+	ym_slatch sl_hscr(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[1]), .val(reg_hscr), .ss_en(ss_en), .ss_in(ss_step233_sl_lscr), .ss_out(ss_step234_sl_hscr));
+	wire ss_step235_sl_vscr;
+	ym_slatch sl_vscr(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[2]), .val(reg_vscr), .ss_en(ss_en), .ss_in(ss_step234_sl_hscr), .ss_out(ss_step235_sl_vscr));
+	wire ss_step236_sl_ie2;
+	ym_slatch sl_ie2(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[3]), .val(reg_ie2), .ss_en(ss_en), .ss_in(ss_step235_sl_vscr), .ss_out(ss_step236_sl_ie2));
+	wire ss_step237_sl_8b_b4;
+	ym_slatch sl_8b_b4(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[4]), .val(reg_8b_b4), .ss_en(ss_en), .ss_in(ss_step236_sl_ie2), .ss_out(ss_step237_sl_8b_b4));
+	wire ss_step238_sl_8b_b5;
+	ym_slatch sl_8b_b5(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[5]), .val(reg_8b_b5), .ss_en(ss_en), .ss_in(ss_step237_sl_8b_b4), .ss_out(ss_step238_sl_8b_b5));
+	wire ss_step239_sl_8b_b6;
+	ym_slatch sl_8b_b6(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[6]), .val(reg_8b_b6), .ss_en(ss_en), .ss_in(ss_step238_sl_8b_b5), .ss_out(ss_step239_sl_8b_b6));
+	wire ss_step240_sl_8b_b7;
+	ym_slatch sl_8b_b7(.MCLK(MCLK), .en(w213), .inp(reg_data_l2[7]), .val(reg_8b_b7), .ss_en(ss_en), .ss_in(ss_step239_sl_8b_b6), .ss_out(ss_step240_sl_8b_b7));
 	
+	wire ss_step241_sl_inc;
+	ym_slatch #(.DATA_WIDTH(8)) sl_inc(.MCLK(MCLK), .en(w210), .inp(reg_data_l2[7:0]), .val(reg_inc), .ss_en(ss_en), .ss_in(ss_step240_sl_8b_b7), .ss_out(ss_step241_sl_inc));
+	
+	wire ss_step242_sl_sa_high;
+	ym_slatch #(.DATA_WIDTH(6)) sl_sa_high(.MCLK(MCLK), .en(w227), .inp(reg_data_l2[5:0]), .val(reg_sa_high), .ss_en(ss_en), .ss_in(ss_step241_sl_inc), .ss_out(ss_step242_sl_sa_high));
+	
+	wire ss_step243_sl_dmd;
+	ym_slatch #(.DATA_WIDTH(2)) sl_dmd(.MCLK(MCLK), .en(w227), .inp(reg_data_l2[7:6]), .val(reg_dmd), .ss_en(ss_en), .ss_in(ss_step242_sl_sa_high), .ss_out(ss_step243_sl_dmd));
+	
+	wire ss_step244_cnt_lg_1;
 	ym_cnt_bit_load #(.DATA_WIDTH(8)) cnt_lg_1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w235), .reset(1'h0), .load(w211), .load_val(~reg_data_l2[7:0]), .c_out(reg_lg_of), .val(reg_lg[7:0]));
+		.c_in(w235), .reset(1'h0), .load(w211), .load_val(~reg_data_l2[7:0]), .c_out(reg_lg_of), .val(reg_lg[7:0]), .ss_en(ss_en), .ss_in(ss_step243_sl_dmd), .ss_out(ss_step244_cnt_lg_1));
 		
+	wire ss_step245_cnt_lg_2;
 	ym_cnt_bit_load #(.DATA_WIDTH(8)) cnt_lg_2(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w251), .reset(1'h0), .load(w212), .load_val(~reg_data_l2[7:0]), .val(reg_lg[15:8]));
+		.c_in(w251), .reset(1'h0), .load(w212), .load_val(~reg_data_l2[7:0]), .val(reg_lg[15:8]), .ss_en(ss_en), .ss_in(ss_step244_cnt_lg_1), .ss_out(ss_step245_cnt_lg_2));
 	
+	wire ss_step246_cnt_sa_low_1;
 	ym_cnt_bit_load #(.DATA_WIDTH(8)) cnt_sa_low_1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w235), .reset(1'h0), .load(w228), .load_val(reg_data_l2[7:0]), .c_out(reg_sa_of), .val(reg_sa_low[7:0]));
+		.c_in(w235), .reset(1'h0), .load(w228), .load_val(reg_data_l2[7:0]), .c_out(reg_sa_of), .val(reg_sa_low[7:0]), .ss_en(ss_en), .ss_in(ss_step245_cnt_lg_2), .ss_out(ss_step246_cnt_sa_low_1));
 		
+	wire ss_step247_cnt_sa_low_2;
 	ym_cnt_bit_load #(.DATA_WIDTH(8)) cnt_sa_low_2(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w255), .reset(1'h0), .load(w214), .load_val(reg_data_l2[7:0]), .val(reg_sa_low[15:8]));
+		.c_in(w255), .reset(1'h0), .load(w214), .load_val(reg_data_l2[7:0]), .val(reg_sa_low[15:8]), .ss_en(ss_en), .ss_in(ss_step246_cnt_sa_low_1), .ss_out(ss_step247_cnt_sa_low_2));
 	
 	assign IPL1_pull = ~io_ipl1;
 	assign IPL2_pull = ~io_ipl2;
@@ -3430,21 +3743,27 @@ module ym7101
 	
 	// FSM block
 	
+	wire ss_step248_cnt105;
 	ym_cnt_bit_load #(.DATA_WIDTH(9)) cnt105(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w436), .reset(1'h0), .load(w437), .load_val(w428), .val(l105));
+		.c_in(w436), .reset(1'h0), .load(w437), .load_val(w428), .val(l105), .ss_en(ss_en), .ss_in(ss_step247_cnt_sa_low_2), .ss_out(ss_step248_cnt105));
 	
 	assign w355 = w106 ? { l105, w446 } : { 1'h0, l105 };
 	
+	wire ss_step249_cnt106;
 	ym_cnt_bit_load #(.DATA_WIDTH(9)) cnt106(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w363), .reset(1'h0), .load(w361), .load_val(w364), .val(l106));
+		.c_in(w363), .reset(1'h0), .load(w361), .load_val(w364), .val(l106), .ss_en(ss_en), .ss_in(ss_step248_cnt105), .ss_out(ss_step249_cnt106));
 	
-	ym_sr_bit #(.SR_LENGTH(8)) sr107(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l663), .sr_out(l107));
+	wire ss_step250_sr107;
+	ym_sr_bit #(.SR_LENGTH(8)) sr107(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l663), .sr_out(l107), .ss_en(ss_en), .ss_in(ss_step249_cnt106), .ss_out(ss_step250_sr107));
 	
-	ym_sr_bit sr108(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w476), .sr_out(l108));
+	wire ss_step251_sr108;
+	ym_sr_bit sr108(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w476), .sr_out(l108), .ss_en(ss_en), .ss_in(ss_step250_sr107), .ss_out(ss_step251_sr108));
 	
-	ym_sr_bit sr109(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w359), .sr_out(l109));
+	wire ss_step252_sr109;
+	ym_sr_bit sr109(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w359), .sr_out(l109), .ss_en(ss_en), .ss_in(ss_step251_sr108), .ss_out(ss_step252_sr109));
 	
-	ym_sr_bit sr110(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w504), .sr_out(l110));
+	wire ss_step253_sr110;
+	ym_sr_bit sr110(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w504), .sr_out(l110), .ss_en(ss_en), .ss_in(ss_step252_sr109), .ss_out(ss_step253_sr110));
 	
 	assign w356 = w357 | (l118 & w380);
 	
@@ -3456,9 +3775,11 @@ module ym7101
 	
 	assign w360 = ~l117;
 	
-	ym_sr_bit sr111(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w503), .sr_out(l111));
+	wire ss_step254_sr111;
+	ym_sr_bit sr111(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w503), .sr_out(l111), .ss_en(ss_en), .ss_in(ss_step253_sr110), .ss_out(ss_step254_sr111));
 	
-	ym_sr_bit sr112(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w490), .sr_out(l112));
+	wire ss_step255_sr112;
+	ym_sr_bit sr112(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w490), .sr_out(l112), .ss_en(ss_en), .ss_in(ss_step254_sr111), .ss_out(ss_step255_sr112));
 	
 	assign w361 = l112 | w88 | reset_comb | w370;
 	
@@ -3483,33 +3804,41 @@ module ym7101
 	
 	assign w370 = ~l113 & l121 & reg_80_b0;
 	
-	ym_sr_bit sr113(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l121), .sr_out(l113));
+	wire ss_step256_sr113;
+	ym_sr_bit sr113(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l121), .sr_out(l113), .ss_en(ss_en), .ss_in(ss_step255_sr112), .ss_out(ss_step256_sr113));
 	
-	ym_sr_bit sr114(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w491), .sr_out(l114));
+	wire ss_step257_sr114;
+	ym_sr_bit sr114(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w491), .sr_out(l114), .ss_en(ss_en), .ss_in(ss_step256_sr113), .ss_out(ss_step257_sr114));
 	
 	wire l115_t;
 	assign l115 = ~l115_t;
-	ym_sr_bit sr115(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w502), .sr_out(l115_t));
+	wire ss_step258_sr115;
+	ym_sr_bit sr115(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w502), .sr_out(l115_t), .ss_en(ss_en), .ss_in(ss_step257_sr114), .ss_out(ss_step258_sr115));
 	
 	wire l116_t;
 	assign l116 = ~l116_t;
-	ym_sr_bit sr116(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w384), .sr_out(l116_t));
+	wire ss_step259_sr116;
+	ym_sr_bit sr116(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w384), .sr_out(l116_t), .ss_en(ss_en), .ss_in(ss_step258_sr115), .ss_out(ss_step259_sr116));
 	
 	assign w371 = reg_test1[6:4] == 3'h2;
 	
 	assign w372 = w371 | (l119 & w380);
 	
-	ym_sr_bit sr117(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w505), .sr_out(l117));
+	wire ss_step260_sr117;
+	ym_sr_bit sr117(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w505), .sr_out(l117), .ss_en(ss_en), .ss_in(ss_step259_sr116), .ss_out(ss_step260_sr117));
 	
-	ym_sr_bit sr118(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w477), .sr_out(l118));
+	wire ss_step261_sr118;
+	ym_sr_bit sr118(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w477), .sr_out(l118), .ss_en(ss_en), .ss_in(ss_step260_sr117), .ss_out(ss_step261_sr118));
 	
-	ym_sr_bit sr119(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w478), .sr_out(l119));
+	wire ss_step262_sr119;
+	ym_sr_bit sr119(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w478), .sr_out(l119), .ss_en(ss_en), .ss_in(ss_step261_sr118), .ss_out(ss_step262_sr119));
 	
 	assign w373 = ~(reg_m5 ? l107 : l663);
 	
 	assign w374 = reg_8c_b6 ? hclk2 : w373;
 	
-	ym_sr_bit sr120(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(i_csync), .sr_out(l120));
+	wire ss_step263_sr120;
+	ym_sr_bit sr120(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(i_csync), .sr_out(l120), .ss_en(ss_en), .ss_in(ss_step262_sr119), .ss_out(ss_step263_sr120));
 	
 	assign w375 = l120 | w411;
 	
@@ -3517,11 +3846,14 @@ module ym7101
 	
 	assign w377 = ~(l114 | reset_comb);
 	
-	ym_sr_bit sr121(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w376), .sr_out(l121));
+	wire ss_step264_sr121;
+	ym_sr_bit sr121(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w376), .sr_out(l121), .ss_en(ss_en), .ss_in(ss_step263_sr120), .ss_out(ss_step264_sr121));
 	
-	ym_sr_bit sr122(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w492), .sr_out(l122));
+	wire ss_step265_sr122;
+	ym_sr_bit sr122(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w492), .sr_out(l122), .ss_en(ss_en), .ss_in(ss_step264_sr121), .ss_out(ss_step265_sr122));
 	
-	ym_sr_bit sr123(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w501), .sr_out(l123));
+	wire ss_step266_sr123;
+	ym_sr_bit sr123(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w501), .sr_out(l123), .ss_en(ss_en), .ss_in(ss_step265_sr122), .ss_out(ss_step266_sr123));
 	
 	assign w378 = reg_vscr ? l124 : ~l117;
 	
@@ -3541,53 +3873,67 @@ module ym7101
 	
 	assign w386 = ~(w480 | w483 | w481);
 	
-	ym_sr_bit sr124(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w506), .sr_out(l124));
+	wire ss_step267_sr124;
+	ym_sr_bit sr124(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w506), .sr_out(l124), .ss_en(ss_en), .ss_in(ss_step266_sr123), .ss_out(ss_step267_sr124));
 	
-	ym_sr_bit sr125(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w479), .sr_out(l125));
+	wire ss_step268_sr125;
+	ym_sr_bit sr125(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w479), .sr_out(l125), .ss_en(ss_en), .ss_in(ss_step267_sr124), .ss_out(ss_step268_sr125));
 	
-	ym_sr_bit sr126(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w480), .sr_out(l126));
+	wire ss_step269_sr126;
+	ym_sr_bit sr126(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w480), .sr_out(l126), .ss_en(ss_en), .ss_in(ss_step268_sr125), .ss_out(ss_step269_sr126));
 	
 	assign w387 = reg_m5 ? l127 : w420;
 	
-	ym_sr_bit #(.SR_LENGTH(8)) sr127(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w420), .sr_out(l127));
+	wire ss_step270_sr127;
+	ym_sr_bit #(.SR_LENGTH(8)) sr127(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w420), .sr_out(l127), .ss_en(ss_en), .ss_in(ss_step269_sr126), .ss_out(ss_step270_sr127));
 	
 	assign w388 = t29 & ~w439;
 	
-	ym_sr_bit sr128(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w397), .sr_out(l128));
+	wire ss_step271_sr128;
+	ym_sr_bit sr128(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w397), .sr_out(l128), .ss_en(ss_en), .ss_in(ss_step270_sr127), .ss_out(ss_step271_sr128));
 	
 	assign w389 = reg_disp & t29 & t38;
 	
-	ym_sr_bit sr129(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t30), .sr_out(l129));
+	wire ss_step272_sr129;
+	ym_sr_bit sr129(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t30), .sr_out(l129), .ss_en(ss_en), .ss_in(ss_step271_sr128), .ss_out(ss_step272_sr129));
 	
 	assign w390 = w441 | w450;
 	
 	assign w391 = t31 & w443;
 	
-	ym_sr_bit sr130(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w493), .sr_out(l130));
+	wire ss_step273_sr130;
+	ym_sr_bit sr130(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w493), .sr_out(l130), .ss_en(ss_en), .ss_in(ss_step272_sr129), .ss_out(ss_step273_sr130));
 	
 	assign w392 = reset_comb | l137;
 	
-	ym7101_rs_trig rs29(.MCLK(MCLK), .set(l130), .rst(w392), .q(t29));
+	wire ss_step274_rs29;
+	ym7101_rs_trig rs29(.MCLK(MCLK), .set(l130), .rst(w392), .q(t29), .ss_en(ss_en), .ss_in(ss_step273_sr130), .ss_out(ss_step274_rs29));
 	
-	ym_sr_bit sr131(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w500), .sr_out(l131));
+	wire ss_step275_sr131;
+	ym_sr_bit sr131(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w500), .sr_out(l131), .ss_en(ss_en), .ss_in(ss_step274_rs29), .ss_out(ss_step275_sr131));
 	
 	assign w393 = l133 & w380;
 	
-	ym_sr_bit sr132(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w403), .sr_out(l132));
+	wire ss_step276_sr132;
+	ym_sr_bit sr132(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w403), .sr_out(l132), .ss_en(ss_en), .ss_in(ss_step275_sr131), .ss_out(ss_step276_sr132));
 	
 	assign w394 = w383 | (w380 & l126);
 	
 	assign w395 = ~(w486 | w489 | w482 | w488);
 	
-	ym_sr_bit sr133(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w507), .sr_out(l133));
+	wire ss_step277_sr133;
+	ym_sr_bit sr133(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w507), .sr_out(l133), .ss_en(ss_en), .ss_in(ss_step276_sr132), .ss_out(ss_step277_sr133));
 	
-	ym_sr_bit sr134(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w481), .sr_out(l134));
+	wire ss_step278_sr134;
+	ym_sr_bit sr134(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w481), .sr_out(l134), .ss_en(ss_en), .ss_in(ss_step277_sr133), .ss_out(ss_step278_sr134));
 	
 	assign w396 = reg_m5 ? l135 : w421;
 	
-	ym_sr_bit #(.SR_LENGTH(7)) sr135(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w421), .sr_out(l135));
+	wire ss_step279_sr135;
+	ym_sr_bit #(.SR_LENGTH(7)) sr135(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w421), .sr_out(l135), .ss_en(ss_en), .ss_in(ss_step278_sr134), .ss_out(ss_step279_sr135));
 	
-	ym_sr_bit sr136(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w404), .sr_out(l136));
+	wire ss_step280_sr136;
+	ym_sr_bit sr136(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w404), .sr_out(l136), .ss_en(ss_en), .ss_in(ss_step279_sr135), .ss_out(ss_step280_sr136));
 	
 	assign w397 = ~(~reg_80_b0 & w387);
 	
@@ -3597,25 +3943,32 @@ module ym7101
 	
 	assign w400 = w390 & t32;
 	
-	ym7101_rs_trig rs30(.MCLK(MCLK), .set(w401), .rst(l152), .q(t30));
+	wire ss_step281_rs30;
+	ym7101_rs_trig rs30(.MCLK(MCLK), .set(w401), .rst(l152), .q(t30), .ss_en(ss_en), .ss_in(ss_step280_sr136), .ss_out(ss_step281_rs30));
 	
 	assign w401 = reset_comb | l143;
 	
-	ym_sr_bit sr137(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w494), .sr_out(l137));
+	wire ss_step282_sr137;
+	ym_sr_bit sr137(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w494), .sr_out(l137), .ss_en(ss_en), .ss_in(ss_step281_rs30), .ss_out(ss_step282_sr137));
 	
-	ym_sr_bit sr138(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w499), .sr_out(l138));
+	wire ss_step283_sr138;
+	ym_sr_bit sr138(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w499), .sr_out(l138), .ss_en(ss_en), .ss_in(ss_step282_sr137), .ss_out(ss_step283_sr138));
 	
 	assign w402 = w380 & l140;
 	
-	ym_sr_bit sr139(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w410), .sr_out(l139));
+	wire ss_step284_sr139;
+	ym_sr_bit sr139(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w410), .sr_out(l139), .ss_en(ss_en), .ss_in(ss_step283_sr138), .ss_out(ss_step284_sr139));
 	
 	assign w403 = l139 | w410;
 	
-	ym_sr_bit sr140(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w508), .sr_out(l140));
+	wire ss_step285_sr140;
+	ym_sr_bit sr140(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w508), .sr_out(l140), .ss_en(ss_en), .ss_in(ss_step284_sr139), .ss_out(ss_step285_sr140));
 	
-	ym_sr_bit sr141(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w482), .sr_out(l141));
+	wire ss_step286_sr141;
+	ym_sr_bit sr141(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w482), .sr_out(l141), .ss_en(ss_en), .ss_in(ss_step285_sr140), .ss_out(ss_step286_sr141));
 	
-	ym_sr_bit sr142(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w489), .sr_out(l142));
+	wire ss_step287_sr142;
+	ym_sr_bit sr142(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w489), .sr_out(l142), .ss_en(ss_en), .ss_in(ss_step286_sr141), .ss_out(ss_step287_sr142));
 	
 	assign w404 = ~(w396 & ~reg_8c_b5);
 	
@@ -3623,7 +3976,8 @@ module ym7101
 	
 	assign w406 = w398 & t33;
 	
-	ym7101_rs_trig rs31(.MCLK(MCLK), .set(w407), .rst(w408), .q(t31));
+	wire ss_step288_rs31;
+	ym7101_rs_trig rs31(.MCLK(MCLK), .set(w407), .rst(w408), .q(t31), .ss_en(ss_en), .ss_in(ss_step287_sr142), .ss_out(ss_step288_rs31));
 	
 	assign w407 = l137 | l153;
 	
@@ -3631,39 +3985,51 @@ module ym7101
 	
 	assign w409 = l131 | l144;
 	
-	ym_sr_bit sr143(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w495), .sr_out(l143));
+	wire ss_step289_sr143;
+	ym_sr_bit sr143(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w495), .sr_out(l143), .ss_en(ss_en), .ss_in(ss_step288_rs31), .ss_out(ss_step289_sr143));
 	
-	ym_sr_bit sr144(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w498), .sr_out(l144));
+	wire ss_step290_sr144;
+	ym_sr_bit sr144(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w498), .sr_out(l144), .ss_en(ss_en), .ss_in(ss_step289_sr143), .ss_out(ss_step290_sr144));
 	
 	assign w410 = w361 & w416;
 	
-	ym_sr_bit sr145(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w510), .sr_out(l145));
+	wire ss_step291_sr145;
+	ym_sr_bit sr145(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w510), .sr_out(l145), .ss_en(ss_en), .ss_in(ss_step290_sr144), .ss_out(ss_step291_sr145));
 	
-	ym_sr_bit sr146(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w509), .sr_out(l146));
+	wire ss_step292_sr146;
+	ym_sr_bit sr146(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w509), .sr_out(l146), .ss_en(ss_en), .ss_in(ss_step291_sr145), .ss_out(ss_step292_sr146));
 	
-	ym_sr_bit sr147(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w487), .sr_out(l147));
+	wire ss_step293_sr147;
+	ym_sr_bit sr147(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w487), .sr_out(l147), .ss_en(ss_en), .ss_in(ss_step292_sr146), .ss_out(ss_step293_sr147));
 	
-	ym_sr_bit sr148(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w488), .sr_out(l148));
+	wire ss_step294_sr148;
+	ym_sr_bit sr148(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w488), .sr_out(l148), .ss_en(ss_en), .ss_in(ss_step293_sr147), .ss_out(ss_step294_sr148));
 	
 	assign w411 = reg_8c_b5 & l149;
 	
-	ym_sr_bit sr149(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(i_hsync), .sr_out(l149));
+	wire ss_step295_sr149;
+	ym_sr_bit sr149(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(i_hsync), .sr_out(l149), .ss_en(ss_en), .ss_in(ss_step294_sr148), .ss_out(ss_step295_sr149));
 	
-	ym_sr_bit sr150(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w412), .sr_out(l150));
+	wire ss_step296_sr150;
+	ym_sr_bit sr150(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w412), .sr_out(l150), .ss_en(ss_en), .ss_in(ss_step295_sr149), .ss_out(ss_step296_sr150));
 	
 	assign w412 = w405 | w399;
 	
 	assign w413 = w406 | w400 | w391;
 	
-	ym_sr_bit sr151(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w413), .sr_out(l151));
+	wire ss_step297_sr151;
+	ym_sr_bit sr151(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w413), .sr_out(l151), .ss_en(ss_en), .ss_in(ss_step296_sr150), .ss_out(ss_step297_sr151));
 	
-	ym7101_rs_trig rs32(.MCLK(MCLK), .set(w414), .rst(l138), .q(t32));
+	wire ss_step298_rs32;
+	ym7101_rs_trig rs32(.MCLK(MCLK), .set(w414), .rst(l138), .q(t32), .ss_en(ss_en), .ss_in(ss_step297_sr151), .ss_out(ss_step298_rs32));
 	
 	assign w414 = w409 | reset_comb;
 	
-	ym_sr_bit sr152(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w496), .sr_out(l152));
+	wire ss_step299_sr152;
+	ym_sr_bit sr152(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w496), .sr_out(l152), .ss_en(ss_en), .ss_in(ss_step298_rs32), .ss_out(ss_step299_sr152));
 	
-	ym_sr_bit sr153(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w497), .sr_out(l153));
+	wire ss_step300_sr153;
+	ym_sr_bit sr153(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w497), .sr_out(l153), .ss_en(ss_en), .ss_in(ss_step299_sr152), .ss_out(ss_step300_sr153));
 	
 	assign w415 = w380 & l154;
 	
@@ -3675,23 +4041,29 @@ module ym7101
 	
 	assign w419 = w381 | (w380 & l148);
 	
-	ym_sr_bit sr154(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w511), .sr_out(l154));
+	wire ss_step301_sr154;
+	ym_sr_bit sr154(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w511), .sr_out(l154), .ss_en(ss_en), .ss_in(ss_step300_sr153), .ss_out(ss_step301_sr154));
 	
-	ym_sr_bit sr155(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w485), .sr_out(l155));
+	wire ss_step302_sr155;
+	ym_sr_bit sr155(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w485), .sr_out(l155), .ss_en(ss_en), .ss_in(ss_step301_sr154), .ss_out(ss_step302_sr155));
 	
-	ym_sr_bit sr156(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w484), .sr_out(l156));
+	wire ss_step303_sr156;
+	ym_sr_bit sr156(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w484), .sr_out(l156), .ss_en(ss_en), .ss_in(ss_step302_sr155), .ss_out(ss_step303_sr156));
 	
 	assign w420 = l151 ^ l663;
 	
 	assign w421 = w427 ? l160 : l157;
 	
-	ym_sr_bit sr157(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l150), .sr_out(l157));
+	wire ss_step304_sr157;
+	ym_sr_bit sr157(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l150), .sr_out(l157), .ss_en(ss_en), .ss_in(ss_step303_sr156), .ss_out(ss_step304_sr157));
 	
 	assign w422 = reg_m5 ? l158 : l129;
 	
-	ym_sr_bit #(.SR_LENGTH(8)) sr158(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l129), .sr_out(l158));
+	wire ss_step305_sr158;
+	ym_sr_bit #(.SR_LENGTH(8)) sr158(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l129), .sr_out(l158), .ss_en(ss_en), .ss_in(ss_step304_sr157), .ss_out(ss_step305_sr158));
 	
-	ym7101_rs_trig rs33(.MCLK(MCLK), .set(w423), .rst(l123), .q(t33));
+	wire ss_step306_rs33;
+	ym7101_rs_trig rs33(.MCLK(MCLK), .set(w423), .rst(l123), .q(t33), .ss_en(ss_en), .ss_in(ss_step305_sr158), .ss_out(ss_step306_rs33));
 	
 	assign w423 = reset_comb | l131;
 	
@@ -3699,14 +4071,17 @@ module ym7101
 	
 	assign w425 = w416 & ~reg_81_b0;
 	
-	ym_sr_bit sr159(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w512), .sr_out(l159));
+	wire ss_step307_sr159;
+	ym_sr_bit sr159(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w512), .sr_out(l159), .ss_en(ss_en), .ss_in(ss_step306_rs33), .ss_out(ss_step307_sr159));
 	
+	wire ss_step308_cnt160;
 	ym_cnt_bit cnt160(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w426), .reset(reset_comb), .val(l160));
+		.c_in(w426), .reset(reset_comb), .val(l160), .ss_en(ss_en), .ss_in(ss_step307_sr159), .ss_out(ss_step308_cnt160));
 	
 	assign w426 = w420 & ~l161;
 	
-	ym_sr_bit sr161(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w420), .sr_out(l161));
+	wire ss_step309_sr161;
+	ym_sr_bit sr161(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w420), .sr_out(l161), .ss_en(ss_en), .ss_in(ss_step308_cnt160), .ss_out(ss_step309_sr161));
 	
 	assign w427 = reg_m5 & reg_80_b3;
 	
@@ -3733,37 +4108,46 @@ module ym7101
 	
 	assign w438 = l115 & l174;
 	
-	ym_sr_bit sr162(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~w475), .sr_out(l162));
+	wire ss_step310_sr162;
+	ym_sr_bit sr162(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~w475), .sr_out(l162), .ss_en(ss_en), .ss_in(ss_step309_sr161), .ss_out(ss_step310_sr162));
 	
 	assign w439 = ~(reg_disp & (l162 | t38));
 	
-	ym_sr_bit sr163(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w474), .sr_out(l163));
+	wire ss_step311_sr163;
+	ym_sr_bit sr163(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w474), .sr_out(l163), .ss_en(ss_en), .ss_in(ss_step310_sr162), .ss_out(ss_step311_sr163));
 	
 	assign w440 = reset_comb | w442;
 	
-	ym7101_rs_trig rs34(.MCLK(MCLK), .set(w444), .rst(w440), .q(t34));
+	wire ss_step312_rs34;
+	ym7101_rs_trig rs34(.MCLK(MCLK), .set(w444), .rst(w440), .q(t34), .ss_en(ss_en), .ss_in(ss_step311_sr163), .ss_out(ss_step312_rs34));
 	
 	assign w441 = t34 & reg_m5;
 	
-	ym_sr_bit sr164(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w473), .sr_out(l164));
+	wire ss_step313_sr164;
+	ym_sr_bit sr164(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w473), .sr_out(l164), .ss_en(ss_en), .ss_in(ss_step312_rs34), .ss_out(ss_step313_sr164));
 	
 	assign w442 = l163 & w449;
 	
-	ym7101_rs_trig rs35(.MCLK(MCLK), .set(w445), .rst(w444), .q(t35));
+	wire ss_step314_rs35;
+	ym7101_rs_trig rs35(.MCLK(MCLK), .set(w445), .rst(w444), .q(t35), .ss_en(ss_en), .ss_in(ss_step313_sr164), .ss_out(ss_step314_rs35));
 	
 	assign w443 = t35 & reg_m5;
 	
-	ym_sr_bit sr165(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w472), .sr_out(l165));
+	wire ss_step315_sr165;
+	ym_sr_bit sr165(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w472), .sr_out(l165), .ss_en(ss_en), .ss_in(ss_step314_rs35), .ss_out(ss_step315_sr165));
 	
 	assign w444 = l164 & w449;
 	
 	assign w445 = reset_comb | w447;
 	
-	ym7101_rs_trig rs36(.MCLK(MCLK), .set(w452), .rst(w448), .q(t36));
+	wire ss_step316_rs36;
+	ym7101_rs_trig rs36(.MCLK(MCLK), .set(w452), .rst(w448), .q(t36), .ss_en(ss_en), .ss_in(ss_step315_sr165), .ss_out(ss_step316_rs36));
 	
-	ym_cnt_bit_rs cnt166(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .c_in(w455), .reset(w451), .set(l168), .val(w446));
+	wire ss_step317_cnt166;
+	ym_cnt_bit_rs cnt166(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .c_in(w455), .reset(w451), .set(l168), .val(w446), .ss_en(ss_en), .ss_in(ss_step316_rs36), .ss_out(ss_step317_cnt166));
 	
-	ym_sr_bit sr167(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w471), .sr_out(l167));
+	wire ss_step318_sr167;
+	ym_sr_bit sr167(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w471), .sr_out(l167), .ss_en(ss_en), .ss_in(ss_step317_cnt166), .ss_out(ss_step318_sr167));
 	
 	assign w447 = l165 & w449;
 	
@@ -3771,19 +4155,22 @@ module ym7101
 	
 	assign w449 = l111 | ~w446;
 	
-	ym_sr_bit sr168(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w456), .sr_out(l168));
+	wire ss_step319_sr168;
+	ym_sr_bit sr168(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w456), .sr_out(l168), .ss_en(ss_en), .ss_in(ss_step318_sr167), .ss_out(ss_step319_sr168));
 	
 	assign w450 = reg_m5 & t36;
 	
 	assign w451 = reset_comb | ~reg_lsm0 | (w454 & ~t39);
 	
-	ym_sr_bit sr169(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w470), .sr_out(l169));
+	wire ss_step320_sr169;
+	ym_sr_bit sr169(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w470), .sr_out(l169), .ss_en(ss_en), .ss_in(ss_step319_sr168), .ss_out(ss_step320_sr169));
 	
 	assign w452 = l169 & w449;
 	
 	assign w453 = w452 | reset_comb;
 	
-	ym7101_rs_trig rs37(.MCLK(MCLK), .set(w453), .rst(l167), .q(t37));
+	wire ss_step321_rs37;
+	ym7101_rs_trig rs37(.MCLK(MCLK), .set(w453), .rst(l167), .q(t37), .ss_en(ss_en), .ss_in(ss_step320_sr169), .ss_out(ss_step321_rs37));
 	
 	assign w454 = reg_80_b0 & w459;
 	
@@ -3791,7 +4178,8 @@ module ym7101
 	
 	assign w456 = w454 & t39;
 	
-	ym_sr_bit sr170(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w469), .sr_out(l170));
+	wire ss_step322_sr170;
+	ym_sr_bit sr170(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w469), .sr_out(l170), .ss_en(ss_en), .ss_in(ss_step321_rs37), .ss_out(ss_step322_sr170));
 	
 	assign w457 = ~l170;
 	
@@ -3799,21 +4187,27 @@ module ym7101
 	
 	assign w459 = ~l170 & l110;
 	
-	ym7101_rs_trig rs38(.MCLK(MCLK), .set(l172), .rst(w458), .q(t38));
+	wire ss_step323_rs38;
+	ym7101_rs_trig rs38(.MCLK(MCLK), .set(l172), .rst(w458), .q(t38), .ss_en(ss_en), .ss_in(ss_step322_sr170), .ss_out(ss_step323_rs38));
 	
-	ym_sr_bit sr171(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l114), .sr_out(l171));
+	wire ss_step324_sr171;
+	ym_sr_bit sr171(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l114), .sr_out(l171), .ss_en(ss_en), .ss_in(ss_step323_rs38), .ss_out(ss_step324_sr171));
 	
-	ym_sr_bit sr172(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~w468), .sr_out(l172));
+	wire ss_step325_sr172;
+	ym_sr_bit sr172(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~w468), .sr_out(l172), .ss_en(ss_en), .ss_in(ss_step324_sr171), .ss_out(ss_step325_sr172));
 	
-	ym7101_rs_trig rs39(.MCLK(MCLK), .set(w465), .rst(w461), .q(t39));
+	wire ss_step326_rs39;
+	ym7101_rs_trig rs39(.MCLK(MCLK), .set(w465), .rst(w461), .q(t39), .ss_en(ss_en), .ss_in(ss_step325_sr172), .ss_out(ss_step326_rs39));
 	
 	assign w460 = reg_80_b0 & ~l176 & l175;
 	
 	assign w461 = reset_comb | (w460 & l171);
 	
-	ym_sr_bit sr173(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l122), .sr_out(l173));
+	wire ss_step327_sr173;
+	ym_sr_bit sr173(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l122), .sr_out(l173), .ss_en(ss_en), .ss_in(ss_step326_rs39), .ss_out(ss_step327_sr173));
 	
-	ym_sr_bit sr174(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w467), .sr_out(l174));
+	wire ss_step328_sr174;
+	ym_sr_bit sr174(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w467), .sr_out(l174), .ss_en(ss_en), .ss_in(ss_step327_sr173), .ss_out(ss_step328_sr174));
 	
 	assign w462 = ~(l167 | reset_comb);
 	
@@ -3821,9 +4215,11 @@ module ym7101
 	
 	assign w464 = w462 & (l175 | w463);
 	
-	ym_sr_bit sr175(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w464), .sr_out(l175));
+	wire ss_step329_sr175;
+	ym_sr_bit sr175(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w464), .sr_out(l175), .ss_en(ss_en), .ss_in(ss_step328_sr174), .ss_out(ss_step329_sr175));
 	
-	ym_sr_bit sr176(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l175), .sr_out(l176));
+	wire ss_step330_sr176;
+	ym_sr_bit sr176(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l175), .sr_out(l176), .ss_en(ss_en), .ss_in(ss_step329_sr175), .ss_out(ss_step330_sr176));
 	
 	assign w465 = w460 & l173;
 	
@@ -4057,7 +4453,8 @@ module ym7101
 	assign w511 = pla_hcnt2[1];
 	assign w512 = pla_hcnt2[0];
 	
-	ym_sr_bit sr663(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t35), .sr_out(l663));
+	wire ss_step331_sr663;
+	ym_sr_bit sr663(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t35), .sr_out(l663), .ss_en(ss_en), .ss_in(ss_step330_sr176), .ss_out(ss_step331_sr663));
 	
 	assign VSYNC = w374;
 	assign CSYNC_pull = ~l128;
@@ -4069,31 +4466,40 @@ module ym7101
 	
 	assign w513 = (hclk1 & w379) | reg_test1[7];
 	
-	ym_sr_bit sr178(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l106[3]), .sr_out(l178));
+	wire ss_step332_sr178;
+	ym_sr_bit sr178(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l106[3]), .sr_out(l178), .ss_en(ss_en), .ss_in(ss_step331_sr663), .ss_out(ss_step332_sr178));
 	
 	assign w514 = hclk1 & l115 & (reg_m5 | l162);
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl179(.MCLK(MCLK), .en(w230), .inp(reg_data_l2[7:0]), .val(l179));
+	wire ss_step333_sl179;
+	ym_slatch #(.DATA_WIDTH(8)) sl179(.MCLK(MCLK), .en(w230), .inp(reg_data_l2[7:0]), .val(l179), .ss_en(ss_en), .ss_in(ss_step332_sr178), .ss_out(ss_step333_sl179));
 	
 	assign w515 = reg_m5 ? vsram_out : { 3'h0, l179 };
 	
-	ym_slatch #(.DATA_WIDTH(11)) sl180(.MCLK(MCLK), .en(w516), .inp(vsram_out), .val(l180));
+	wire ss_step334_sl180;
+	ym_slatch #(.DATA_WIDTH(11)) sl180(.MCLK(MCLK), .en(w516), .inp(vsram_out), .val(l180), .ss_en(ss_en), .ss_in(ss_step333_sl179), .ss_out(ss_step334_sl180));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(11)) sr181(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ l182, l104 }), .data_out(l181));
+	wire ss_step335_sr181;
+	ym_sr_bit_array #(.DATA_WIDTH(11)) sr181(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ l182, l104 }), .data_out(l181), .ss_en(ss_en), .ss_in(ss_step334_sl180), .ss_out(ss_step335_sr181));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(3)) sr182(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_data[10:8]), .data_out(l182));
+	wire ss_step336_sr182;
+	ym_sr_bit_array #(.DATA_WIDTH(3)) sr182(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_data[10:8]), .data_out(l182), .ss_en(ss_en), .ss_in(ss_step335_sr181), .ss_out(ss_step336_sr182));
 	
-	ym_sr_bit sr183(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l209), .sr_out(l183));
+	wire ss_step337_sr183;
+	ym_sr_bit sr183(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l209), .sr_out(l183), .ss_en(ss_en), .ss_in(ss_step336_sr182), .ss_out(ss_step337_sr183));
 	
 	assign w516 = l209 & hclk1;
 	
 	assign w517 = w514 | reg_test1[7];
 	
-	ym_slatch #(.DATA_WIDTH(11)) sl184(.MCLK(MCLK), .en(w517), .inp(w515), .val(l184));
+	wire ss_step338_sl184;
+	ym_slatch #(.DATA_WIDTH(11)) sl184(.MCLK(MCLK), .en(w517), .inp(w515), .val(l184), .ss_en(ss_en), .ss_in(ss_step337_sr183), .ss_out(ss_step338_sl184));
 	
-	ym_slatch #(.DATA_WIDTH(11)) sl185(.MCLK(MCLK), .en(w513), .inp(vsram_out), .val(l185));
+	wire ss_step339_sl185;
+	ym_slatch #(.DATA_WIDTH(11)) sl185(.MCLK(MCLK), .en(w513), .inp(vsram_out), .val(l185), .ss_en(ss_en), .ss_in(ss_step338_sl184), .ss_out(ss_step339_sl185));
 	
-	ym_sr_bit sr186(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w519), .sr_out(l186));
+	wire ss_step340_sr186;
+	ym_sr_bit sr186(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w519), .sr_out(l186), .ss_en(ss_en), .ss_in(ss_step339_sl185), .ss_out(ss_step340_sr186));
 	
 	assign w518 = { l184[10:8], l186 ? l184[7:0] : 8'h0 };
 	
@@ -4105,9 +4511,11 @@ module ym7101
 	
 	assign w522 = w521 + { 2'h0, w355[8:0] };
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl_hsz(.MCLK(MCLK), .en(w224), .inp(reg_data_l2[1:0]), .val(reg_hsz));
+	wire ss_step341_sl_hsz;
+	ym_slatch #(.DATA_WIDTH(2)) sl_hsz(.MCLK(MCLK), .en(w224), .inp(reg_data_l2[1:0]), .val(reg_hsz), .ss_en(ss_en), .ss_in(ss_step340_sr186), .ss_out(ss_step341_sl_hsz));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl_vsz(.MCLK(MCLK), .en(w224), .inp(reg_data_l2[5:4]), .val(reg_vsz));
+	wire ss_step342_sl_vsz;
+	ym_slatch #(.DATA_WIDTH(2)) sl_vsz(.MCLK(MCLK), .en(w224), .inp(reg_data_l2[5:4]), .val(reg_vsz), .ss_en(ss_en), .ss_in(ss_step341_sl_hsz), .ss_out(ss_step342_sl_vsz));
 	
 	assign w523 = reg_hsz == 2'h0;
 	
@@ -4132,19 +4540,24 @@ module ym7101
 	
 	assign w531 = reg_m5 & w558;
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl_sa(.MCLK(MCLK), .en(w218), .inp(reg_data_l2[6:3]), .val(reg_sa));
+	wire ss_step343_sl_sa;
+	ym_slatch #(.DATA_WIDTH(4)) sl_sa(.MCLK(MCLK), .en(w218), .inp(reg_data_l2[6:3]), .val(reg_sa), .ss_en(ss_en), .ss_in(ss_step342_sl_vsz), .ss_out(ss_step343_sl_sa));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl_nt(.MCLK(MCLK), .en(w218), .inp(reg_data_l2[2:1]), .val(reg_nt));
+	wire ss_step344_sl_nt;
+	ym_slatch #(.DATA_WIDTH(2)) sl_nt(.MCLK(MCLK), .en(w218), .inp(reg_data_l2[2:1]), .val(reg_nt), .ss_en(ss_en), .ss_in(ss_step343_sl_sa), .ss_out(ss_step344_sl_nt));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl_sb(.MCLK(MCLK), .en(w220), .inp(reg_data_l2[3:0]), .val(reg_sb));
+	wire ss_step345_sl_sb;
+	ym_slatch #(.DATA_WIDTH(4)) sl_sb(.MCLK(MCLK), .en(w220), .inp(reg_data_l2[3:0]), .val(reg_sb), .ss_en(ss_en), .ss_in(ss_step344_sl_nt), .ss_out(ss_step345_sl_sb));
 	
 	assign w532 = l200 ? reg_sb : reg_sa;
 	
 	assign w533 = reg_m5 ? w527[6:5] : reg_nt;
 	
-	ym_slatch sl_8e_b0(.MCLK(MCLK), .en(w232), .inp(reg_data_l2[0]), .val(reg_8e_b0));
+	wire ss_step346_sl_8e_b0;
+	ym_slatch sl_8e_b0(.MCLK(MCLK), .en(w232), .inp(reg_data_l2[0]), .val(reg_8e_b0), .ss_en(ss_en), .ss_in(ss_step345_sl_sb), .ss_out(ss_step346_sl_8e_b0));
 	
-	ym_slatch sl_8e_b4(.MCLK(MCLK), .en(w232), .inp(reg_data_l2[4]), .val(reg_8e_b4));
+	wire ss_step347_sl_8e_b4;
+	ym_slatch sl_8e_b4(.MCLK(MCLK), .en(w232), .inp(reg_data_l2[4]), .val(reg_8e_b4), .ss_en(ss_en), .ss_in(ss_step346_sl_8e_b0), .ss_out(ss_step347_sl_8e_b4));
 	
 	assign w534 = l106[8:7] != 2'h3;
 	
@@ -4154,9 +4567,11 @@ module ym7101
 		{ w537[7:3], l106[8] } :
 		{ reg_wd[0], w537[7:3] };
 	
-	ym_slatch #(.DATA_WIDTH(6)) sl_wd(.MCLK(MCLK), .en(w219), .inp(reg_data_l2[6:1]), .val(reg_wd));
+	wire ss_step348_sl_wd;
+	ym_slatch #(.DATA_WIDTH(6)) sl_wd(.MCLK(MCLK), .en(w219), .inp(reg_data_l2[6:1]), .val(reg_wd), .ss_en(ss_en), .ss_in(ss_step347_sl_8e_b4), .ss_out(ss_step348_sl_wd));
 	
-	ym_slatch #(.DATA_WIDTH(7)) sl_hs(.MCLK(MCLK), .en(w233), .inp(reg_data_l2[6:0]), .val(reg_hs));
+	wire ss_step349_sl_hs;
+	ym_slatch #(.DATA_WIDTH(7)) sl_hs(.MCLK(MCLK), .en(w233), .inp(reg_data_l2[6:0]), .val(reg_hs), .ss_en(ss_en), .ss_in(ss_step348_sl_wd), .ss_out(ss_step349_sl_hs));
 	
 	assign w537 = w106 ? w355[8:1] : w355[7:0];
 	
@@ -4168,13 +4583,17 @@ module ym7101
 	
 	assign w541 = (w540 | w539) & ~l106[3] & reg_m5;
 	
-	ym_slatch #(.DATA_WIDTH(5)) sl_whp(.MCLK(MCLK), .en(w223), .inp(reg_data_l2[4:0]), .val(reg_whp));
+	wire ss_step350_sl_whp;
+	ym_slatch #(.DATA_WIDTH(5)) sl_whp(.MCLK(MCLK), .en(w223), .inp(reg_data_l2[4:0]), .val(reg_whp), .ss_en(ss_en), .ss_in(ss_step349_sl_hs), .ss_out(ss_step350_sl_whp));
 	
-	ym_slatch sl_rigt(.MCLK(MCLK), .en(w223), .inp(reg_data_l2[7]), .val(reg_rigt));
+	wire ss_step351_sl_rigt;
+	ym_slatch sl_rigt(.MCLK(MCLK), .en(w223), .inp(reg_data_l2[7]), .val(reg_rigt), .ss_en(ss_en), .ss_in(ss_step350_sl_whp), .ss_out(ss_step351_sl_rigt));
 	
-	ym_slatch #(.DATA_WIDTH(5)) sl_wvp(.MCLK(MCLK), .en(w222), .inp(reg_data_l2[4:0]), .val(reg_wvp));
+	wire ss_step352_sl_wvp;
+	ym_slatch #(.DATA_WIDTH(5)) sl_wvp(.MCLK(MCLK), .en(w222), .inp(reg_data_l2[4:0]), .val(reg_wvp), .ss_en(ss_en), .ss_in(ss_step351_sl_rigt), .ss_out(ss_step352_sl_wvp));
 	
-	ym_slatch sl_down(.MCLK(MCLK), .en(w222), .inp(reg_data_l2[7]), .val(reg_down));
+	wire ss_step353_sl_down;
+	ym_slatch sl_down(.MCLK(MCLK), .en(w222), .inp(reg_data_l2[7]), .val(reg_down), .ss_en(ss_en), .ss_in(ss_step352_sl_wvp), .ss_out(ss_step353_sl_down));
 	
 	assign w542 = reg_test1[7] | l115;
 	
@@ -4182,13 +4601,17 @@ module ym7101
 	
 	assign w544 = w543 | reg_test1[7];
 	
-	ym_slatch sl187(.MCLK(MCLK), .en(w542), .inp(reg_rigt), .val(l187));
+	wire ss_step354_sl187;
+	ym_slatch sl187(.MCLK(MCLK), .en(w542), .inp(reg_rigt), .val(l187), .ss_en(ss_en), .ss_in(ss_step353_sl_down), .ss_out(ss_step354_sl187));
 	
-	ym_slatch #(.DATA_WIDTH(5)) sl188(.MCLK(MCLK), .en(w542), .inp(reg_whp), .val(l188));
+	wire ss_step355_sl188;
+	ym_slatch #(.DATA_WIDTH(5)) sl188(.MCLK(MCLK), .en(w542), .inp(reg_whp), .val(l188), .ss_en(ss_en), .ss_in(ss_step354_sl187), .ss_out(ss_step355_sl188));
 	
-	ym_slatch sl189(.MCLK(MCLK), .en(w544), .inp(reg_down), .val(l189));
+	wire ss_step356_sl189;
+	ym_slatch sl189(.MCLK(MCLK), .en(w544), .inp(reg_down), .val(l189), .ss_en(ss_en), .ss_in(ss_step355_sl188), .ss_out(ss_step356_sl189));
 	
-	ym_slatch #(.DATA_WIDTH(5)) sl190(.MCLK(MCLK), .en(w544), .inp(reg_wvp), .val(l190));
+	wire ss_step357_sl190;
+	ym_slatch #(.DATA_WIDTH(5)) sl190(.MCLK(MCLK), .en(w544), .inp(reg_wvp), .val(l190), .ss_en(ss_en), .ss_in(ss_step356_sl189), .ss_out(ss_step357_sl190));
 	
 	assign w545 = w537[7:3] < l190;
 	
@@ -4196,11 +4619,14 @@ module ym7101
 	
 	assign w547 = reg_test1[7] | l115;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl_88(.MCLK(MCLK), .en(w231), .inp(reg_data_l2[7:0]), .val(reg_88));
+	wire ss_step358_sl_88;
+	ym_slatch #(.DATA_WIDTH(8)) sl_88(.MCLK(MCLK), .en(w231), .inp(reg_data_l2[7:0]), .val(reg_88), .ss_en(ss_en), .ss_in(ss_step357_sl190), .ss_out(ss_step358_sl_88));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl191(.MCLK(MCLK), .en(w570), .inp(vram_serial), .val(l191));
+	wire ss_step359_sl191;
+	ym_slatch #(.DATA_WIDTH(8)) sl191(.MCLK(MCLK), .en(w570), .inp(vram_serial), .val(l191), .ss_en(ss_en), .ss_in(ss_step358_sl_88), .ss_out(ss_step359_sl191));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl192(.MCLK(MCLK), .en(w572), .inp(vram_serial), .val(l192));
+	wire ss_step360_sl192;
+	ym_slatch #(.DATA_WIDTH(8)) sl192(.MCLK(MCLK), .en(w572), .inp(vram_serial), .val(l192), .ss_en(ss_en), .ss_in(ss_step359_sl191), .ss_out(ss_step360_sl192));
 	
 	assign w548 = w394 | w385;
 	
@@ -4214,7 +4640,8 @@ module ym7101
 	
 	assign w553 = w552 | reg_m5;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl193(.MCLK(MCLK), .en(w547), .inp(reg_88), .val(l193));
+	wire ss_step361_sl193;
+	ym_slatch #(.DATA_WIDTH(8)) sl193(.MCLK(MCLK), .en(w547), .inp(reg_88), .val(l193), .ss_en(ss_en), .ss_in(ss_step360_sl192), .ss_out(ss_step361_sl193));
 	
 	assign w554 = ~(
 		(~w553 ? { 2'h0, l193 } : 10'h0) |
@@ -4222,41 +4649,53 @@ module ym7101
 		(w575 ? { l195, l192 } : 10'h0)
 		);
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl194(.MCLK(MCLK), .en(w571), .inp(vram_serial[1:0]), .val(l194));
+	wire ss_step362_sl194;
+	ym_slatch #(.DATA_WIDTH(2)) sl194(.MCLK(MCLK), .en(w571), .inp(vram_serial[1:0]), .val(l194), .ss_en(ss_en), .ss_in(ss_step361_sl193), .ss_out(ss_step362_sl194));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl195(.MCLK(MCLK), .en(w573), .inp(vram_serial[1:0]), .val(l195));
+	wire ss_step363_sl195;
+	ym_slatch #(.DATA_WIDTH(2)) sl195(.MCLK(MCLK), .en(w573), .inp(vram_serial[1:0]), .val(l195), .ss_en(ss_en), .ss_in(ss_step362_sl194), .ss_out(ss_step363_sl195));
 	
 	assign w555 = { w554[9:4], w564 } + { w567, w565, w563 } + 7'h1;
 	
-	ym_sr_bit sr196(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w548), .sr_out(l196));
+	wire ss_step364_sr196;
+	ym_sr_bit sr196(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w548), .sr_out(l196), .ss_en(ss_en), .ss_in(ss_step363_sl195), .ss_out(ss_step364_sr196));
 	
-	ym_sr_bit sr197(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l106[3]), .sr_out(l197));
+	wire ss_step365_sr197;
+	ym_sr_bit sr197(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l106[3]), .sr_out(l197), .ss_en(ss_en), .ss_in(ss_step364_sr196), .ss_out(ss_step365_sr197));
 	
-	ym_sr_bit sr198(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~w550), .sr_out(l198));
+	wire ss_step366_sr198;
+	ym_sr_bit sr198(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~w550), .sr_out(l198), .ss_en(ss_en), .ss_in(ss_step365_sr197), .ss_out(ss_step366_sr198));
 	
-	ym_sr_bit sr199(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w551), .sr_out(l199));
+	wire ss_step367_sr199;
+	ym_sr_bit sr199(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w551), .sr_out(l199), .ss_en(ss_en), .ss_in(ss_step366_sr198), .ss_out(ss_step367_sr199));
 	
 	assign w556 = reg_m5 & ~reg_test1[8] & w549;
 	
-	ym_sr_bit sr200(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w556), .sr_out(l200));
+	wire ss_step368_sr200;
+	ym_sr_bit sr200(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w556), .sr_out(l200), .ss_en(ss_en), .ss_in(ss_step367_sr199), .ss_out(ss_step368_sr200));
 	
 	assign w557 = ~w541 & w356;
 	
-	ym_sr_bit sr201(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w557), .sr_out(l201));
+	wire ss_step369_sr201;
+	ym_sr_bit sr201(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w557), .sr_out(l201), .ss_en(ss_en), .ss_in(ss_step368_sr200), .ss_out(ss_step369_sr201));
 	
 	assign w558 = l200 | l201;
 	
 	assign w559 = w356 & w541;
 	
-	ym_sr_bit sr202(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w559), .sr_out(l202));
+	wire ss_step370_sr202;
+	ym_sr_bit sr202(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w559), .sr_out(l202), .ss_en(ss_en), .ss_in(ss_step369_sr201), .ss_out(ss_step370_sr202));
 	
 	assign w560 = w356 | w549;
 	
-	ym_sr_bit sr203(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w560), .sr_out(l203));
+	wire ss_step371_sr203;
+	ym_sr_bit sr203(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w560), .sr_out(l203), .ss_en(ss_en), .ss_in(ss_step370_sr202), .ss_out(ss_step371_sr203));
 	
-	ym_sr_bit sr204(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l203), .sr_out(l204));
+	wire ss_step372_sr204;
+	ym_sr_bit sr204(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l203), .sr_out(l204), .ss_en(ss_en), .ss_in(ss_step371_sr203), .ss_out(ss_step372_sr204));
 	
-	ym_sr_bit sr205(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l204), .sr_out(l205));
+	wire ss_step373_sr205;
+	ym_sr_bit sr205(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l204), .sr_out(l205), .ss_en(ss_en), .ss_in(ss_step372_sr204), .ss_out(ss_step373_sr205));
 	
 	assign w561 = reg_rs1 ? w568 : l106[8];
 	
@@ -4274,35 +4713,46 @@ module ym7101
 	
 	assign w568 = l106[8] & (l106[7] | l106[6]);
 	
-	ym_sr_bit sr206(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w201), .sr_out(l206));
+	wire ss_step374_sr206;
+	ym_sr_bit sr206(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w201), .sr_out(l206), .ss_en(ss_en), .ss_in(ss_step373_sr205), .ss_out(ss_step374_sr206));
 	
-	ym_sr_bit sr207(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w323), .sr_out(l207));
+	wire ss_step375_sr207;
+	ym_sr_bit sr207(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w323), .sr_out(l207), .ss_en(ss_en), .ss_in(ss_step374_sr206), .ss_out(ss_step375_sr207));
 	
-	ym_sr_bit sr208(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w324), .sr_out(l208));
+	wire ss_step376_sr208;
+	ym_sr_bit sr208(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w324), .sr_out(l208), .ss_en(ss_en), .ss_in(ss_step375_sr207), .ss_out(ss_step376_sr208));
 	
-	ym_sr_bit sr209(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l206), .sr_out(l209));
+	wire ss_step377_sr209;
+	ym_sr_bit sr209(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l206), .sr_out(l209), .ss_en(ss_en), .ss_in(ss_step376_sr208), .ss_out(ss_step377_sr209));
 	
-	ym_sr_bit sr210(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l207), .sr_out(l210));
+	wire ss_step378_sr210;
+	ym_sr_bit sr210(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l207), .sr_out(l210), .ss_en(ss_en), .ss_in(ss_step377_sr209), .ss_out(ss_step378_sr210));
 	
-	ym_sr_bit sr211(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l208), .sr_out(l211));
+	wire ss_step379_sr211;
+	ym_sr_bit sr211(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l208), .sr_out(l211), .ss_en(ss_en), .ss_in(ss_step378_sr210), .ss_out(ss_step379_sr211));
 	
 	assign w569 = l206 | l207 | l208;
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr212(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w626), .data_out(l212));
+	wire ss_step380_sr212;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr212(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w626), .data_out(l212), .ss_en(ss_en), .ss_in(ss_step379_sr211), .ss_out(ss_step380_sr212));
 	
-	ym_dlatch_1 dl213(.MCLK(MCLK), .c1(clk1), .inp(~(hclk1 & l316)), .nval(l213));
+	wire ss_step381_dl213;
+	ym_dlatch_1 dl213(.MCLK(MCLK), .c1(clk1), .inp(~(hclk1 & l316)), .nval(l213), .ss_en(ss_en), .ss_in(ss_step380_sr212), .ss_out(ss_step381_dl213));
 	
 	assign w570 = l213 & clk2;
 	
-	ym_sr_bit sr214(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l213), .sr_out(l214));
+	wire ss_step382_sr214;
+	ym_sr_bit sr214(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l213), .sr_out(l214), .ss_en(ss_en), .ss_in(ss_step381_dl213), .ss_out(ss_step382_sr214));
 	
 	assign w571 = l214 & clk2;
 	
-	ym_sr_bit sr215(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l214), .sr_out(l215));
+	wire ss_step383_sr215;
+	ym_sr_bit sr215(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l214), .sr_out(l215), .ss_en(ss_en), .ss_in(ss_step382_sr214), .ss_out(ss_step383_sr215));
 	
 	assign w572 = l215 & clk2;
 	
-	ym_sr_bit sr216(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l215), .sr_out(l216));
+	wire ss_step384_sr216;
+	ym_sr_bit sr216(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l215), .sr_out(l216), .ss_en(ss_en), .ss_in(ss_step383_sr215), .ss_out(ss_step384_sr216));
 	
 	assign w573 = l216 & clk2;
 	
@@ -4322,44 +4772,59 @@ module ym7101
 	
 	assign w581 = l197 ? reg_8e_b4 : reg_8e_b0;
 	
-	ym_sr_bit sr217(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w541), .sr_out(l217));
+	wire ss_step385_sr217;
+	ym_sr_bit sr217(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w541), .sr_out(l217), .ss_en(ss_en), .ss_in(ss_step384_sr216), .ss_out(ss_step385_sr217));
 	
 	assign w582 = w394 & reg_m5;
 	
-	ym_sr_bit sr218(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w582), .sr_out(l218));
+	wire ss_step386_sr218;
+	ym_sr_bit sr218(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w582), .sr_out(l218), .ss_en(ss_en), .ss_in(ss_step385_sr217), .ss_out(ss_step386_sr218));
 	
 	assign w583 = l218 ? l222[4] : w585;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl219(.MCLK(MCLK), .en(w615), .inp(vram_serial), .val(l219));
+	wire ss_step387_sl219;
+	ym_slatch #(.DATA_WIDTH(8)) sl219(.MCLK(MCLK), .en(w615), .inp(vram_serial), .val(l219), .ss_en(ss_en), .ss_in(ss_step386_sr218), .ss_out(ss_step387_sl219));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl220(.MCLK(MCLK), .en(w616), .inp(vram_serial), .val(l220));
+	wire ss_step388_sl220;
+	ym_slatch #(.DATA_WIDTH(8)) sl220(.MCLK(MCLK), .en(w616), .inp(vram_serial), .val(l220), .ss_en(ss_en), .ss_in(ss_step387_sl219), .ss_out(ss_step388_sl220));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl221(.MCLK(MCLK), .en(w617), .inp(vram_serial), .val(l221));
+	wire ss_step389_sl221;
+	ym_slatch #(.DATA_WIDTH(8)) sl221(.MCLK(MCLK), .en(w617), .inp(vram_serial), .val(l221), .ss_en(ss_en), .ss_in(ss_step388_sl220), .ss_out(ss_step389_sl221));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl222(.MCLK(MCLK), .en(w618), .inp(vram_serial), .val(l222));
+	wire ss_step390_sl222;
+	ym_slatch #(.DATA_WIDTH(8)) sl222(.MCLK(MCLK), .en(w618), .inp(vram_serial), .val(l222), .ss_en(ss_en), .ss_in(ss_step389_sl221), .ss_out(ss_step390_sl222));
 	
 	assign w584 = reg_m5 ? l220[3] : l220[1];
 	assign w585 = reg_m5 ? l220[4] : l220[2];
 	assign w586 = reg_m5 ? l220[6:5] : { 1'h0, l220[3] };
 	assign w587 = reg_m5 ? l220[7] : l220[4];
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl223(.MCLK(MCLK), .en(w591), .inp(vram_serial), .val(l223));
+	wire ss_step391_sl223;
+	ym_slatch #(.DATA_WIDTH(8)) sl223(.MCLK(MCLK), .en(w591), .inp(vram_serial), .val(l223), .ss_en(ss_en), .ss_in(ss_step390_sl222), .ss_out(ss_step391_sl223));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl224(.MCLK(MCLK), .en(w590), .inp(vram_serial), .val(l224));
+	wire ss_step392_sl224;
+	ym_slatch #(.DATA_WIDTH(8)) sl224(.MCLK(MCLK), .en(w590), .inp(vram_serial), .val(l224), .ss_en(ss_en), .ss_in(ss_step391_sl223), .ss_out(ss_step392_sl224));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl225(.MCLK(MCLK), .en(w589), .inp(vram_serial), .val(l225));
+	wire ss_step393_sl225;
+	ym_slatch #(.DATA_WIDTH(8)) sl225(.MCLK(MCLK), .en(w589), .inp(vram_serial), .val(l225), .ss_en(ss_en), .ss_in(ss_step392_sl224), .ss_out(ss_step393_sl225));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl226(.MCLK(MCLK), .en(w588), .inp(vram_serial), .val(l226));
+	wire ss_step394_sl226;
+	ym_slatch #(.DATA_WIDTH(8)) sl226(.MCLK(MCLK), .en(w588), .inp(vram_serial), .val(l226), .ss_en(ss_en), .ss_in(ss_step393_sl225), .ss_out(ss_step394_sl226));
 	
-	ym_dlatch_1 dl227(.MCLK(MCLK), .c1(clk1), .inp(w613), .nval(l227));
+	wire ss_step395_dl227;
+	ym_dlatch_1 dl227(.MCLK(MCLK), .c1(clk1), .inp(w613), .nval(l227), .ss_en(ss_en), .ss_in(ss_step394_sl226), .ss_out(ss_step395_dl227));
 	
-	ym_sr_bit sr228(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l227), .sr_out(l228));
+	wire ss_step396_sr228;
+	ym_sr_bit sr228(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l227), .sr_out(l228), .ss_en(ss_en), .ss_in(ss_step395_dl227), .ss_out(ss_step396_sr228));
 	
-	ym_sr_bit sr229(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l228), .sr_out(l229));
+	wire ss_step397_sr229;
+	ym_sr_bit sr229(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l228), .sr_out(l229), .ss_en(ss_en), .ss_in(ss_step396_sr228), .ss_out(ss_step397_sr229));
 	
-	ym_sr_bit sr230(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l229), .sr_out(l230));
+	wire ss_step398_sr230;
+	ym_sr_bit sr230(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l229), .sr_out(l230), .ss_en(ss_en), .ss_in(ss_step397_sr229), .ss_out(ss_step398_sr230));
 	
-	ym_sr_bit sr231(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l230), .sr_out(l231));
+	wire ss_step399_sr231;
+	ym_sr_bit sr231(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l230), .sr_out(l231), .ss_en(ss_en), .ss_in(ss_step398_sr230), .ss_out(ss_step399_sr231));
 	
 	assign w588 = l227 & clk2;
 	
@@ -4369,48 +4834,67 @@ module ym7101
 	
 	assign w591 = l230 & clk2;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl232(.MCLK(MCLK), .en(w592), .inp(l223), .val(l232));
+	wire ss_step400_sl232;
+	ym_slatch #(.DATA_WIDTH(8)) sl232(.MCLK(MCLK), .en(w592), .inp(l223), .val(l232), .ss_en(ss_en), .ss_in(ss_step399_sr231), .ss_out(ss_step400_sl232));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl233(.MCLK(MCLK), .en(w592), .inp(l224), .val(l233));
+	wire ss_step401_sl233;
+	ym_slatch #(.DATA_WIDTH(8)) sl233(.MCLK(MCLK), .en(w592), .inp(l224), .val(l233), .ss_en(ss_en), .ss_in(ss_step400_sl232), .ss_out(ss_step401_sl233));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl234(.MCLK(MCLK), .en(w592), .inp(l225), .val(l234));
+	wire ss_step402_sl234;
+	ym_slatch #(.DATA_WIDTH(8)) sl234(.MCLK(MCLK), .en(w592), .inp(l225), .val(l234), .ss_en(ss_en), .ss_in(ss_step401_sl233), .ss_out(ss_step402_sl234));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl235(.MCLK(MCLK), .en(w592), .inp(l226), .val(l235));
+	wire ss_step403_sl235;
+	ym_slatch #(.DATA_WIDTH(8)) sl235(.MCLK(MCLK), .en(w592), .inp(l226), .val(l235), .ss_en(ss_en), .ss_in(ss_step402_sl234), .ss_out(ss_step403_sl235));
 	
 	assign w592 = w598 & clk2;
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl236(.MCLK(MCLK), .en(l242), .inp(w554[3:0]), .val(l236));
+	wire ss_step404_sl236;
+	ym_slatch #(.DATA_WIDTH(4)) sl236(.MCLK(MCLK), .en(l242), .inp(w554[3:0]), .val(l236), .ss_en(ss_en), .ss_in(ss_step403_sl235), .ss_out(ss_step404_sl236));
 	
 	assign w593 = w614 & l236 == 4'hf;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl237(.MCLK(MCLK), .en(w611), .inp(l232), .val(l237));
+	wire ss_step405_sl237;
+	ym_slatch #(.DATA_WIDTH(8)) sl237(.MCLK(MCLK), .en(w611), .inp(l232), .val(l237), .ss_en(ss_en), .ss_in(ss_step404_sl236), .ss_out(ss_step405_sl237));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl238(.MCLK(MCLK), .en(w611), .inp(l233), .val(l238));
+	wire ss_step406_sl238;
+	ym_slatch #(.DATA_WIDTH(8)) sl238(.MCLK(MCLK), .en(w611), .inp(l233), .val(l238), .ss_en(ss_en), .ss_in(ss_step405_sl237), .ss_out(ss_step406_sl238));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl239(.MCLK(MCLK), .en(w611), .inp(l234), .val(l239));
+	wire ss_step407_sl239;
+	ym_slatch #(.DATA_WIDTH(8)) sl239(.MCLK(MCLK), .en(w611), .inp(l234), .val(l239), .ss_en(ss_en), .ss_in(ss_step406_sl238), .ss_out(ss_step407_sl239));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl240(.MCLK(MCLK), .en(w611), .inp(l235), .val(l240));
+	wire ss_step408_sl240;
+	ym_slatch #(.DATA_WIDTH(8)) sl240(.MCLK(MCLK), .en(w611), .inp(l235), .val(l240), .ss_en(ss_en), .ss_in(ss_step407_sl239), .ss_out(ss_step408_sl240));
 	
+	wire ss_step409_cnt241;
 	ym_cnt_bit_load #(.DATA_WIDTH(4)) cnt241(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(1'h1), .reset(1'h0), .load(w614), .load_val(l236), .val(l241));
+		.c_in(1'h1), .reset(1'h0), .load(w614), .load_val(l236), .val(l241), .ss_en(ss_en), .ss_in(ss_step408_sl240), .ss_out(ss_step409_cnt241));
 	
-	ym_sr_bit sr242(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w614), .sr_out(l242));
+	wire ss_step410_sr242;
+	ym_sr_bit sr242(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w614), .sr_out(l242), .ss_en(ss_en), .ss_in(ss_step409_cnt241), .ss_out(ss_step410_sr242));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl243(.MCLK(MCLK), .en(w597), .inp(vram_serial), .val(l243));
+	wire ss_step411_sl243;
+	ym_slatch #(.DATA_WIDTH(8)) sl243(.MCLK(MCLK), .en(w597), .inp(vram_serial), .val(l243), .ss_en(ss_en), .ss_in(ss_step410_sr242), .ss_out(ss_step411_sl243));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl244(.MCLK(MCLK), .en(w596), .inp(vram_serial), .val(l244));
+	wire ss_step412_sl244;
+	ym_slatch #(.DATA_WIDTH(8)) sl244(.MCLK(MCLK), .en(w596), .inp(vram_serial), .val(l244), .ss_en(ss_en), .ss_in(ss_step411_sl243), .ss_out(ss_step412_sl244));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl245(.MCLK(MCLK), .en(w595), .inp(vram_serial), .val(l245));
+	wire ss_step413_sl245;
+	ym_slatch #(.DATA_WIDTH(8)) sl245(.MCLK(MCLK), .en(w595), .inp(vram_serial), .val(l245), .ss_en(ss_en), .ss_in(ss_step412_sl244), .ss_out(ss_step413_sl245));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl246(.MCLK(MCLK), .en(w594), .inp(vram_serial), .val(l246));
+	wire ss_step414_sl246;
+	ym_slatch #(.DATA_WIDTH(8)) sl246(.MCLK(MCLK), .en(w594), .inp(vram_serial), .val(l246), .ss_en(ss_en), .ss_in(ss_step413_sl245), .ss_out(ss_step414_sl246));
 	
-	ym_dlatch_1 dl247(.MCLK(MCLK), .c1(clk1), .inp(w600), .nval(l247));
+	wire ss_step415_dl247;
+	ym_dlatch_1 dl247(.MCLK(MCLK), .c1(clk1), .inp(w600), .nval(l247), .ss_en(ss_en), .ss_in(ss_step414_sl246), .ss_out(ss_step415_dl247));
 	
-	ym_sr_bit sr248(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l247), .sr_out(l248));
+	wire ss_step416_sr248;
+	ym_sr_bit sr248(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l247), .sr_out(l248), .ss_en(ss_en), .ss_in(ss_step415_dl247), .ss_out(ss_step416_sr248));
 	
-	ym_sr_bit sr249(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l248), .sr_out(l249));
+	wire ss_step417_sr249;
+	ym_sr_bit sr249(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l248), .sr_out(l249), .ss_en(ss_en), .ss_in(ss_step416_sr248), .ss_out(ss_step417_sr249));
 	
-	ym_sr_bit sr250(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l249), .sr_out(l250));
+	wire ss_step418_sr250;
+	ym_sr_bit sr250(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l249), .sr_out(l250), .ss_en(ss_en), .ss_in(ss_step417_sr249), .ss_out(ss_step418_sr250));
 	
 	assign w594 = l247 & clk2;
 	
@@ -4420,36 +4904,51 @@ module ym7101
 	
 	assign w597 = l250 & clk2;
 	
-	ym_dlatch_1 dl251(.MCLK(MCLK), .c1(clk1), .inp(w633), .nval(l251));
+	wire ss_step419_dl251;
+	ym_dlatch_1 dl251(.MCLK(MCLK), .c1(clk1), .inp(w633), .nval(l251), .ss_en(ss_en), .ss_in(ss_step418_sr250), .ss_out(ss_step419_dl251));
 	
-	ym_sr_bit sr252(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l251), .sr_out(l252));
+	wire ss_step420_sr252;
+	ym_sr_bit sr252(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l251), .sr_out(l252), .ss_en(ss_en), .ss_in(ss_step419_dl251), .ss_out(ss_step420_sr252));
 	
-	ym_sr_bit sr253(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l252), .sr_out(l253));
+	wire ss_step421_sr253;
+	ym_sr_bit sr253(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l252), .sr_out(l253), .ss_en(ss_en), .ss_in(ss_step420_sr252), .ss_out(ss_step421_sr253));
 	
-	ym_sr_bit sr254(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l253), .sr_out(l254));
+	wire ss_step422_sr254;
+	ym_sr_bit sr254(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l253), .sr_out(l254), .ss_en(ss_en), .ss_in(ss_step421_sr253), .ss_out(ss_step422_sr254));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl255(.MCLK(MCLK), .en(w592), .inp(l243), .val(l255));
+	wire ss_step423_sl255;
+	ym_slatch #(.DATA_WIDTH(8)) sl255(.MCLK(MCLK), .en(w592), .inp(l243), .val(l255), .ss_en(ss_en), .ss_in(ss_step422_sr254), .ss_out(ss_step423_sl255));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl256(.MCLK(MCLK), .en(w592), .inp(l244), .val(l256));
+	wire ss_step424_sl256;
+	ym_slatch #(.DATA_WIDTH(8)) sl256(.MCLK(MCLK), .en(w592), .inp(l244), .val(l256), .ss_en(ss_en), .ss_in(ss_step423_sl255), .ss_out(ss_step424_sl256));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl257(.MCLK(MCLK), .en(w592), .inp(l245), .val(l257));
+	wire ss_step425_sl257;
+	ym_slatch #(.DATA_WIDTH(8)) sl257(.MCLK(MCLK), .en(w592), .inp(l245), .val(l257), .ss_en(ss_en), .ss_in(ss_step424_sl256), .ss_out(ss_step425_sl257));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl258(.MCLK(MCLK), .en(w592), .inp(l246), .val(l258));
+	wire ss_step426_sl258;
+	ym_slatch #(.DATA_WIDTH(8)) sl258(.MCLK(MCLK), .en(w592), .inp(l246), .val(l258), .ss_en(ss_en), .ss_in(ss_step425_sl257), .ss_out(ss_step426_sl258));
 	
+	wire ss_step427_sl259;
 	ym_slatch #(.DATA_WIDTH(8)) sl259(.MCLK(MCLK), .en(w591),
-		.inp({ w587, l222[7], w586[1], l222[6], w586[0], l222[5], w584, l222[3] }), .val(l259));
+		.inp({ w587, l222[7], w586[1], l222[6], w586[0], l222[5], w584, l222[3] }), .val(l259), .ss_en(ss_en), .ss_in(ss_step426_sl258), .ss_out(ss_step427_sl259));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl260(.MCLK(MCLK), .en(w592), .inp(l259), .val(l260));
+	wire ss_step428_sl260;
+	ym_slatch #(.DATA_WIDTH(8)) sl260(.MCLK(MCLK), .en(w592), .inp(l259), .val(l260), .ss_en(ss_en), .ss_in(ss_step427_sl259), .ss_out(ss_step428_sl260));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl261(.MCLK(MCLK), .en(w611), .inp(l255), .val(l261));
+	wire ss_step429_sl261;
+	ym_slatch #(.DATA_WIDTH(8)) sl261(.MCLK(MCLK), .en(w611), .inp(l255), .val(l261), .ss_en(ss_en), .ss_in(ss_step428_sl260), .ss_out(ss_step429_sl261));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl262(.MCLK(MCLK), .en(w611), .inp(l256), .val(l262));
+	wire ss_step430_sl262;
+	ym_slatch #(.DATA_WIDTH(8)) sl262(.MCLK(MCLK), .en(w611), .inp(l256), .val(l262), .ss_en(ss_en), .ss_in(ss_step429_sl261), .ss_out(ss_step430_sl262));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl263(.MCLK(MCLK), .en(w611), .inp(l257), .val(l263));
+	wire ss_step431_sl263;
+	ym_slatch #(.DATA_WIDTH(8)) sl263(.MCLK(MCLK), .en(w611), .inp(l257), .val(l263), .ss_en(ss_en), .ss_in(ss_step430_sl262), .ss_out(ss_step431_sl263));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl264(.MCLK(MCLK), .en(w611), .inp(l258), .val(l264));
+	wire ss_step432_sl264;
+	ym_slatch #(.DATA_WIDTH(8)) sl264(.MCLK(MCLK), .en(w611), .inp(l258), .val(l264), .ss_en(ss_en), .ss_in(ss_step431_sl263), .ss_out(ss_step432_sl264));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl265(.MCLK(MCLK), .en(w611), .inp(l260), .val(l265));
+	wire ss_step433_sl265;
+	ym_slatch #(.DATA_WIDTH(8)) sl265(.MCLK(MCLK), .en(w611), .inp(l260), .val(l265), .ss_en(ss_en), .ss_in(ss_step432_sl264), .ss_out(ss_step433_sl265));
 	
 	assign w598 = reg_m5 ? l302 : l231;
 	
@@ -4523,82 +5022,110 @@ module ym7101
 	
 	assign w610 = ~(w609 | w593);
 	
-	ym_dlatch_1 dl266(.MCLK(MCLK), .c1(hclk1), .inp(w610), .nval(l266));
+	wire ss_step434_dl266;
+	ym_dlatch_1 dl266(.MCLK(MCLK), .c1(hclk1), .inp(w610), .nval(l266), .ss_en(ss_en), .ss_in(ss_step433_sl265), .ss_out(ss_step434_dl266));
 	
 	assign w611 = hclk2 & l266;
 	
 	assign w612 = w393 | (reg_test1[9] & cpu_pen);
 	
-	ym_sr_bit sr267(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w612), .sr_out(l267));
+	wire ss_step435_sr267;
+	ym_sr_bit sr267(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w612), .sr_out(l267), .ss_en(ss_en), .ss_in(ss_step434_dl266), .ss_out(ss_step435_sr267));
 	
-	ym_sr_bit sr268(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l267), .sr_out(l268));
+	wire ss_step436_sr268;
+	ym_sr_bit sr268(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l267), .sr_out(l268), .ss_en(ss_en), .ss_in(ss_step435_sr267), .ss_out(ss_step436_sr268));
 	
 	assign w613 = ~(l268 & hclk1);
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr269(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w607), .data_out(l269));
+	wire ss_step437_sr269;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr269(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w607), .data_out(l269), .ss_en(ss_en), .ss_in(ss_step436_sr268), .ss_out(ss_step437_sr269));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr270(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l269), .data_out(l270));
+	wire ss_step438_sr270;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr270(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l269), .data_out(l270), .ss_en(ss_en), .ss_in(ss_step437_sr269), .ss_out(ss_step438_sr270));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(2)) sr271(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w604, w603 }), .data_out(l271));
+	wire ss_step439_sr271;
+	ym_sr_bit_array #(.DATA_WIDTH(2)) sr271(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w604, w603 }), .data_out(l271), .ss_en(ss_en), .ss_in(ss_step438_sr270), .ss_out(ss_step439_sr271));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(2)) sr272(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l271), .data_out(l272));
+	wire ss_step440_sr272;
+	ym_sr_bit_array #(.DATA_WIDTH(2)) sr272(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l271), .data_out(l272), .ss_en(ss_en), .ss_in(ss_step439_sr271), .ss_out(ss_step440_sr272));
 	
-	ym_sr_bit sr273(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w605), .sr_out(l273));
+	wire ss_step441_sr273;
+	ym_sr_bit sr273(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w605), .sr_out(l273), .ss_en(ss_en), .ss_in(ss_step440_sr272), .ss_out(ss_step441_sr273));
 	
-	ym_sr_bit sr274(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l273), .sr_out(l274));
+	wire ss_step442_sr274;
+	ym_sr_bit sr274(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l273), .sr_out(l274), .ss_en(ss_en), .ss_in(ss_step441_sr273), .ss_out(ss_step442_sr274));
 	
 	assign w614 = w424 | w90;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl275(.MCLK(MCLK), .en(w622), .inp(vram_serial), .val(l275));
+	wire ss_step443_sl275;
+	ym_slatch #(.DATA_WIDTH(8)) sl275(.MCLK(MCLK), .en(w622), .inp(vram_serial), .val(l275), .ss_en(ss_en), .ss_in(ss_step442_sr274), .ss_out(ss_step443_sl275));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl276(.MCLK(MCLK), .en(w621), .inp(vram_serial), .val(l276));
+	wire ss_step444_sl276;
+	ym_slatch #(.DATA_WIDTH(8)) sl276(.MCLK(MCLK), .en(w621), .inp(vram_serial), .val(l276), .ss_en(ss_en), .ss_in(ss_step443_sl275), .ss_out(ss_step444_sl276));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl277(.MCLK(MCLK), .en(w620), .inp(vram_serial), .val(l277));
+	wire ss_step445_sl277;
+	ym_slatch #(.DATA_WIDTH(8)) sl277(.MCLK(MCLK), .en(w620), .inp(vram_serial), .val(l277), .ss_en(ss_en), .ss_in(ss_step444_sl276), .ss_out(ss_step445_sl277));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl278(.MCLK(MCLK), .en(w619), .inp(vram_serial), .val(l278));
+	wire ss_step446_sl278;
+	ym_slatch #(.DATA_WIDTH(8)) sl278(.MCLK(MCLK), .en(w619), .inp(vram_serial), .val(l278), .ss_en(ss_en), .ss_in(ss_step445_sl277), .ss_out(ss_step446_sl278));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl279(.MCLK(MCLK), .en(w631), .inp(l275), .val(l279));
+	wire ss_step447_sl279;
+	ym_slatch #(.DATA_WIDTH(8)) sl279(.MCLK(MCLK), .en(w631), .inp(l275), .val(l279), .ss_en(ss_en), .ss_in(ss_step446_sl278), .ss_out(ss_step447_sl279));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl280(.MCLK(MCLK), .en(w631), .inp(l276), .val(l280));
+	wire ss_step448_sl280;
+	ym_slatch #(.DATA_WIDTH(8)) sl280(.MCLK(MCLK), .en(w631), .inp(l276), .val(l280), .ss_en(ss_en), .ss_in(ss_step447_sl279), .ss_out(ss_step448_sl280));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl281(.MCLK(MCLK), .en(w631), .inp(l277), .val(l281));
+	wire ss_step449_sl281;
+	ym_slatch #(.DATA_WIDTH(8)) sl281(.MCLK(MCLK), .en(w631), .inp(l277), .val(l281), .ss_en(ss_en), .ss_in(ss_step448_sl280), .ss_out(ss_step449_sl281));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl282(.MCLK(MCLK), .en(w631), .inp(l278), .val(l282));
+	wire ss_step450_sl282;
+	ym_slatch #(.DATA_WIDTH(8)) sl282(.MCLK(MCLK), .en(w631), .inp(l278), .val(l282), .ss_en(ss_en), .ss_in(ss_step449_sl281), .ss_out(ss_step450_sl282));
 	
 	assign w615 = l251 & clk2;
 	assign w616 = l252 & clk2;
 	assign w617 = l253 & clk2;
 	assign w618 = l254 & clk2;
 	
-	ym_dlatch_1 dl283(.MCLK(MCLK), .c1(clk1), .inp(w640), .nval(l283));
+	wire ss_step451_dl283;
+	ym_dlatch_1 dl283(.MCLK(MCLK), .c1(clk1), .inp(w640), .nval(l283), .ss_en(ss_en), .ss_in(ss_step450_sl282), .ss_out(ss_step451_dl283));
 	
-	ym_sr_bit sr284(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l283), .sr_out(l284));
+	wire ss_step452_sr284;
+	ym_sr_bit sr284(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l283), .sr_out(l284), .ss_en(ss_en), .ss_in(ss_step451_dl283), .ss_out(ss_step452_sr284));
 	
-	ym_sr_bit sr285(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l284), .sr_out(l285));
+	wire ss_step453_sr285;
+	ym_sr_bit sr285(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l284), .sr_out(l285), .ss_en(ss_en), .ss_in(ss_step452_sr284), .ss_out(ss_step453_sr285));
 	
-	ym_sr_bit sr286(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l285), .sr_out(l286));
+	wire ss_step454_sr286;
+	ym_sr_bit sr286(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l285), .sr_out(l286), .ss_en(ss_en), .ss_in(ss_step453_sr285), .ss_out(ss_step454_sr286));
 	
 	assign w619 = l283 & clk2;
 	assign w620 = l284 & clk2;
 	assign w621 = l285 & clk2;
 	assign w622 = l286 & clk2;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl287(.MCLK(MCLK), .en(w645), .inp(l279), .val(l287));
+	wire ss_step455_sl287;
+	ym_slatch #(.DATA_WIDTH(8)) sl287(.MCLK(MCLK), .en(w645), .inp(l279), .val(l287), .ss_en(ss_en), .ss_in(ss_step454_sr286), .ss_out(ss_step455_sl287));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl288(.MCLK(MCLK), .en(w645), .inp(l280), .val(l288));
+	wire ss_step456_sl288;
+	ym_slatch #(.DATA_WIDTH(8)) sl288(.MCLK(MCLK), .en(w645), .inp(l280), .val(l288), .ss_en(ss_en), .ss_in(ss_step455_sl287), .ss_out(ss_step456_sl288));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl289(.MCLK(MCLK), .en(w645), .inp(l281), .val(l289));
+	wire ss_step457_sl289;
+	ym_slatch #(.DATA_WIDTH(8)) sl289(.MCLK(MCLK), .en(w645), .inp(l281), .val(l289), .ss_en(ss_en), .ss_in(ss_step456_sl288), .ss_out(ss_step457_sl289));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl290(.MCLK(MCLK), .en(w645), .inp(l282), .val(l290));
+	wire ss_step458_sl290;
+	ym_slatch #(.DATA_WIDTH(8)) sl290(.MCLK(MCLK), .en(w645), .inp(l282), .val(l290), .ss_en(ss_en), .ss_in(ss_step457_sl289), .ss_out(ss_step458_sl290));
 	
+	wire ss_step459_sl291;
 	ym_slatch #(.DATA_WIDTH(8)) sl291(.MCLK(MCLK), .en(w631),
-		.inp({ w587, l222[7], w586[1], l222[6], w586[0], l222[5], w584, l222[3] }), .val(l291));
+		.inp({ w587, l222[7], w586[1], l222[6], w586[0], l222[5], w584, l222[3] }), .val(l291), .ss_en(ss_en), .ss_in(ss_step458_sl290), .ss_out(ss_step459_sl291));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl292(.MCLK(MCLK), .en(w645), .inp(l291), .val(l292));
+	wire ss_step460_sl292;
+	ym_slatch #(.DATA_WIDTH(8)) sl292(.MCLK(MCLK), .en(w645), .inp(l291), .val(l292), .ss_en(ss_en), .ss_in(ss_step459_sl291), .ss_out(ss_step460_sl292));
 	
 	assign w623 = ~(reg_m5 & reg_vscr);
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr293(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_address[6:1]), .data_out(l293));
+	wire ss_step461_sr293;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr293(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_address[6:1]), .data_out(l293), .ss_en(ss_en), .ss_in(ss_step460_sl292), .ss_out(ss_step461_sr293));
 	
 	assign w624 = w623 ^ l106[3];
 	
@@ -4606,23 +5133,32 @@ module ym7101
 	
 	assign w626 = w569 ? l293 : { w625, w624 };
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl294(.MCLK(MCLK), .en(w630), .inp(vram_serial), .val(l294));
+	wire ss_step462_sl294;
+	ym_slatch #(.DATA_WIDTH(8)) sl294(.MCLK(MCLK), .en(w630), .inp(vram_serial), .val(l294), .ss_en(ss_en), .ss_in(ss_step461_sr293), .ss_out(ss_step462_sl294));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl295(.MCLK(MCLK), .en(w629), .inp(vram_serial), .val(l295));
+	wire ss_step463_sl295;
+	ym_slatch #(.DATA_WIDTH(8)) sl295(.MCLK(MCLK), .en(w629), .inp(vram_serial), .val(l295), .ss_en(ss_en), .ss_in(ss_step462_sl294), .ss_out(ss_step463_sl295));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl296(.MCLK(MCLK), .en(w628), .inp(vram_serial), .val(l296));
+	wire ss_step464_sl296;
+	ym_slatch #(.DATA_WIDTH(8)) sl296(.MCLK(MCLK), .en(w628), .inp(vram_serial), .val(l296), .ss_en(ss_en), .ss_in(ss_step463_sl295), .ss_out(ss_step464_sl296));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl297(.MCLK(MCLK), .en(w627), .inp(vram_serial), .val(l297));
+	wire ss_step465_sl297;
+	ym_slatch #(.DATA_WIDTH(8)) sl297(.MCLK(MCLK), .en(w627), .inp(vram_serial), .val(l297), .ss_en(ss_en), .ss_in(ss_step464_sl296), .ss_out(ss_step465_sl297));
 	
-	ym_dlatch_1 dl298(.MCLK(MCLK), .c1(clk1), .inp(w639), .nval(l298));
+	wire ss_step466_dl298;
+	ym_dlatch_1 dl298(.MCLK(MCLK), .c1(clk1), .inp(w639), .nval(l298), .ss_en(ss_en), .ss_in(ss_step465_sl297), .ss_out(ss_step466_dl298));
 	
-	ym_sr_bit sr299(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l298), .sr_out(l299));
+	wire ss_step467_sr299;
+	ym_sr_bit sr299(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l298), .sr_out(l299), .ss_en(ss_en), .ss_in(ss_step466_dl298), .ss_out(ss_step467_sr299));
 	
-	ym_sr_bit sr300(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l299), .sr_out(l300));
+	wire ss_step468_sr300;
+	ym_sr_bit sr300(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l299), .sr_out(l300), .ss_en(ss_en), .ss_in(ss_step467_sr299), .ss_out(ss_step468_sr300));
 	
-	ym_sr_bit sr301(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l300), .sr_out(l301));
+	wire ss_step469_sr301;
+	ym_sr_bit sr301(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l300), .sr_out(l301), .ss_en(ss_en), .ss_in(ss_step468_sr300), .ss_out(ss_step469_sr301));
 	
-	ym_sr_bit sr302(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l301), .sr_out(l302));
+	wire ss_step470_sr302;
+	ym_sr_bit sr302(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l301), .sr_out(l302), .ss_en(ss_en), .ss_in(ss_step469_sr301), .ss_out(ss_step470_sr302));
 	
 	assign w627 = l298 & clk2;
 	
@@ -4634,24 +5170,33 @@ module ym7101
 	
 	assign w631 = l302 & clk2;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl303(.MCLK(MCLK), .en(w631), .inp(l294), .val(l303));
+	wire ss_step471_sl303;
+	ym_slatch #(.DATA_WIDTH(8)) sl303(.MCLK(MCLK), .en(w631), .inp(l294), .val(l303), .ss_en(ss_en), .ss_in(ss_step470_sr302), .ss_out(ss_step471_sl303));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl304(.MCLK(MCLK), .en(w631), .inp(l295), .val(l304));
+	wire ss_step472_sl304;
+	ym_slatch #(.DATA_WIDTH(8)) sl304(.MCLK(MCLK), .en(w631), .inp(l295), .val(l304), .ss_en(ss_en), .ss_in(ss_step471_sl303), .ss_out(ss_step472_sl304));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl305(.MCLK(MCLK), .en(w631), .inp(l296), .val(l305));
+	wire ss_step473_sl305;
+	ym_slatch #(.DATA_WIDTH(8)) sl305(.MCLK(MCLK), .en(w631), .inp(l296), .val(l305), .ss_en(ss_en), .ss_in(ss_step472_sl304), .ss_out(ss_step473_sl305));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl306(.MCLK(MCLK), .en(w631), .inp(l297), .val(l306));
+	wire ss_step474_sl306;
+	ym_slatch #(.DATA_WIDTH(8)) sl306(.MCLK(MCLK), .en(w631), .inp(l297), .val(l306), .ss_en(ss_en), .ss_in(ss_step473_sl305), .ss_out(ss_step474_sl306));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl307(.MCLK(MCLK), .en(w645), .inp(l303), .val(l307));
+	wire ss_step475_sl307;
+	ym_slatch #(.DATA_WIDTH(8)) sl307(.MCLK(MCLK), .en(w645), .inp(l303), .val(l307), .ss_en(ss_en), .ss_in(ss_step474_sl306), .ss_out(ss_step475_sl307));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl308(.MCLK(MCLK), .en(w645), .inp(l304), .val(l308));
+	wire ss_step476_sl308;
+	ym_slatch #(.DATA_WIDTH(8)) sl308(.MCLK(MCLK), .en(w645), .inp(l304), .val(l308), .ss_en(ss_en), .ss_in(ss_step475_sl307), .ss_out(ss_step476_sl308));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl309(.MCLK(MCLK), .en(w645), .inp(l305), .val(l309));
+	wire ss_step477_sl309;
+	ym_slatch #(.DATA_WIDTH(8)) sl309(.MCLK(MCLK), .en(w645), .inp(l305), .val(l309), .ss_en(ss_en), .ss_in(ss_step476_sl308), .ss_out(ss_step477_sl309));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl310(.MCLK(MCLK), .en(w645), .inp(l306), .val(l310));
+	wire ss_step478_sl310;
+	ym_slatch #(.DATA_WIDTH(8)) sl310(.MCLK(MCLK), .en(w645), .inp(l306), .val(l310), .ss_en(ss_en), .ss_in(ss_step477_sl309), .ss_out(ss_step478_sl310));
 	
+	wire ss_step479_cnt311;
 	ym_cnt_bit_load #(.DATA_WIDTH(4)) cnt311(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(1'h1), .reset(1'h0), .load(w649), .load_val({~w554[3], w554[2:0]}), .val(l311));
+		.c_in(1'h1), .reset(1'h0), .load(w649), .load_val({~w554[3], w554[2:0]}), .val(l311), .ss_en(ss_en), .ss_in(ss_step478_sl310), .ss_out(ss_step479_cnt311));
 	
 	wire [2:0] w632_t = l311[2:0];
 	
@@ -4666,9 +5211,11 @@ module ym7101
 	
 	assign w638 = w402 | (reg_test1[10] & cpu_pen);
 	
-	ym_sr_bit sr312(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w638), .sr_out(l312));
+	wire ss_step480_sr312;
+	ym_sr_bit sr312(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w638), .sr_out(l312), .ss_en(ss_en), .ss_in(ss_step479_cnt311), .ss_out(ss_step480_sr312));
 	
-	ym_sr_bit sr313(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l312), .sr_out(l313));
+	wire ss_step481_sr313;
+	ym_sr_bit sr313(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l312), .sr_out(l313), .ss_en(ss_en), .ss_in(ss_step480_sr312), .ss_out(ss_step481_sr313));
 	
 	assign w639 = ~(hclk1 & l313);
 	
@@ -4678,17 +5225,21 @@ module ym7101
 	
 	assign w642 = w419 | (reg_test1[7] & cpu_pen);
 	
-	ym_sr_bit sr314(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w642), .sr_out(l314));
+	wire ss_step482_sr314;
+	ym_sr_bit sr314(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w642), .sr_out(l314), .ss_en(ss_en), .ss_in(ss_step481_sr313), .ss_out(ss_step482_sr314));
 	
-	ym_sr_bit sr315(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l314), .sr_out(l315));
+	wire ss_step483_sr315;
+	ym_sr_bit sr315(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l314), .sr_out(l315), .ss_en(ss_en), .ss_in(ss_step482_sr314), .ss_out(ss_step483_sr315));
 	
-	ym_sr_bit sr316(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l315), .sr_out(l316));
+	wire ss_step484_sr316;
+	ym_sr_bit sr316(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l315), .sr_out(l316), .ss_en(ss_en), .ss_in(ss_step483_sr315), .ss_out(ss_step484_sr316));
 	
 	assign w643 = l314 & ~reg_test1[7];
 	
 	assign w644 = ~(l311 == 4'hf);
 	
-	ym_dlatch_1 dl317(.MCLK(MCLK), .c1(hclk1), .inp(w644), .nval(l317));
+	wire ss_step485_dl317;
+	ym_dlatch_1 dl317(.MCLK(MCLK), .c1(hclk1), .inp(w644), .nval(l317), .ss_en(ss_en), .ss_in(ss_step484_sr316), .ss_out(ss_step485_dl317));
 	
 	assign w645 = l317 & hclk2;
 	
@@ -4729,31 +5280,48 @@ module ym7101
 		(l311[3] ? w647_1 : 4'h0) |
 		(~l311[3] ? w647_2 : 4'h0);
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr318(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w647), .data_out(l318));
+	wire ss_step486_sr318;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr318(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w647), .data_out(l318), .ss_en(ss_en), .ss_in(ss_step485_dl317), .ss_out(ss_step486_sr318));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr319(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l318), .data_out(l319));
+	wire ss_step487_sr319;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr319(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l318), .data_out(l319), .ss_en(ss_en), .ss_in(ss_step486_sr318), .ss_out(ss_step487_sr319));
 	
 	assign w648 = l318 != 4'h0;
 	
-	ym_sr_bit sr320(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w637), .sr_out(l320));
+	wire ss_step488_sr320;
+	ym_sr_bit sr320(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w637), .sr_out(l320), .ss_en(ss_en), .ss_in(ss_step487_sr319), .ss_out(ss_step488_sr320));
 	
-	ym_sr_bit sr321(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l320), .sr_out(l321));
+	wire ss_step489_sr321;
+	ym_sr_bit sr321(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l320), .sr_out(l321), .ss_en(ss_en), .ss_in(ss_step488_sr320), .ss_out(ss_step489_sr321));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(2)) sr322(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({w636, w635}), .data_out(l322));
+	wire ss_step490_sr322;
+	ym_sr_bit_array #(.DATA_WIDTH(2)) sr322(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({w636, w635}), .data_out(l322), .ss_en(ss_en), .ss_in(ss_step489_sr321), .ss_out(ss_step490_sr322));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(2)) sr323(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l322), .data_out(l323));
+	wire ss_step491_sr323;
+	ym_sr_bit_array #(.DATA_WIDTH(2)) sr323(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l322), .data_out(l323), .ss_en(ss_en), .ss_in(ss_step490_sr322), .ss_out(ss_step491_sr323));
 	
 	assign w649 = w92 | w415;
 	
 	// vsram
 	
-	wire [5:0] vsram_index = l212;
+	wire [5:0] vsram_index = ss_arr_sel ? ss_arr_addr[5:0] : l212;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			vsram_out <= {vsram_out[9:0], ss_step491_sr323};
+			vsram_out_1 <= {vsram_out_1[9:0], vsram_out[10]};
+			vsram_out_0 <= {vsram_out_0[9:0], vsram_out_1[10]};
+		end
+		else
+		begin
+
 		if (vsram_index < 6'd40)
 		begin
-			if (hclk1) // write cycle
+			if (ss_arr_sel & ss_arr_wr & ss_arr_addr[6])
+				vsram[vsram_index] <= ss_arr_din[10:0];
+			else if (hclk1 && !ss_en) // write cycle
 			begin
 				if (l211)
 					vsram[vsram_index][7:0] <= l181[7:0];
@@ -4773,34 +5341,45 @@ module ym7101
 			else
 				vsram_out <= vsram_out & vsram_out_0;
 		end
-	end
+			end
+end
 	
 	
 	// Sprite block
 	
 	assign w650 = l325 ? { sat_size, sat_link } : sat_ypos;
 	
-	ym_slatch #(.DATA_WIDTH(11)) sl324(.MCLK(MCLK), .en(w651), .inp(w650), .val(l324));
+	wire ss_step493_sl324;
+	ym_slatch #(.DATA_WIDTH(11)) sl324(.MCLK(MCLK), .en(w651), .inp(w650), .val(l324), .ss_en(ss_en), .ss_in(vsram_out_0[10]), .ss_out(ss_step493_sl324));
 	
-	ym_sr_bit sr325(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vram_address[1]), .sr_out(l325));
+	wire ss_step494_sr325;
+	ym_sr_bit sr325(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vram_address[1]), .sr_out(l325), .ss_en(ss_en), .ss_in(ss_step493_sl324), .ss_out(ss_step494_sr325));
 	
-	ym_sr_bit sr326(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w179), .sr_out(l326));
+	wire ss_step495_sr326;
+	ym_sr_bit sr326(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w179), .sr_out(l326), .ss_en(ss_en), .ss_in(ss_step494_sr325), .ss_out(ss_step495_sr326));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(11)) sr327(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in( { sat_size, sat_link } ), .data_out(l327));
+	wire ss_step496_sr327;
+	ym_sr_bit_array #(.DATA_WIDTH(11)) sr327(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in( { sat_size, sat_link } ), .data_out(l327), .ss_en(ss_en), .ss_in(ss_step495_sr326), .ss_out(ss_step496_sr327));
 	
-	ym_dlatch_1 #(.DATA_WIDTH(11)) dl328(.MCLK(MCLK), .c1(hclk1), .inp(l327), .nval(l328));
+	wire ss_step497_dl328;
+	ym_dlatch_1 #(.DATA_WIDTH(11)) dl328(.MCLK(MCLK), .c1(hclk1), .inp(l327), .nval(l328), .ss_en(ss_en), .ss_in(ss_step496_sr327), .ss_out(ss_step497_dl328));
 	
 	assign w651 = hclk1 & l326;
 	
-	ym_sr_bit sr329(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l326), .sr_out(l329));
+	wire ss_step498_sr329;
+	ym_sr_bit sr329(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l326), .sr_out(l329), .ss_en(ss_en), .ss_in(ss_step497_dl328), .ss_out(ss_step498_sr329));
 	
-	ym_sr_bit sr330(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l329), .sr_out(l330));
+	wire ss_step499_sr330;
+	ym_sr_bit sr330(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l329), .sr_out(l330), .ss_en(ss_en), .ss_in(ss_step498_sr329), .ss_out(ss_step499_sr330));
 	
-	ym_sr_bit sr331(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l134), .sr_out(l331));
+	wire ss_step500_sr331;
+	ym_sr_bit sr331(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l134), .sr_out(l331), .ss_en(ss_en), .ss_in(ss_step499_sr330), .ss_out(ss_step500_sr331));
 	
-	ym_slatch #(.DATA_WIDTH(11)) sl332(.MCLK(MCLK), .en(w652), .inp(l328), .val(l332));
+	wire ss_step501_sl332;
+	ym_slatch #(.DATA_WIDTH(11)) sl332(.MCLK(MCLK), .en(w652), .inp(l328), .val(l332), .ss_en(ss_en), .ss_in(ss_step500_sr331), .ss_out(ss_step501_sl332));
 	
-	ym_dlatch_1 dl333(.MCLK(MCLK), .c1(hclk1), .inp(w679), .nval(l333));
+	wire ss_step502_dl333;
+	ym_dlatch_1 dl333(.MCLK(MCLK), .c1(hclk1), .inp(w679), .nval(l333), .ss_en(ss_en), .ss_in(ss_step501_sl332), .ss_out(ss_step502_dl333));
 	
 	assign w652 = hclk2 & clk2 & l333;
 	
@@ -4818,23 +5397,29 @@ module ym7101
 	
 	assign w659 = ~(hclk1 & ~w679);
 	
-	ym_dlatch_1 dl334(.MCLK(MCLK), .c1(clk1), .inp(w659), .nval(l334));
+	wire ss_step503_dl334;
+	ym_dlatch_1 dl334(.MCLK(MCLK), .c1(clk1), .inp(w659), .nval(l334), .ss_en(ss_en), .ss_in(ss_step502_dl333), .ss_out(ss_step503_dl334));
 	
 	assign w660 = l334 & clk2;
 	
-	ym_sr_bit sr335(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l334), .sr_out(l335));
+	wire ss_step504_sr335;
+	ym_sr_bit sr335(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l334), .sr_out(l335), .ss_en(ss_en), .ss_in(ss_step503_dl334), .ss_out(ss_step504_sr335));
 	
 	assign w661 = l335 & clk2;
 	
 	assign w662 = 10'h1 + w653 + l340;
 	
-	ym_sr_bit sr336(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~l332[10]), .sr_out(l336));
+	wire ss_step505_sr336;
+	ym_sr_bit sr336(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~l332[10]), .sr_out(l336), .ss_en(ss_en), .ss_in(ss_step504_sr335), .ss_out(ss_step505_sr336));
 	
-	ym_sr_bit sr337(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~l332[9]), .sr_out(l337));
+	wire ss_step506_sr337;
+	ym_sr_bit sr337(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(~l332[9]), .sr_out(l337), .ss_en(ss_en), .ss_in(ss_step505_sr336), .ss_out(ss_step506_sr337));
 	
-	ym_sr_bit sr338(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w656), .sr_out(l338));
+	wire ss_step507_sr338;
+	ym_sr_bit sr338(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w656), .sr_out(l338), .ss_en(ss_en), .ss_in(ss_step506_sr337), .ss_out(ss_step507_sr338));
 	
-	ym_sr_bit sr339(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w657), .sr_out(l339));
+	wire ss_step508_sr339;
+	ym_sr_bit sr339(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w657), .sr_out(l339), .ss_en(ss_en), .ss_in(ss_step507_sr338), .ss_out(ss_step508_sr339));
 	
 	assign w663 = ~(l338 | l339);
 	
@@ -4845,10 +5430,13 @@ module ym7101
 	
 	assign w666 = w677 ? { 2'h0, l342[7:0] } : l344;
 	
-	ym_dlatch_1 #(.DATA_WIDTH(10)) dl340(.MCLK(MCLK), .c1(hclk1), .inp(w666), .nval(l340));
+	wire ss_step509_dl340;
+	ym_dlatch_1 #(.DATA_WIDTH(10)) dl340(.MCLK(MCLK), .c1(hclk1), .inp(w666), .nval(l340), .ss_en(ss_en), .ss_in(ss_step508_sr339), .ss_out(ss_step509_dl340));
 	
-	ym_dlatch_2 #(.DATA_WIDTH(6)) dl341_1(.MCLK(MCLK), .c2(hclk2), .inp(w662[5:0]), .val(l341[5:0]));
-	ym_dlatch_2 #(.DATA_WIDTH(4)) dl341_2(.MCLK(MCLK), .c2(hclk2), .inp(w662[9:6]), .nval(l341[9:6]));
+	wire ss_step510_dl341_1;
+	ym_dlatch_2 #(.DATA_WIDTH(6)) dl341_1(.MCLK(MCLK), .c2(hclk2), .inp(w662[5:0]), .val(l341[5:0]), .ss_en(ss_en), .ss_in(ss_step509_dl340), .ss_out(ss_step510_dl341_1));
+	wire ss_step511_dl341_2;
+	ym_dlatch_2 #(.DATA_WIDTH(4)) dl341_2(.MCLK(MCLK), .c2(hclk2), .inp(w662[9:6]), .nval(l341[9:6]), .ss_en(ss_en), .ss_in(ss_step510_dl341_1), .ss_out(ss_step511_dl341_2));
 	
 	assign w667 = w666 == 10'd208 & ~reg_m5;
 	
@@ -4862,11 +5450,14 @@ module ym7101
 	
 	assign w672 = l341[8] | ~reg_m5;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl342(.MCLK(MCLK), .en(w661), .inp(vram_serial), .val(l342));
+	wire ss_step512_sl342;
+	ym_slatch #(.DATA_WIDTH(8)) sl342(.MCLK(MCLK), .en(w661), .inp(vram_serial), .val(l342), .ss_en(ss_en), .ss_in(ss_step511_dl341_2), .ss_out(ss_step512_sl342));
 	
-	ym_slatch #(.DATA_WIDTH(10)) sl343(.MCLK(MCLK), .en(w660), .inp(w680), .val(l343));
+	wire ss_step513_sl343;
+	ym_slatch #(.DATA_WIDTH(10)) sl343(.MCLK(MCLK), .en(w660), .inp(w680), .val(l343), .ss_en(ss_en), .ss_in(ss_step512_sl342), .ss_out(ss_step513_sl343));
 	
-	ym_dlatch_2 #(.DATA_WIDTH(10)) dl344(.MCLK(MCLK), .c2(hclk2), .inp(l343), .nval(l344));
+	wire ss_step514_dl344;
+	ym_dlatch_2 #(.DATA_WIDTH(10)) dl344(.MCLK(MCLK), .c2(hclk2), .inp(l343), .nval(l344), .ss_en(ss_en), .ss_in(ss_step513_sl343), .ss_out(ss_step514_dl344));
 	
 	assign w673 = w106 ? l341[4] : l341[3];
 	
@@ -4882,50 +5473,65 @@ module ym7101
 	
 	assign w679 = ~(reg_m5 ? w678 : l348);
 	
-	ym_sr_bit_array #(.DATA_WIDTH(10)) sr345(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(sat_ypos), .data_out(l345));
+	wire ss_step515_sr345;
+	ym_sr_bit_array #(.DATA_WIDTH(10)) sr345(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(sat_ypos), .data_out(l345), .ss_en(ss_en), .ss_in(ss_step514_dl344), .ss_out(ss_step515_sr345));
 	
-	ym_dlatch_1 #(.DATA_WIDTH(10)) dl346(.MCLK(MCLK), .c1(hclk1), .inp(l345), .nval(l346));
+	wire ss_step516_dl346;
+	ym_dlatch_1 #(.DATA_WIDTH(10)) dl346(.MCLK(MCLK), .c1(hclk1), .inp(l345), .nval(l346), .ss_en(ss_en), .ss_in(ss_step515_sr345), .ss_out(ss_step516_dl346));
 	
 	assign w680 = reg_m5 ? l346 : { 2'h3, ~vram_serial };
 	
-	ym_sr_bit sr347(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l357), .sr_out(l347));
+	wire ss_step517_sr347;
+	ym_sr_bit sr347(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l357), .sr_out(l347), .ss_en(ss_en), .ss_in(ss_step516_dl346), .ss_out(ss_step517_sr347));
 	
-	ym_sr_bit sr348(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l347), .sr_out(l348));
+	wire ss_step518_sr348;
+	ym_sr_bit sr348(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l347), .sr_out(l348), .ss_en(ss_en), .ss_in(ss_step517_sr347), .ss_out(ss_step518_sr348));
 	
-	ym_sr_bit sr349(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l348), .sr_out(l349));
+	wire ss_step519_sr349;
+	ym_sr_bit sr349(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l348), .sr_out(l349), .ss_en(ss_en), .ss_in(ss_step518_sr348), .ss_out(ss_step519_sr349));
 	
-	ym_sr_bit sr350(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l349), .sr_out(l350));
+	wire ss_step520_sr350;
+	ym_sr_bit sr350(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l349), .sr_out(l350), .ss_en(ss_en), .ss_in(ss_step519_sr349), .ss_out(ss_step520_sr350));
 	
 	assign w681 = l348 | l349;
 	
 	assign w682 = l349 | l350;
 	
+	wire ss_step521_cnt351;
 	ym_cnt_bit_load #(.DATA_WIDTH(7)) cnt351(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(w684), .reset(l354), .load(w683), .load_val(sat_link), .val(l351));
+		.c_in(w684), .reset(l354), .load(w683), .load_val(sat_link), .val(l351), .ss_en(ss_en), .ss_in(ss_step520_sr350), .ss_out(ss_step521_cnt351));
 	
 	assign w683 = reg_m5 & (l352 | l353);
 	
-	ym_sr_bit sr352(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l353), .sr_out(l352));
+	wire ss_step522_sr352;
+	ym_sr_bit sr352(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l353), .sr_out(l352), .ss_en(ss_en), .ss_in(ss_step521_cnt351), .ss_out(ss_step522_sr352));
 	
 	assign w684 = ~reg_m5 & l353;
 	
-	ym_sr_bit sr353(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l147), .sr_out(l353));
+	wire ss_step523_sr353;
+	ym_sr_bit sr353(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l147), .sr_out(l353), .ss_en(ss_en), .ss_in(ss_step522_sr352), .ss_out(ss_step523_sr353));
 	
-	ym_sr_bit sr354(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w685), .sr_out(l354));
+	wire ss_step524_sr354;
+	ym_sr_bit sr354(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w685), .sr_out(l354), .ss_en(ss_en), .ss_in(ss_step523_sr353), .ss_out(ss_step524_sr354));
 	
 	assign w685 = reset_comb | l115 | (~l355 & l356);
 	
-	ym_sr_bit sr355(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l356), .sr_out(l355));
+	wire ss_step525_sr355;
+	ym_sr_bit sr355(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l356), .sr_out(l355), .ss_en(ss_en), .ss_in(ss_step524_sr354), .ss_out(ss_step525_sr355));
 	
-	ym_sr_bit sr356(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w162), .sr_out(l356));
+	wire ss_step526_sr356;
+	ym_sr_bit sr356(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w162), .sr_out(l356), .ss_en(ss_en), .ss_in(ss_step525_sr355), .ss_out(ss_step526_sr356));
 	
 	assign w686 = l147 & (t38 | l162);
 	
-	ym_sr_bit sr357(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w686), .sr_out(l357));
+	wire ss_step527_sr357;
+	ym_sr_bit sr357(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w686), .sr_out(l357), .ss_en(ss_en), .ss_in(ss_step526_sr356), .ss_out(ss_step527_sr357));
 	
-	ym_sr_bit sr358(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l331), .sr_out(l358));
+	wire ss_step528_sr358;
+	ym_sr_bit sr358(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l331), .sr_out(l358), .ss_en(ss_en), .ss_in(ss_step527_sr357), .ss_out(ss_step528_sr358));
 	
-	ym_sr_bit sr359(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l358), .sr_out(l359));
+	wire ss_step529_sr359;
+	ym_sr_bit sr359(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l358), .sr_out(l359), .ss_en(ss_en), .ss_in(ss_step528_sr358), .ss_out(ss_step529_sr359));
 	
 	assign w687 = l364 & l360_1;
 	assign w688 = l363 & l360_1;
@@ -4934,54 +5540,69 @@ module ym7101
 	
 	assign w691 = reg_rs1 & vram_address[9];
 	
-	ym_sr_bit sr360_1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vram_address[1]), .sr_out(l360_1));
+	wire ss_step530_sr360_1;
+	ym_sr_bit sr360_1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vram_address[1]), .sr_out(l360_1), .ss_en(ss_en), .ss_in(ss_step529_sr359), .ss_out(ss_step530_sr360_1));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr360_83(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_address[8:3]), .data_out(l360_83));
+	wire ss_step531_sr360_83;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr360_83(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_address[8:3]), .data_out(l360_83), .ss_en(ss_en), .ss_in(ss_step530_sr360_1), .ss_out(ss_step531_sr360_83));
 	
-	ym_sr_bit sr361(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w179), .sr_out(l361));
+	wire ss_step532_sr361;
+	ym_sr_bit sr361(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w179), .sr_out(l361), .ss_en(ss_en), .ss_in(ss_step531_sr360_83), .ss_out(ss_step532_sr361));
 	
-	ym_sr_bit sr362(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w691), .sr_out(l362));
+	wire ss_step533_sr362;
+	ym_sr_bit sr362(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w691), .sr_out(l362), .ss_en(ss_en), .ss_in(ss_step532_sr361), .ss_out(ss_step533_sr362));
 	
 	assign w692 = l358 | l363 | l364 | l361;
 	
 	assign w693 = w741 & w283;
 	assign w694 = w741 & w284;
 	
-	ym_sr_bit sr363(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w693), .sr_out(l363));
+	wire ss_step534_sr363;
+	ym_sr_bit sr363(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w693), .sr_out(l363), .ss_en(ss_en), .ss_in(ss_step533_sr362), .ss_out(ss_step534_sr363));
 	
-	ym_sr_bit sr364(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w694), .sr_out(l364));
+	wire ss_step535_sr364;
+	ym_sr_bit sr364(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w694), .sr_out(l364), .ss_en(ss_en), .ss_in(ss_step534_sr363), .ss_out(ss_step535_sr364));
 	
 	assign w695 = w692 ? { l362, l360_83 } : l351;
 	
 	assign w696 = reg_m5 ? l351 : { 1'h1, l365, l116 };
 	
-	ym_sr_bit_array #(.DATA_WIDTH(5), .SR_LENGTH(2)) sr365(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l351[4:0]), .data_out(l365));
+	wire ss_step536_sr365;
+	ym_sr_bit_array #(.DATA_WIDTH(5), .SR_LENGTH(2)) sr365(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l351[4:0]), .data_out(l365), .ss_en(ss_en), .ss_in(ss_step535_sr364), .ss_out(ss_step536_sr365));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr366(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_data[11:8]), .data_out(l366));
+	wire ss_step537_sr366;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr366(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_data[11:8]), .data_out(l366), .ss_en(ss_en), .ss_in(ss_step536_sr365), .ss_out(ss_step537_sr366));
 	
 	assign w697 = reg_test0[12] ? reg_test_18[4:0] : l371;
 	
-	ym_sr_bit sr367(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w784), .sr_out(l367));
+	wire ss_step538_sr367;
+	ym_sr_bit sr367(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w784), .sr_out(l367), .ss_en(ss_en), .ss_in(ss_step537_sr366), .ss_out(ss_step538_sr367));
 	
 	assign w698 = l367 & l371[4] & l371[2];
 	
-	ym_sr_bit sr368(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w698), .sr_out(l368));
+	wire ss_step539_sr368;
+	ym_sr_bit sr368(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w698), .sr_out(l368), .ss_en(ss_en), .ss_in(ss_step538_sr367), .ss_out(ss_step539_sr368));
 	
-	ym_sr_bit sr369(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w699), .sr_out(l369));
+	wire ss_step540_sr369;
+	ym_sr_bit sr369(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w699), .sr_out(l369), .ss_en(ss_en), .ss_in(ss_step539_sr368), .ss_out(ss_step540_sr369));
 	
-	ym_sr_bit sr370(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w700), .sr_out(l370));
+	wire ss_step541_sr370;
+	ym_sr_bit sr370(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w700), .sr_out(l370), .ss_en(ss_en), .ss_in(ss_step540_sr369), .ss_out(ss_step541_sr370));
 	
 	assign w699 = reg_m5 & l370 & ~w700;
 	
 	assign w700 = ~(l368 | l429);
 	
-	ym_cnt_bit_rev #(.DATA_WIDTH(5)) cnt371(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .c_in(w703), .dec(w704), .reset(l373), .val(l371));
+	wire ss_step542_cnt371;
+	ym_cnt_bit_rev #(.DATA_WIDTH(5)) cnt371(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .c_in(w703), .dec(w704), .reset(l373), .val(l371), .ss_en(ss_en), .ss_in(ss_step541_sr370), .ss_out(ss_step542_cnt371));
 	
-	ym_sr_bit sr372(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w360), .sr_out(l372));
+	wire ss_step543_sr372;
+	ym_sr_bit sr372(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w360), .sr_out(l372), .ss_en(ss_en), .ss_in(ss_step542_cnt371), .ss_out(ss_step543_sr372));
 	
 	assign w701 = w360 | l110;
 	
-	ym_sr_bit sr373(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w701), .sr_out(l373));
+	wire ss_step544_sr373;
+	ym_sr_bit sr373(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w701), .sr_out(l373), .ss_en(ss_en), .ss_in(ss_step543_sr372), .ss_out(ss_step544_sr373));
 	
 	assign w702 = ~reg_m5 | l375 | w784;
 	
@@ -5005,11 +5626,14 @@ module ym7101
 	
 	assign w713 = l374 & ~reg_test0[12];
 	
-	ym_sr_bit sr374(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l377), .sr_out(l374));
+	wire ss_step545_sr374;
+	ym_sr_bit sr374(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l377), .sr_out(l374), .ss_en(ss_en), .ss_in(ss_step544_sr373), .ss_out(ss_step545_sr374));
 	
-	ym_sr_bit sr375(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l374), .sr_out(l375));
+	wire ss_step546_sr375;
+	ym_sr_bit sr375(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l374), .sr_out(l375), .ss_en(ss_en), .ss_in(ss_step545_sr374), .ss_out(ss_step546_sr375));
 	
-	ym_sr_bit #(.SR_LENGTH(10)) sr376(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w743), .sr_out(l376));
+	wire ss_step547_sr376;
+	ym_sr_bit #(.SR_LENGTH(10)) sr376(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w743), .sr_out(l376), .ss_en(ss_en), .ss_in(ss_step546_sr375), .ss_out(ss_step547_sr376));
 	
 	assign w714 = ~(l376 & ~reg_m5);
 	
@@ -5017,17 +5641,21 @@ module ym7101
 	
 	assign w716 = ~w743 & l396;
 	
-	ym_sr_bit sr377(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w716), .sr_out(l377));
+	wire ss_step548_sr377;
+	ym_sr_bit sr377(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w716), .sr_out(l377), .ss_en(ss_en), .ss_in(ss_step547_sr376), .ss_out(ss_step548_sr377));
 	
 	assign w717 = w719 | l382;
 	
-	ym_sr_bit sr378(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l382), .sr_out(l378));
+	wire ss_step549_sr378;
+	ym_sr_bit sr378(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l382), .sr_out(l378), .ss_en(ss_en), .ss_in(ss_step548_sr377), .ss_out(ss_step549_sr378));
 	
 	assign w718 = hclk1 & l378 & clk1;
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl379(.MCLK(MCLK), .en(w718), .inp({l336, l337, l338, l339}), .val(l379));
+	wire ss_step550_sl379;
+	ym_slatch #(.DATA_WIDTH(4)) sl379(.MCLK(MCLK), .en(w718), .inp({l336, l337, l338, l339}), .val(l379), .ss_en(ss_en), .ss_in(ss_step549_sr378), .ss_out(ss_step550_sl379));
 	
-	ym_slatch #(.DATA_WIDTH(6)) sl380(.MCLK(MCLK), .en(w718), .inp(l341[5:0]), .val(l380));
+	wire ss_step551_sl380;
+	ym_slatch #(.DATA_WIDTH(6)) sl380(.MCLK(MCLK), .en(w718), .inp(l341[5:0]), .val(l380), .ss_en(ss_en), .ss_in(ss_step550_sl379), .ss_out(ss_step551_sl380));
 	
 	assign w719 = w665 & w743;
 	
@@ -5035,11 +5663,14 @@ module ym7101
 	
 	assign w721 = l384 | l385;
 	
-	ym_sr_bit sr381(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l115), .sr_out(l381));
+	wire ss_step552_sr381;
+	ym_sr_bit sr381(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l115), .sr_out(l381), .ss_en(ss_en), .ss_in(ss_step551_sl380), .ss_out(ss_step552_sr381));
 	
-	ym7101_rs_trig rs40(.MCLK(MCLK), .set(w721), .rst(l381), .q(t40));
+	wire ss_step553_rs40;
+	ym7101_rs_trig rs40(.MCLK(MCLK), .set(w721), .rst(l381), .q(t40), .ss_en(ss_en), .ss_in(ss_step552_sr381), .ss_out(ss_step553_rs40));
 	
-	ym7101_rs_trig rs41(.MCLK(MCLK), .set(l385), .rst(l381), .q(t41));
+	wire ss_step554_rs41;
+	ym7101_rs_trig rs41(.MCLK(MCLK), .set(l385), .rst(l381), .q(t41), .ss_en(ss_en), .ss_in(ss_step553_rs40), .ss_out(ss_step554_rs41));
 	
 	assign w722 = l387[4] & (l379[1] | l379[0]);
 	
@@ -5051,15 +5682,19 @@ module ym7101
 	
 	assign w726 = w725 + {1'h0, w723};
 	
-	ym_sr_bit sr382(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w418), .sr_out(l382));
+	wire ss_step555_sr382;
+	ym_sr_bit sr382(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w418), .sr_out(l382), .ss_en(ss_en), .ss_in(ss_step554_rs41), .ss_out(ss_step555_sr382));
 	
-	ym_sr_bit sr383(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w727), .sr_out(l383));
+	wire ss_step556_sr383;
+	ym_sr_bit sr383(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w727), .sr_out(l383), .ss_en(ss_en), .ss_in(ss_step555_sr382), .ss_out(ss_step556_sr383));
 	
 	assign w727 = ~(t40 | ~w676);
 	
-	ym_sr_bit sr384(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w658), .sr_out(l384));
+	wire ss_step557_sr384;
+	ym_sr_bit sr384(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w658), .sr_out(l384), .ss_en(ss_en), .ss_in(ss_step556_sr383), .ss_out(ss_step557_sr384));
 	
-	ym_sr_bit sr385(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w720), .sr_out(l385));
+	wire ss_step558_sr385;
+	ym_sr_bit sr385(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w720), .sr_out(l385), .ss_en(ss_en), .ss_in(ss_step557_sr384), .ss_out(ss_step558_sr385));
 	
 	assign w728 = l387[4] ? ~l380[3:0] : l380[3:0];
 	
@@ -5069,21 +5704,27 @@ module ym7101
 	
 	assign yoff = { w729, w728[2:0] };
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl386(.MCLK(MCLK), .en(w745), .inp(vram_serial), .val(l386));
+	wire ss_step559_sl386;
+	ym_slatch #(.DATA_WIDTH(8)) sl386(.MCLK(MCLK), .en(w745), .inp(vram_serial), .val(l386), .ss_en(ss_en), .ss_in(ss_step558_sr385), .ss_out(ss_step559_sl386));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl387(.MCLK(MCLK), .en(w746), .inp(vram_serial), .val(l387));
+	wire ss_step560_sl387;
+	ym_slatch #(.DATA_WIDTH(8)) sl387(.MCLK(MCLK), .en(w746), .inp(vram_serial), .val(l387), .ss_en(ss_en), .ss_in(ss_step559_sl386), .ss_out(ss_step560_sl387));
 	
 	assign w731 = l401 ? l387 : l386;
 	
 	assign w732 = w738 | w94 | w95;
 	
-	ym_sr_bit_en #(.SR_LENGTH(10)) sr388(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[0]), .data_out(l388));
+	wire ss_step561_sr388;
+	ym_sr_bit_en #(.SR_LENGTH(10)) sr388(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[0]), .data_out(l388), .ss_en(ss_en), .ss_in(ss_step560_sl387), .ss_out(ss_step561_sr388));
 	
-	ym_sr_bit_en #(.SR_LENGTH(10)) sr389(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[1]), .data_out(l389));
+	wire ss_step562_sr389;
+	ym_sr_bit_en #(.SR_LENGTH(10)) sr389(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[1]), .data_out(l389), .ss_en(ss_en), .ss_in(ss_step561_sr388), .ss_out(ss_step562_sr389));
 	
-	ym_sr_bit_en #(.SR_LENGTH(10)) sr390(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[2]), .data_out(l390));
+	wire ss_step563_sr390;
+	ym_sr_bit_en #(.SR_LENGTH(10)) sr390(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[2]), .data_out(l390), .ss_en(ss_en), .ss_in(ss_step562_sr389), .ss_out(ss_step563_sr390));
 	
-	ym_sr_bit_en #(.SR_LENGTH(10)) sr391(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[3]), .data_out(l391));
+	wire ss_step564_sr391;
+	ym_sr_bit_en #(.SR_LENGTH(10)) sr391(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w739[3]), .data_out(l391), .ss_en(ss_en), .ss_in(ss_step563_sr390), .ss_out(ss_step564_sr391));
 	
 	assign w733 = l401 ? l388[9] : l388[8];
 	
@@ -5099,11 +5740,14 @@ module ym7101
 	
 	assign w739 = w94 ? io_data[3:0] : l341[3:0];
 	
-	ym_slatch sl_86_b2(.MCLK(MCLK), .en(w225), .inp(reg_data_l2[2]), .val(reg_86_b2));
+	wire ss_step565_sl_86_b2;
+	ym_slatch sl_86_b2(.MCLK(MCLK), .en(w225), .inp(reg_data_l2[2]), .val(reg_86_b2), .ss_en(ss_en), .ss_in(ss_step564_sr391), .ss_out(ss_step565_sl_86_b2));
 	
-	ym_slatch sl_86_b5(.MCLK(MCLK), .en(w225), .inp(reg_data_l2[5]), .val(reg_86_b5));
+	wire ss_step566_sl_86_b5;
+	ym_slatch sl_86_b5(.MCLK(MCLK), .en(w225), .inp(reg_data_l2[5]), .val(reg_86_b5), .ss_en(ss_en), .ss_in(ss_step565_sl_86_b2), .ss_out(ss_step566_sl_86_b5));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl_at(.MCLK(MCLK), .en(w226), .inp(reg_data_l2[7:0]), .val(reg_at));
+	wire ss_step567_sl_at;
+	ym_slatch #(.DATA_WIDTH(8)) sl_at(.MCLK(MCLK), .en(w226), .inp(reg_data_l2[7:0]), .val(reg_at), .ss_en(ss_en), .ss_in(ss_step566_sl_86_b5), .ss_out(ss_step567_sl_at));
 	
 	wire [7:0] spr_at_1 = reg_at | { 7'h0, reg_rs1 };
 	wire [7:0] spr_at_2 = vram_address[16:9] | { 7'h0, reg_rs1 };
@@ -5118,7 +5762,8 @@ module ym7101
 		| (reg_m5 & ~reg_rs1 & l410[15])
 		| (~reg_m5 & l410[7]);
 	
-	ym_sr_bit sr392(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l394), .sr_out(l392));
+	wire ss_step568_sr392;
+	ym_sr_bit sr392(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l394), .sr_out(l392), .ss_en(ss_en), .ss_in(ss_step567_sl_at), .ss_out(ss_step568_sr392));
 	
 	assign w744 = l394 & clk2;
 	
@@ -5126,59 +5771,79 @@ module ym7101
 	
 	assign w746 = l393 & clk2;
 	
-	ym_sr_bit sr393(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l395), .sr_out(l393));
+	wire ss_step569_sr393;
+	ym_sr_bit sr393(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l395), .sr_out(l393), .ss_en(ss_en), .ss_in(ss_step568_sr392), .ss_out(ss_step569_sr393));
 	
-	ym_dlatch_1 dl394(.MCLK(MCLK), .c1(clk1), .inp(w747), .nval(l394));
+	wire ss_step570_dl394;
+	ym_dlatch_1 dl394(.MCLK(MCLK), .c1(clk1), .inp(w747), .nval(l394), .ss_en(ss_en), .ss_in(ss_step569_sr393), .ss_out(ss_step570_dl394));
 	
 	assign w747 = ~(l396 & hclk1);
 	
 	assign w748 = ~(w417 & hclk1);
 	
-	ym_dlatch_1 dl395(.MCLK(MCLK), .c1(clk1), .inp(w748), .nval(l395));
+	wire ss_step571_dl395;
+	ym_dlatch_1 dl395(.MCLK(MCLK), .c1(clk1), .inp(w748), .nval(l395), .ss_en(ss_en), .ss_in(ss_step570_dl394), .ss_out(ss_step571_dl395));
 	
 	assign w749 = l395 & clk2;
 	
-	ym_sr_bit sr396(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w750), .sr_out(l396));
+	wire ss_step572_sr396;
+	ym_sr_bit sr396(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w750), .sr_out(l396), .ss_en(ss_en), .ss_in(ss_step571_dl395), .ss_out(ss_step572_sr396));
 	
-	ym_sr_bit sr397(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w417), .sr_out(l397));
+	wire ss_step573_sr397;
+	ym_sr_bit sr397(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w417), .sr_out(l397), .ss_en(ss_en), .ss_in(ss_step572_sr396), .ss_out(ss_step573_sr397));
 	
 	assign w750 = reg_m5 ? w417 : l397;
 	
-	ym_sr_bit_array #(.DATA_WIDTH(7)) sr398(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w696), .data_out(l398));
+	wire ss_step574_sr398;
+	ym_sr_bit_array #(.DATA_WIDTH(7)) sr398(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w696), .data_out(l398), .ss_en(ss_en), .ss_in(ss_step573_sr397), .ss_out(ss_step574_sr398));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(7)) sr399(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l398), .data_out(l399));
+	wire ss_step575_sr399;
+	ym_sr_bit_array #(.DATA_WIDTH(7)) sr399(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l398), .data_out(l399), .ss_en(ss_en), .ss_in(ss_step574_sr398), .ss_out(ss_step575_sr399));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(7)) sr400(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l399), .data_out(l400));
+	wire ss_step576_sr400;
+	ym_sr_bit_array #(.DATA_WIDTH(7)) sr400(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l399), .data_out(l400), .ss_en(ss_en), .ss_in(ss_step575_sr399), .ss_out(ss_step576_sr400));
 	
 	assign w751 = l402 | l401;
 	
-	ym_sr_bit sr401(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l141), .sr_out(l401));
+	wire ss_step577_sr401;
+	ym_sr_bit sr401(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l141), .sr_out(l401), .ss_en(ss_en), .ss_in(ss_step576_sr400), .ss_out(ss_step577_sr401));
 	
-	ym_sr_bit sr402(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l142), .sr_out(l402));
+	wire ss_step578_sr402;
+	ym_sr_bit sr402(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l142), .sr_out(l402), .ss_en(ss_en), .ss_in(ss_step577_sr401), .ss_out(ss_step578_sr402));
 	
 	assign w752 = w94 ? io_data[10:4] : l400;
 	
 	assign w753 = w94 ? io_data[11] : l382;
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr403(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[0]), .data_out(l403));
+	wire ss_step579_sr403;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr403(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[0]), .data_out(l403), .ss_en(ss_en), .ss_in(ss_step578_sr402), .ss_out(ss_step579_sr403));
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr404(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[1]), .data_out(l404));
+	wire ss_step580_sr404;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr404(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[1]), .data_out(l404), .ss_en(ss_en), .ss_in(ss_step579_sr403), .ss_out(ss_step580_sr404));
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr405(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[2]), .data_out(l405));
+	wire ss_step581_sr405;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr405(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[2]), .data_out(l405), .ss_en(ss_en), .ss_in(ss_step580_sr404), .ss_out(ss_step581_sr405));
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr406(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[3]), .data_out(l406));
+	wire ss_step582_sr406;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr406(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[3]), .data_out(l406), .ss_en(ss_en), .ss_in(ss_step581_sr405), .ss_out(ss_step582_sr406));
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr407(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[4]), .data_out(l407));
+	wire ss_step583_sr407;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr407(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[4]), .data_out(l407), .ss_en(ss_en), .ss_in(ss_step582_sr406), .ss_out(ss_step583_sr407));
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr408(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[5]), .data_out(l408));
+	wire ss_step584_sr408;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr408(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[5]), .data_out(l408), .ss_en(ss_en), .ss_in(ss_step583_sr407), .ss_out(ss_step584_sr408));
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr409(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[6]), .data_out(l409));
+	wire ss_step585_sr409;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr409(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w752[6]), .data_out(l409), .ss_en(ss_en), .ss_in(ss_step584_sr408), .ss_out(ss_step585_sr409));
 	
-	ym_sr_bit_en #(.SR_LENGTH(20)) sr410(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w753), .data_out(l410));
+	wire ss_step586_sr410;
+	ym_sr_bit_en #(.SR_LENGTH(20)) sr410(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .en1(w732), .en2(~w732), .data_in(w753), .data_out(l410), .ss_en(ss_en), .ss_in(ss_step585_sr409), .ss_out(ss_step586_sr410));
 	
-	ym_sr_bit sr411(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l147), .sr_out(l411));
+	wire ss_step587_sr411;
+	ym_sr_bit sr411(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l147), .sr_out(l411), .ss_en(ss_en), .ss_in(ss_step586_sr410), .ss_out(ss_step587_sr411));
 	
-	ym_sr_bit sr412(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l134), .sr_out(l412));
+	wire ss_step588_sr412;
+	ym_sr_bit sr412(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l134), .sr_out(l412), .ss_en(ss_en), .ss_in(ss_step587_sr411), .ss_out(ss_step588_sr412));
 	
 	assign w754 = ~reg_m5 & (l411 | l412);
 	
@@ -5212,30 +5877,42 @@ module ym7101
 		(~w706 ? l425 : 11'h0) |
 		(~w707 ? l424 : 11'h0);
 	
-	ym_slatch sl413(.MCLK(MCLK), .en(w769), .inp(sprdata_hflip_o), .val(l413));
-	ym_slatch #(.DATA_WIDTH(2)) sl414(.MCLK(MCLK), .en(w769), .inp(sprdata_pal_o), .val(l414));
-	ym_slatch sl415(.MCLK(MCLK), .en(w769), .inp(sprdata_priority_o), .val(l415));
-	ym_slatch #(.DATA_WIDTH(2)) sl416(.MCLK(MCLK), .en(w769), .inp(sprdata_xs_o), .val(l416));
-	ym_slatch #(.DATA_WIDTH(2)) sl417(.MCLK(MCLK), .en(w769), .inp(sprdata_ys_o), .val(l417));
-	ym_slatch #(.DATA_WIDTH(6)) sl418(.MCLK(MCLK), .en(w769), .inp(sprdata_yoffset_o), .val(l418));
+	wire ss_step589_sl413;
+	ym_slatch sl413(.MCLK(MCLK), .en(w769), .inp(sprdata_hflip_o), .val(l413), .ss_en(ss_en), .ss_in(ss_step588_sr412), .ss_out(ss_step589_sl413));
+	wire ss_step590_sl414;
+	ym_slatch #(.DATA_WIDTH(2)) sl414(.MCLK(MCLK), .en(w769), .inp(sprdata_pal_o), .val(l414), .ss_en(ss_en), .ss_in(ss_step589_sl413), .ss_out(ss_step590_sl414));
+	wire ss_step591_sl415;
+	ym_slatch sl415(.MCLK(MCLK), .en(w769), .inp(sprdata_priority_o), .val(l415), .ss_en(ss_en), .ss_in(ss_step590_sl414), .ss_out(ss_step591_sl415));
+	wire ss_step592_sl416;
+	ym_slatch #(.DATA_WIDTH(2)) sl416(.MCLK(MCLK), .en(w769), .inp(sprdata_xs_o), .val(l416), .ss_en(ss_en), .ss_in(ss_step591_sl415), .ss_out(ss_step592_sl416));
+	wire ss_step593_sl417;
+	ym_slatch #(.DATA_WIDTH(2)) sl417(.MCLK(MCLK), .en(w769), .inp(sprdata_ys_o), .val(l417), .ss_en(ss_en), .ss_in(ss_step592_sl416), .ss_out(ss_step593_sl417));
+	wire ss_step594_sl418;
+	ym_slatch #(.DATA_WIDTH(6)) sl418(.MCLK(MCLK), .en(w769), .inp(sprdata_yoffset_o), .val(l418), .ss_en(ss_en), .ss_in(ss_step593_sl417), .ss_out(ss_step594_sl418));
 	
-	ym_sr_bit sr419(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l511), .sr_out(l419));
+	wire ss_step595_sr419;
+	ym_sr_bit sr419(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l511), .sr_out(l419), .ss_en(ss_en), .ss_in(ss_step594_sl418), .ss_out(ss_step595_sr419));
 	
+	wire ss_step596_cnt420;
 	ym_cnt_bit_load #(.DATA_WIDTH(2)) cnt420(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(l141), .reset(l372), .load(w772), .load_val(~sprdata_xs_o), .val(l420));
+		.c_in(l141), .reset(l372), .load(w772), .load_val(~sprdata_xs_o), .val(l420), .ss_en(ss_en), .ss_in(ss_step595_sr419), .ss_out(ss_step596_cnt420));
 	
 	assign w771 = l420 == 2'h0;
 	
 	assign w772 = w771 & l141;
 	
+	wire ss_step597_cnt421;
 	ym_cnt_bit cnt421(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(l419), .reset(w360), .val(l421));
+		.c_in(l419), .reset(w360), .val(l421), .ss_en(ss_en), .ss_in(ss_step596_cnt420), .ss_out(ss_step597_cnt421));
 	
-	ym_sr_bit sr422(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l421), .sr_out(l422));
+	wire ss_step598_sr422;
+	ym_sr_bit sr422(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l421), .sr_out(l422), .ss_en(ss_en), .ss_in(ss_step597_cnt421), .ss_out(ss_step598_sr422));
 	
-	ym7101_rs_trig rs42(.MCLK(MCLK), .set(l372), .rst(l369), .q(t42));
+	wire ss_step599_rs42;
+	ym7101_rs_trig rs42(.MCLK(MCLK), .set(l372), .rst(l369), .q(t42), .ss_en(ss_en), .ss_in(ss_step598_sr422), .ss_out(ss_step599_rs42));
 	
-	ym_sr_bit sr423(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t42), .sr_out(l423));
+	wire ss_step600_sr423;
+	ym_sr_bit sr423(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t42), .sr_out(l423), .ss_en(ss_en), .ss_in(ss_step599_rs42), .ss_out(ss_step600_sr423));
 	
 	assign w773 = l423 & l511 & w714;
 	
@@ -5243,21 +5920,25 @@ module ym7101
 		(w759 ? io_data[10:0] : 11'h0) |
 		(w760 ? { l387[2:0], l435 } : 11'h0);
 	
-	ym_slatch #(.DATA_WIDTH(11)) sl424(.MCLK(MCLK), .en(w769), .inp(sprdata_pattern_o), .val(l424));
+	wire ss_step601_sl424;
+	ym_slatch #(.DATA_WIDTH(11)) sl424(.MCLK(MCLK), .en(w769), .inp(sprdata_pattern_o), .val(l424), .ss_en(ss_en), .ss_in(ss_step600_sr423), .ss_out(ss_step601_sl424));
 	
 	assign w775 =
 		(w759 ? io_data[8:0] : 9'h0) |
 		(w760 ? { l386[0], l436 } : 9'h0);
 	
-	ym_slatch #(.DATA_WIDTH(9)) sl425(.MCLK(MCLK), .en(w769), .inp(sprdata_hpos_o), .val(l425));
+	wire ss_step602_sl425;
+	ym_slatch #(.DATA_WIDTH(9)) sl425(.MCLK(MCLK), .en(w769), .inp(sprdata_hpos_o), .val(l425), .ss_en(ss_en), .ss_in(ss_step601_sl424), .ss_out(ss_step602_sl425));
 	
-	ym_sr_bit sr426(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w776), .sr_out(l426));
+	wire ss_step603_sr426;
+	ym_sr_bit sr426(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w776), .sr_out(l426), .ss_en(ss_en), .ss_in(ss_step602_sl425), .ss_out(ss_step603_sr426));
 	
 	assign w776 = ~(~reg_m5 | w772);
 	
 	assign w777 = l372 | w784;
 	
-	ym_sr_bit sr427(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w777), .sr_out(l427));
+	wire ss_step604_sr427;
+	ym_sr_bit sr427(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w777), .sr_out(l427), .ss_en(ss_en), .ss_in(ss_step603_sr426), .ss_out(ss_step604_sr427));
 	
 	assign w778 = { 2'h0,w106 ? l418[5:4] : l418[4:3] };
 	
@@ -5265,25 +5946,31 @@ module ym7101
 	
 	assign w780 = l424 + { 7'h0, w779 };
 	
-	ym_sr_bit sr428(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w781), .sr_out(l428));
+	wire ss_step605_sr428;
+	ym_sr_bit sr428(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w781), .sr_out(l428), .ss_en(ss_en), .ss_in(ss_step604_sr427), .ss_out(ss_step605_sr428));
 	
 	assign w781 = l141 & reg_m5;
 	
 	assign w782 = l425 != 9'h0;
 	
-	ym_dlatch_2 dl429(.MCLK(MCLK), .c2(hclk2), .inp(w782), .nval(l429));
+	wire ss_step606_dl429;
+	ym_dlatch_2 dl429(.MCLK(MCLK), .c2(hclk2), .inp(w782), .nval(l429), .ss_en(ss_en), .ss_in(ss_step605_sr428), .ss_out(ss_step606_dl429));
 	
-	ym_sr_bit sr430(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l431), .sr_out(l430));
+	wire ss_step607_sr430;
+	ym_sr_bit sr430(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l431), .sr_out(l430), .ss_en(ss_en), .ss_in(ss_step606_dl429), .ss_out(ss_step607_sr430));
 	
 	assign w783 = l372 | w772;
 	
-	ym_sr_bit sr431(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l141), .sr_out(l431));
+	wire ss_step608_sr431;
+	ym_sr_bit sr431(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l141), .sr_out(l431), .ss_en(ss_en), .ss_in(ss_step607_sr430), .ss_out(ss_step608_sr431));
 	
 	assign w784 = l431 & w771;
 	
-	ym_dlatch_1 dl432(.MCLK(MCLK), .c1(hclk1), .inp(w783), .nval(l432));
+	wire ss_step609_dl432;
+	ym_dlatch_1 dl432(.MCLK(MCLK), .c1(hclk1), .inp(w783), .nval(l432), .ss_en(ss_en), .ss_in(ss_step608_sr431), .ss_out(ss_step609_dl432));
 	
-	ym_dlatch_1 dl433(.MCLK(MCLK), .c1(hclk1), .inp(l430), .val(l433));
+	wire ss_step610_dl433;
+	ym_dlatch_1 dl433(.MCLK(MCLK), .c1(hclk1), .inp(l430), .val(l433), .ss_en(ss_en), .ss_in(ss_step609_dl432), .ss_out(ss_step610_dl433));
 	
 	assign w785 = l433 ? l417 : 2'h0;
 	
@@ -5291,40 +5978,57 @@ module ym7101
 	
 	assign w787 = {3'h0, l433} + l434 + { 2'h0, w785 };
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr434(.MCLK(MCLK), .c1(hclk2), .c2(hclk1), .data_in(w786), .data_out(l434));
+	wire ss_step611_sr434;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr434(.MCLK(MCLK), .c1(hclk2), .c2(hclk1), .data_in(w786), .data_out(l434), .ss_en(ss_en), .ss_in(ss_step610_dl433), .ss_out(ss_step611_sr434));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl435(.MCLK(MCLK), .en(w749), .inp(vram_serial), .val(l435));
+	wire ss_step612_sl435;
+	ym_slatch #(.DATA_WIDTH(8)) sl435(.MCLK(MCLK), .en(w749), .inp(vram_serial), .val(l435), .ss_en(ss_en), .ss_in(ss_step611_sr434), .ss_out(ss_step612_sl435));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl436(.MCLK(MCLK), .en(w744), .inp(vram_serial), .val(l436));
+	wire ss_step613_sl436;
+	ym_slatch #(.DATA_WIDTH(8)) sl436(.MCLK(MCLK), .en(w744), .inp(vram_serial), .val(l436), .ss_en(ss_en), .ss_in(ss_step612_sl435), .ss_out(ss_step613_sl436));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl437(.MCLK(MCLK), .en(l438), .inp(w788), .val(l437));
+	wire ss_step614_sl437;
+	ym_slatch #(.DATA_WIDTH(8)) sl437(.MCLK(MCLK), .en(l438), .inp(w788), .val(l437), .ss_en(ss_en), .ss_in(ss_step613_sl436), .ss_out(ss_step614_sl437));
 	
 	assign w788 = l422 ? l436 : l435;
 	
-	ym_sr_bit sr438(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w773), .sr_out(l438));
+	wire ss_step615_sr438;
+	ym_sr_bit sr438(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w773), .sr_out(l438), .ss_en(ss_en), .ss_in(ss_step614_sl437), .ss_out(ss_step615_sr438));
 	
-	ym_dlatch_2 dl439_1(.MCLK(MCLK), .c2(hclk2), .inp(l413), .val(l439_1));
-	ym_sr_bit #(.SR_LENGTH(5)) sr439(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l439_1), .sr_out(l439));
+	wire ss_step616_dl439_1;
+	ym_dlatch_2 dl439_1(.MCLK(MCLK), .c2(hclk2), .inp(l413), .val(l439_1), .ss_en(ss_en), .ss_in(ss_step615_sr438), .ss_out(ss_step616_dl439_1));
+	wire ss_step617_sr439;
+	ym_sr_bit #(.SR_LENGTH(5)) sr439(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l439_1), .sr_out(l439), .ss_en(ss_en), .ss_in(ss_step616_dl439_1), .ss_out(ss_step617_sr439));
 	
-	ym_dlatch_2 #(.DATA_WIDTH(2)) dl440_1(.MCLK(MCLK), .c2(hclk2), .inp(l414), .val(l440_1));
-	ym_sr_bit_array #(.SR_LENGTH(5), .DATA_WIDTH(2)) sr440(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l440_1), .data_out(l440));
+	wire ss_step618_dl440_1;
+	ym_dlatch_2 #(.DATA_WIDTH(2)) dl440_1(.MCLK(MCLK), .c2(hclk2), .inp(l414), .val(l440_1), .ss_en(ss_en), .ss_in(ss_step617_sr439), .ss_out(ss_step618_dl440_1));
+	wire ss_step619_sr440;
+	ym_sr_bit_array #(.SR_LENGTH(5), .DATA_WIDTH(2)) sr440(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l440_1), .data_out(l440), .ss_en(ss_en), .ss_in(ss_step618_dl440_1), .ss_out(ss_step619_sr440));
 	
-	ym_dlatch_2 dl441_1(.MCLK(MCLK), .c2(hclk2), .inp(l415), .val(l441_1));
-	ym_sr_bit #(.SR_LENGTH(5)) sr441(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l441_1), .sr_out(l441));
+	wire ss_step620_dl441_1;
+	ym_dlatch_2 dl441_1(.MCLK(MCLK), .c2(hclk2), .inp(l415), .val(l441_1), .ss_en(ss_en), .ss_in(ss_step619_sr440), .ss_out(ss_step620_dl441_1));
+	wire ss_step621_sr441;
+	ym_sr_bit #(.SR_LENGTH(5)) sr441(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l441_1), .sr_out(l441), .ss_en(ss_en), .ss_in(ss_step620_dl441_1), .ss_out(ss_step621_sr441));
 	
-	ym_dlatch_2 #(.DATA_WIDTH(2)) dl442_1(.MCLK(MCLK), .c2(hclk2), .inp(l416), .val(l442_1));
-	ym_sr_bit_array #(.SR_LENGTH(5), .DATA_WIDTH(2)) sr442(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l442_1), .data_out(l442));
+	wire ss_step622_dl442_1;
+	ym_dlatch_2 #(.DATA_WIDTH(2)) dl442_1(.MCLK(MCLK), .c2(hclk2), .inp(l416), .val(l442_1), .ss_en(ss_en), .ss_in(ss_step621_sr441), .ss_out(ss_step622_dl442_1));
+	wire ss_step623_sr442;
+	ym_sr_bit_array #(.SR_LENGTH(5), .DATA_WIDTH(2)) sr442(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l442_1), .data_out(l442), .ss_en(ss_en), .ss_in(ss_step622_dl442_1), .ss_out(ss_step623_sr442));
 	
-	ym_dlatch_2 #(.DATA_WIDTH(9)) dl443_1(.MCLK(MCLK), .c2(hclk2), .inp(l425), .val(l443_1));
-	ym_sr_bit_array #(.SR_LENGTH(5), .DATA_WIDTH(9)) sr443(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l443_1), .data_out(l443));
+	wire ss_step624_dl443_1;
+	ym_dlatch_2 #(.DATA_WIDTH(9)) dl443_1(.MCLK(MCLK), .c2(hclk2), .inp(l425), .val(l443_1), .ss_en(ss_en), .ss_in(ss_step623_sr442), .ss_out(ss_step624_dl443_1));
+	wire ss_step625_sr443;
+	ym_sr_bit_array #(.SR_LENGTH(5), .DATA_WIDTH(9)) sr443(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l443_1), .data_out(l443), .ss_en(ss_en), .ss_in(ss_step624_dl443_1), .ss_out(ss_step625_sr443));
 	
-	ym_sr_bit sr444(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w805), .sr_out(l444));
+	wire ss_step626_sr444;
+	ym_sr_bit sr444(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w805), .sr_out(l444), .ss_en(ss_en), .ss_in(ss_step625_sr443), .ss_out(ss_step626_sr444));
 	
 	assign w789 = ~(l444 | l445);
 	
 	assign w790 = w789 & l449;
 	
-	ym_sr_bit sr445(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l454), .sr_out(l445));
+	wire ss_step627_sr445;
+	ym_sr_bit sr445(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l454), .sr_out(l445), .ss_en(ss_en), .ss_in(ss_step626_sr444), .ss_out(ss_step627_sr445));
 	
 	assign w791 = w792 | w796;
 	
@@ -5346,9 +6050,11 @@ module ym7101
 	
 	assign w800 = w799[8:3] + {5'h0, w795} + { w797, w797, w796, w796, w794, w791 };
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr446(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w800), .data_out(l446));
+	wire ss_step628_sr446;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr446(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w800), .data_out(l446), .ss_en(ss_en), .ss_in(ss_step627_sr445), .ss_out(ss_step628_sr446));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr447(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w802), .data_out(l447));
+	wire ss_step629_sr447;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr447(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w802), .data_out(l447), .ss_en(ss_en), .ss_in(ss_step628_sr446), .ss_out(ss_step629_sr447));
 	
 	assign w801 = l444 ? l446 : l447;
 	
@@ -5356,23 +6062,32 @@ module ym7101
 	
 	assign w803 = clk2 & l499;
 	
-	ym_slatch sl448(.MCLK(MCLK), .en(w805), .inp(w795), .val(l448));
+	wire ss_step630_sl448;
+	ym_slatch sl448(.MCLK(MCLK), .en(w805), .inp(w795), .val(l448), .ss_en(ss_en), .ss_in(ss_step629_sr447), .ss_out(ss_step630_sl448));
 	
-	ym_sr_bit sr449(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l448), .sr_out(l449));
+	wire ss_step631_sr449;
+	ym_sr_bit sr449(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l448), .sr_out(l449), .ss_en(ss_en), .ss_in(ss_step630_sl448), .ss_out(ss_step631_sr449));
 	
-	ym_slatch sl450(.MCLK(MCLK), .en(w805), .inp(l441), .val(l450));
+	wire ss_step632_sl450;
+	ym_slatch sl450(.MCLK(MCLK), .en(w805), .inp(l441), .val(l450), .ss_en(ss_en), .ss_in(ss_step631_sr449), .ss_out(ss_step632_sl450));
 	
-	ym_slatch sl451(.MCLK(MCLK), .en(w803), .inp(l450), .val(l451));
+	wire ss_step633_sl451;
+	ym_slatch sl451(.MCLK(MCLK), .en(w803), .inp(l450), .val(l451), .ss_en(ss_en), .ss_in(ss_step632_sl450), .ss_out(ss_step633_sl451));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl452(.MCLK(MCLK), .en(w805), .inp(l440), .val(l452));
+	wire ss_step634_sl452;
+	ym_slatch #(.DATA_WIDTH(2)) sl452(.MCLK(MCLK), .en(w805), .inp(l440), .val(l452), .ss_en(ss_en), .ss_in(ss_step633_sl451), .ss_out(ss_step634_sl452));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl453(.MCLK(MCLK), .en(w803), .inp(l452), .val(l453));
+	wire ss_step635_sl453;
+	ym_slatch #(.DATA_WIDTH(2)) sl453(.MCLK(MCLK), .en(w803), .inp(l452), .val(l453), .ss_en(ss_en), .ss_in(ss_step634_sl452), .ss_out(ss_step635_sl453));
 	
-	ym_dlatch_2 dl454(.MCLK(MCLK), .c2(clk2), .inp(l499), .nval(l454));
+	wire ss_step636_dl454;
+	ym_dlatch_2 dl454(.MCLK(MCLK), .c2(clk2), .inp(l499), .nval(l454), .ss_en(ss_en), .ss_in(ss_step635_sl453), .ss_out(ss_step636_dl454));
 	
-	ym_sr_bit sr455(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l438), .sr_out(l455));
+	wire ss_step637_sr455;
+	ym_sr_bit sr455(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l438), .sr_out(l455), .ss_en(ss_en), .ss_in(ss_step636_dl454), .ss_out(ss_step637_sr455));
 	
-	ym_sr_bit sr456(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l455), .sr_out(l456));
+	wire ss_step638_sr456;
+	ym_sr_bit sr456(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l455), .sr_out(l456), .ss_en(ss_en), .ss_in(ss_step637_sr455), .ss_out(ss_step638_sr456));
 	
 	assign w804 = l456 & w808;
 	
@@ -5380,8 +6095,9 @@ module ym7101
 	
 	assign w806 = ~(reg_m5 & l442[0]);
 	
+	wire ss_step639_cnt457;
 	ym_cnt_bit_load #(.DATA_WIDTH(2)) cnt457(.MCLK(MCLK), .c1(hclk1), .c2(hclk2),
-		.c_in(l456), .reset(w360), .load(w804), .load_val( { w807, w806 } ), .val(l457));
+		.c_in(l456), .reset(w360), .load(w804), .load_val( { w807, w806 } ), .val(l457), .ss_en(ss_en), .ss_in(ss_step638_sr456), .ss_out(ss_step639_cnt457));
 	
 	assign w807 = ~(reg_m5 & l442[1]);
 	
@@ -5389,7 +6105,8 @@ module ym7101
 	
 	assign w809 = l106 + 9'h1 + { 4'hf, ~reg_m5, reg_m5, 2'h2, reg_m5 };
 	
-	ym_sr_bit sr458(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w810), .sr_out(l458));
+	wire ss_step640_sr458;
+	ym_sr_bit sr458(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w810), .sr_out(l458), .ss_en(ss_en), .ss_in(ss_step639_cnt457), .ss_out(ss_step640_sr458));
 	
 	assign w810 = ~((w802[5] & reg_rs1 & (w802[4] | w802[3]))
 		| (w802[5] & ~reg_rs1));
@@ -5398,53 +6115,68 @@ module ym7101
 	
 	assign w812 = w821 ? l453 : 2'h0;
 	
-	ym_sr_bit sr459(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~l454), .sr_out(l459));
+	wire ss_step641_sr459;
+	ym_sr_bit sr459(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~l454), .sr_out(l459), .ss_en(ss_en), .ss_in(ss_step640_sr458), .ss_out(ss_step641_sr459));
 	
-	ym_sr_bit sr460(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l459), .sr_out(l460));
+	wire ss_step642_sr460;
+	ym_sr_bit sr460(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l459), .sr_out(l460), .ss_en(ss_en), .ss_in(ss_step641_sr459), .ss_out(ss_step642_sr460));
 	
 	assign w813 = l460 ^ l449;
 	
-	ym_dlatch_1 dl461(.MCLK(MCLK), .c1(clk1), .inp(w813), .val(l461));
+	wire ss_step643_dl461;
+	ym_dlatch_1 dl461(.MCLK(MCLK), .c1(clk1), .inp(w813), .val(l461), .ss_en(ss_en), .ss_in(ss_step642_sr460), .ss_out(ss_step643_dl461));
 	
 	assign w814 = l458 & (~l454 | l460);
 	
-	ym_dlatch_1 dl462(.MCLK(MCLK), .c1(clk1), .inp(w814), .nval(l462));
+	wire ss_step644_dl462;
+	ym_dlatch_1 dl462(.MCLK(MCLK), .c1(clk1), .inp(w814), .nval(l462), .ss_en(ss_en), .ss_in(ss_step643_dl461), .ss_out(ss_step644_dl462));
 	
 	assign w815 = ~(l462 | reg_test0[13]);
 	
-	ym_sr_bit sr463(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w814), .sr_out(l463));
+	wire ss_step645_sr463;
+	ym_sr_bit sr463(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w814), .sr_out(l463), .ss_en(ss_en), .ss_in(ss_step644_dl462), .ss_out(ss_step645_sr463));
 	
 	assign w816 = w814 | l463;
 	
-	ym_sr_bit sr464(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w951), .sr_out(l464));
+	wire ss_step646_sr464;
+	ym_sr_bit sr464(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w951), .sr_out(l464), .ss_en(ss_en), .ss_in(ss_step645_sr463), .ss_out(ss_step646_sr464));
 	
 	assign w817 = l464 | w816 | w951 | reg_test0[13];
 	
 	assign w818 = ~(l465 & ~reg_test0[13]);
 	
-	ym_dlatch_1 dl465(.MCLK(MCLK), .c1(clk1), .inp(w819), .nval(l465));
+	wire ss_step647_dl465;
+	ym_dlatch_1 dl465(.MCLK(MCLK), .c1(clk1), .inp(w819), .nval(l465), .ss_en(ss_en), .ss_in(ss_step646_sr464), .ss_out(ss_step647_dl465));
 	
 	assign w819 = ~(hclk2 & l466);
 	
-	ym_dlatch_1 dl466(.MCLK(MCLK), .c1(hclk1), .inp(w820), .nval(l466));
+	wire ss_step648_dl466;
+	ym_dlatch_1 dl466(.MCLK(MCLK), .c1(hclk1), .inp(w820), .nval(l466), .ss_en(ss_en), .ss_in(ss_step647_dl465), .ss_out(ss_step648_dl466));
 	
 	assign w820 = w821 | l467 | l468 | l469;
 	
-	ym_sr_bit sr467(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w809[2]), .sr_out(l467));
+	wire ss_step649_sr467;
+	ym_sr_bit sr467(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w809[2]), .sr_out(l467), .ss_en(ss_en), .ss_in(ss_step648_dl466), .ss_out(ss_step649_sr467));
 	
-	ym_sr_bit sr468(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w809[1]), .sr_out(l468));
+	wire ss_step650_sr468;
+	ym_sr_bit sr468(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w809[1]), .sr_out(l468), .ss_en(ss_en), .ss_in(ss_step649_sr467), .ss_out(ss_step650_sr468));
 	
-	ym_sr_bit sr469(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w809[0]), .sr_out(l469));
+	wire ss_step651_sr469;
+	ym_sr_bit sr469(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w809[0]), .sr_out(l469), .ss_en(ss_en), .ss_in(ss_step650_sr468), .ss_out(ss_step651_sr469));
 	
 	assign w821 = ~(reg_m5 ? l470 : w388);
 	
-	ym_sr_bit sr470(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l471), .sr_out(l470));
+	wire ss_step652_sr470;
+	ym_sr_bit sr470(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l471), .sr_out(l470), .ss_en(ss_en), .ss_in(ss_step651_sr469), .ss_out(ss_step652_sr470));
 	
-	ym_sr_bit sr471(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w388), .sr_out(l471));
+	wire ss_step653_sr471;
+	ym_sr_bit sr471(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w388), .sr_out(l471), .ss_en(ss_en), .ss_in(ss_step652_sr470), .ss_out(ss_step653_sr471));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(3)) sr472(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(l473), .data_out(l472));
+	wire ss_step654_sr472;
+	ym_sr_bit_array #(.DATA_WIDTH(3)) sr472(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(l473), .data_out(l472), .ss_en(ss_en), .ss_in(ss_step653_sr471), .ss_out(ss_step654_sr472));
 	
-	ym_slatch #(.DATA_WIDTH(3)) sl473(.MCLK(MCLK), .en(w805), .inp(w799[2:0]), .val(l473));
+	wire ss_step655_sl473;
+	ym_slatch #(.DATA_WIDTH(3)) sl473(.MCLK(MCLK), .en(w805), .inp(w799[2:0]), .val(l473), .ss_en(ss_en), .ss_in(ss_step654_sr472), .ss_out(ss_step655_sl473));
 	
 	assign w822 = w821 & ~reg_test0[13];
 	
@@ -5452,28 +6184,36 @@ module ym7101
 	
 	assign w824 = reg_test0[13];
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr474(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w802), .data_out(l474));
+	wire ss_step656_sr474;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr474(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w802), .data_out(l474), .ss_en(ss_en), .ss_in(ss_step655_sl473), .ss_out(ss_step656_sr474));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr475(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w809[8:3]), .data_out(l475));
+	wire ss_step657_sr475;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr475(.MCLK(MCLK), .c1(clk1), .c2(clk2), .data_in(w809[8:3]), .data_out(l475), .ss_en(ss_en), .ss_in(ss_step656_sr474), .ss_out(ss_step657_sr475));
 	
 	assign w825 =
 		(w822 ? l474 : 6'h0) |
 		(w823 ? l475 : 6'h0) |
 		(w824 ? reg_test_18[5:0] : 6'h0);
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl478(.MCLK(MCLK), .en(w834), .inp(vram_serial), .val(l478));
+	wire ss_step658_sl478;
+	ym_slatch #(.DATA_WIDTH(8)) sl478(.MCLK(MCLK), .en(w834), .inp(vram_serial), .val(l478), .ss_en(ss_en), .ss_in(ss_step657_sr475), .ss_out(ss_step658_sl478));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl479(.MCLK(MCLK), .en(w833), .inp(vram_serial), .val(l479));
+	wire ss_step659_sl479;
+	ym_slatch #(.DATA_WIDTH(8)) sl479(.MCLK(MCLK), .en(w833), .inp(vram_serial), .val(l479), .ss_en(ss_en), .ss_in(ss_step658_sl478), .ss_out(ss_step659_sl479));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl480(.MCLK(MCLK), .en(w829), .inp(vram_serial), .val(l480));
+	wire ss_step660_sl480;
+	ym_slatch #(.DATA_WIDTH(8)) sl480(.MCLK(MCLK), .en(w829), .inp(vram_serial), .val(l480), .ss_en(ss_en), .ss_in(ss_step659_sl479), .ss_out(ss_step660_sl480));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl481(.MCLK(MCLK), .en(w830), .inp(vram_serial), .val(l481));
+	wire ss_step661_sl481;
+	ym_slatch #(.DATA_WIDTH(8)) sl481(.MCLK(MCLK), .en(w830), .inp(vram_serial), .val(l481), .ss_en(ss_en), .ss_in(ss_step660_sl480), .ss_out(ss_step661_sl481));
 	
 	assign w829 = l482 & clk2;
 	
-	ym_sr_bit sr482(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l483), .sr_out(l482));
+	wire ss_step662_sr482;
+	ym_sr_bit sr482(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l483), .sr_out(l482), .ss_en(ss_en), .ss_in(ss_step661_sl481), .ss_out(ss_step662_sr482));
 	
-	ym_dlatch_1 dl483(.MCLK(MCLK), .c1(clk1), .inp(w831), .nval(l483));
+	wire ss_step663_dl483;
+	ym_dlatch_1 dl483(.MCLK(MCLK), .c1(clk1), .inp(w831), .nval(l483), .ss_en(ss_en), .ss_in(ss_step662_sr482), .ss_out(ss_step663_dl483));
 	
 	assign w830 = l483 & clk2;
 	
@@ -5481,49 +6221,67 @@ module ym7101
 	
 	assign w832 = ~(l511 & hclk1);
 	
-	ym_dlatch_1 dl484(.MCLK(MCLK), .c1(clk1), .inp(w832), .nval(l484));
+	wire ss_step664_dl484;
+	ym_dlatch_1 dl484(.MCLK(MCLK), .c1(clk1), .inp(w832), .nval(l484), .ss_en(ss_en), .ss_in(ss_step663_dl483), .ss_out(ss_step664_dl484));
 	
 	assign w833 = l484 & clk2;
 	
-	ym_sr_bit sr485(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l484), .sr_out(l485));
+	wire ss_step665_sr485;
+	ym_sr_bit sr485(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l484), .sr_out(l485), .ss_en(ss_en), .ss_in(ss_step664_dl484), .ss_out(ss_step665_sr485));
 	
 	assign w834 = l485 & clk2;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl486(.MCLK(MCLK), .en(w834), .inp(l479), .val(l486));
+	wire ss_step666_sl486;
+	ym_slatch #(.DATA_WIDTH(8)) sl486(.MCLK(MCLK), .en(w834), .inp(l479), .val(l486), .ss_en(ss_en), .ss_in(ss_step665_sr485), .ss_out(ss_step666_sl486));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl487(.MCLK(MCLK), .en(w834), .inp(l480), .val(l487));
+	wire ss_step667_sl487;
+	ym_slatch #(.DATA_WIDTH(8)) sl487(.MCLK(MCLK), .en(w834), .inp(l480), .val(l487), .ss_en(ss_en), .ss_in(ss_step666_sl486), .ss_out(ss_step667_sl487));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl488(.MCLK(MCLK), .en(w834), .inp(l481), .val(l488));
+	wire ss_step668_sl488;
+	ym_slatch #(.DATA_WIDTH(8)) sl488(.MCLK(MCLK), .en(w834), .inp(l481), .val(l488), .ss_en(ss_en), .ss_in(ss_step667_sl487), .ss_out(ss_step668_sl488));
 	
-	ym_sr_bit sr489(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l485), .sr_out(l489));
+	wire ss_step669_sr489;
+	ym_sr_bit sr489(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l485), .sr_out(l489), .ss_en(ss_en), .ss_in(ss_step668_sl488), .ss_out(ss_step669_sr489));
 	
-	ym_sr_bit sr490(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l489), .sr_out(l490));
+	wire ss_step670_sr490;
+	ym_sr_bit sr490(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(l489), .sr_out(l490), .ss_en(ss_en), .ss_in(ss_step669_sr489), .ss_out(ss_step670_sr490));
 	
 	assign w835 = l490 & clk2;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl491(.MCLK(MCLK), .en(w835), .inp(l478), .val(l491));
+	wire ss_step671_sl491;
+	ym_slatch #(.DATA_WIDTH(8)) sl491(.MCLK(MCLK), .en(w835), .inp(l478), .val(l491), .ss_en(ss_en), .ss_in(ss_step670_sr490), .ss_out(ss_step671_sl491));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl492(.MCLK(MCLK), .en(w835), .inp(l486), .val(l492));
+	wire ss_step672_sl492;
+	ym_slatch #(.DATA_WIDTH(8)) sl492(.MCLK(MCLK), .en(w835), .inp(l486), .val(l492), .ss_en(ss_en), .ss_in(ss_step671_sl491), .ss_out(ss_step672_sl492));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl493(.MCLK(MCLK), .en(w835), .inp(l487), .val(l493));
+	wire ss_step673_sl493;
+	ym_slatch #(.DATA_WIDTH(8)) sl493(.MCLK(MCLK), .en(w835), .inp(l487), .val(l493), .ss_en(ss_en), .ss_in(ss_step672_sl492), .ss_out(ss_step673_sl493));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl494(.MCLK(MCLK), .en(w835), .inp(l488), .val(l494));
+	wire ss_step674_sl494;
+	ym_slatch #(.DATA_WIDTH(8)) sl494(.MCLK(MCLK), .en(w835), .inp(l488), .val(l494), .ss_en(ss_en), .ss_in(ss_step673_sl493), .ss_out(ss_step674_sl494));
 	
-	ym_sr_bit sr495(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w836), .sr_out(l495));
+	wire ss_step675_sr495;
+	ym_sr_bit sr495(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w836), .sr_out(l495), .ss_en(ss_en), .ss_in(ss_step674_sl494), .ss_out(ss_step675_sr495));
 	
-	ym_sr_bit sr496(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l495), .sr_out(l496));
+	wire ss_step676_sr496;
+	ym_sr_bit sr496(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l495), .sr_out(l496), .ss_en(ss_en), .ss_in(ss_step675_sr495), .ss_out(ss_step676_sr496));
 
-	ym_sr_bit sr497(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l496), .sr_out(l497));
+	wire ss_step677_sr497;
+	ym_sr_bit sr497(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l496), .sr_out(l497), .ss_en(ss_en), .ss_in(ss_step676_sr496), .ss_out(ss_step677_sr497));
 	
-	ym_sr_bit sr498(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l497), .sr_out(l498));
+	wire ss_step678_sr498;
+	ym_sr_bit sr498(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l497), .sr_out(l498), .ss_en(ss_en), .ss_in(ss_step677_sr497), .ss_out(ss_step678_sr498));
 	
-	ym_dlatch_1 dl499(.MCLK(MCLK), .c1(clk1), .inp(l498), .nval(l499));
+	wire ss_step679_dl499;
+	ym_dlatch_1 dl499(.MCLK(MCLK), .c1(clk1), .inp(l498), .nval(l499), .ss_en(ss_en), .ss_in(ss_step678_sr498), .ss_out(ss_step679_dl499));
 	
-	ym_dlatch_1 dl500(.MCLK(MCLK), .c1(hclk1), .inp(l438), .val(l500));
+	wire ss_step680_dl500;
+	ym_dlatch_1 dl500(.MCLK(MCLK), .c1(hclk1), .inp(l438), .val(l500), .ss_en(ss_en), .ss_in(ss_step679_dl499), .ss_out(ss_step680_dl500));
 	
 	assign w836 = ~(l500 & hclk2);
 	
-	ym_sr_bit sr501(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w795), .sr_out(l501));
+	wire ss_step681_sr501;
+	ym_sr_bit sr501(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w795), .sr_out(l501), .ss_en(ss_en), .ss_in(ss_step680_dl500), .ss_out(ss_step681_sr501));
 	
 	assign w837 = l501 ? l495 : l498;
 	
@@ -5555,46 +6313,59 @@ module ym7101
 	
 	assign w844 = w847 ? { w843[3:0], w843[7:4] } : w843;
 	
-	ym_dlatch_1 #(.DATA_WIDTH(8)) dl502(.MCLK(MCLK), .c1(clk1), .inp(w844), .val(l502));
+	wire ss_step682_dl502;
+	ym_dlatch_1 #(.DATA_WIDTH(8)) dl502(.MCLK(MCLK), .c1(clk1), .inp(w844), .val(l502), .ss_en(ss_en), .ss_in(ss_step681_sr501), .ss_out(ss_step682_dl502));
 	
 	assign w845 = reg_test0[13] ?
 		{ io_data[14], io_data[13], io_data[12], io_data[11], io_data[6], io_data[5], io_data[4], io_data[3] } :
 		l502;
 	
+	wire ss_step683_cnt503;
 	ym_cnt_bit_load #(.DATA_WIDTH(2)) cnt503(.MCLK(MCLK), .c1(clk1), .c2(clk2),
-		.c_in(~w846), .reset(1'h0), .load(w846), .load_val(w799[2:1]), .val(l503));
+		.c_in(~w846), .reset(1'h0), .load(w846), .load_val(w799[2:1]), .val(l503), .ss_en(ss_en), .ss_in(ss_step682_dl502), .ss_out(ss_step683_cnt503));
 	
 	assign w846 = ~w836;
 	
-	ym_dlatch_1 #(.DATA_WIDTH(3)) dl504(.MCLK(MCLK), .c1(clk1), .inp({ l503, l506 }), .val(l504));
+	wire ss_step684_dl504;
+	ym_dlatch_1 #(.DATA_WIDTH(3)) dl504(.MCLK(MCLK), .c1(clk1), .inp({ l503, l506 }), .val(l504), .ss_en(ss_en), .ss_in(ss_step683_cnt503), .ss_out(ss_step684_dl504));
 	
-	ym_slatch sl505(.MCLK(MCLK), .en(w846), .inp(w799[0]), .val(l505));
+	wire ss_step685_sl505;
+	ym_slatch sl505(.MCLK(MCLK), .en(w846), .inp(w799[0]), .val(l505), .ss_en(ss_en), .ss_in(ss_step684_dl504), .ss_out(ss_step685_sl505));
 	
-	ym_sr_bit sr506(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l505), .sr_out(l506));
+	wire ss_step686_sr506;
+	ym_sr_bit sr506(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l505), .sr_out(l506), .ss_en(ss_en), .ss_in(ss_step685_sl505), .ss_out(ss_step686_sr506));
 	
 	assign w847 = l506 ^ l501;
 	
 	assign w848 = l156 | (reg_m5 & l141);
 	
-	ym_sr_bit sr507(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w848), .sr_out(l507));
+	wire ss_step687_sr507;
+	ym_sr_bit sr507(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w848), .sr_out(l507), .ss_en(ss_en), .ss_in(ss_step686_sr506), .ss_out(ss_step687_sr507));
 	
-	ym_sr_bit sr508(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l507), .sr_out(l508));
+	wire ss_step688_sr508;
+	ym_sr_bit sr508(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l507), .sr_out(l508), .ss_en(ss_en), .ss_in(ss_step687_sr507), .ss_out(ss_step688_sr508));
 	
-	ym_sr_bit sr509(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l508), .sr_out(l509));
+	wire ss_step689_sr509;
+	ym_sr_bit sr509(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l508), .sr_out(l509), .ss_en(ss_en), .ss_in(ss_step688_sr508), .ss_out(ss_step689_sr509));
 	
-	ym_sr_bit sr510(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l509), .sr_out(l510));
+	wire ss_step690_sr510;
+	ym_sr_bit sr510(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l509), .sr_out(l510), .ss_en(ss_en), .ss_in(ss_step689_sr509), .ss_out(ss_step690_sr510));
 	
 	assign w849 = reg_m5 ? l509 : l510;
 	
-	ym_sr_bit sr511(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w849), .sr_out(l511));
+	wire ss_step691_sr511;
+	ym_sr_bit sr511(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w849), .sr_out(l511), .ss_en(ss_en), .ss_in(ss_step690_sr510), .ss_out(ss_step691_sr511));
 	
-	ym_dlatch_1 dl512(.MCLK(MCLK), .c1(hclk1), .inp(w388), .nval(l512));
+	wire ss_step692_dl512;
+	ym_dlatch_1 dl512(.MCLK(MCLK), .c1(hclk1), .inp(w388), .nval(l512), .ss_en(ss_en), .ss_in(ss_step691_sr511), .ss_out(ss_step692_dl512));
 	
-	ym_sr_bit sr513(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l512), .sr_out(l513));
+	wire ss_step693_sr513;
+	ym_sr_bit sr513(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l512), .sr_out(l513), .ss_en(ss_en), .ss_in(ss_step692_dl512), .ss_out(ss_step693_sr513));
 	
 	assign w850 = l513 & ~l512;
 	
-	ym_sr_bit sr514(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w850), .sr_out(l514));
+	wire ss_step694_sr514;
+	ym_sr_bit sr514(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w850), .sr_out(l514), .ss_en(ss_en), .ss_in(ss_step693_sr513), .ss_out(ss_step694_sr514));
 	
 	assign w852 = ~(~reg_test_18[7] & ~reg_test_18[6] & w98);
 	assign w853 = ~(~reg_test_18[7] & reg_test_18[6] & w98);
@@ -5631,39 +6402,55 @@ module ym7101
 	assign w882 = clk2 & (w865 | w880);
 	assign w884 = clk2 & (w883 | w865);
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl515(.MCLK(MCLK), .en(w872), .inp(w845[7:4]), .val(l515));
+	wire ss_step695_sl515;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl515(.MCLK(MCLK), .en(w872), .inp(w845[7:4]), .val(l515), .ss_en(ss_en), .ss_in(ss_step694_sr514), .ss_out(ss_step695_sl515));
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl516(.MCLK(MCLK), .en(w874), .inp(w845[3:0]), .val(l516));
+	wire ss_step696_sl516;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl516(.MCLK(MCLK), .en(w874), .inp(w845[3:0]), .val(l516), .ss_en(ss_en), .ss_in(ss_step695_sl515), .ss_out(ss_step696_sl516));
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl517(.MCLK(MCLK), .en(w875), .inp(w845[7:4]), .val(l517));
+	wire ss_step697_sl517;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl517(.MCLK(MCLK), .en(w875), .inp(w845[7:4]), .val(l517), .ss_en(ss_en), .ss_in(ss_step696_sl516), .ss_out(ss_step697_sl517));
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl518(.MCLK(MCLK), .en(w878), .inp(w845[3:0]), .val(l518));
+	wire ss_step698_sl518;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl518(.MCLK(MCLK), .en(w878), .inp(w845[3:0]), .val(l518), .ss_en(ss_en), .ss_in(ss_step697_sl517), .ss_out(ss_step698_sl518));
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl519(.MCLK(MCLK), .en(w879), .inp(w845[7:4]), .val(l519));
+	wire ss_step699_sl519;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl519(.MCLK(MCLK), .en(w879), .inp(w845[7:4]), .val(l519), .ss_en(ss_en), .ss_in(ss_step698_sl518), .ss_out(ss_step699_sl519));
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl520(.MCLK(MCLK), .en(w881), .inp(w845[3:0]), .val(l520));
+	wire ss_step700_sl520;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl520(.MCLK(MCLK), .en(w881), .inp(w845[3:0]), .val(l520), .ss_en(ss_en), .ss_in(ss_step699_sl519), .ss_out(ss_step700_sl520));
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl521(.MCLK(MCLK), .en(w882), .inp(w845[7:4]), .val(l521));
+	wire ss_step701_sl521;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl521(.MCLK(MCLK), .en(w882), .inp(w845[7:4]), .val(l521), .ss_en(ss_en), .ss_in(ss_step700_sl520), .ss_out(ss_step701_sl521));
 	
-	ym_slatch_t #(.DATA_WIDTH(4)) sl522(.MCLK(MCLK), .en(w884), .inp(w845[3:0]), .val(l522));
+	wire ss_step702_sl522;
+	ym_slatch_t #(.DATA_WIDTH(4)) sl522(.MCLK(MCLK), .en(w884), .inp(w845[3:0]), .val(l522), .ss_en(ss_en), .ss_in(ss_step701_sl521), .ss_out(ss_step702_sl522));
 	
 	assign w885 = clk2 & (l562 | l499);
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl523(.MCLK(MCLK), .en(w885), .inp(l515), .val(l523));
+	wire ss_step703_sl523;
+	ym_slatch #(.DATA_WIDTH(4)) sl523(.MCLK(MCLK), .en(w885), .inp(l515), .val(l523), .ss_en(ss_en), .ss_in(ss_step702_sl522), .ss_out(ss_step703_sl523));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl524(.MCLK(MCLK), .en(w885), .inp(l516), .val(l524));
+	wire ss_step704_sl524;
+	ym_slatch #(.DATA_WIDTH(4)) sl524(.MCLK(MCLK), .en(w885), .inp(l516), .val(l524), .ss_en(ss_en), .ss_in(ss_step703_sl523), .ss_out(ss_step704_sl524));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl525(.MCLK(MCLK), .en(w885), .inp(l517), .val(l525));
+	wire ss_step705_sl525;
+	ym_slatch #(.DATA_WIDTH(4)) sl525(.MCLK(MCLK), .en(w885), .inp(l517), .val(l525), .ss_en(ss_en), .ss_in(ss_step704_sl524), .ss_out(ss_step705_sl525));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl526(.MCLK(MCLK), .en(w885), .inp(l518), .val(l526));
+	wire ss_step706_sl526;
+	ym_slatch #(.DATA_WIDTH(4)) sl526(.MCLK(MCLK), .en(w885), .inp(l518), .val(l526), .ss_en(ss_en), .ss_in(ss_step705_sl525), .ss_out(ss_step706_sl526));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl527(.MCLK(MCLK), .en(w885), .inp(l519), .val(l527));
+	wire ss_step707_sl527;
+	ym_slatch #(.DATA_WIDTH(4)) sl527(.MCLK(MCLK), .en(w885), .inp(l519), .val(l527), .ss_en(ss_en), .ss_in(ss_step706_sl526), .ss_out(ss_step707_sl527));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl528(.MCLK(MCLK), .en(w885), .inp(l520), .val(l528));
+	wire ss_step708_sl528;
+	ym_slatch #(.DATA_WIDTH(4)) sl528(.MCLK(MCLK), .en(w885), .inp(l520), .val(l528), .ss_en(ss_en), .ss_in(ss_step707_sl527), .ss_out(ss_step708_sl528));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl529(.MCLK(MCLK), .en(w885), .inp(l521), .val(l529));
+	wire ss_step709_sl529;
+	ym_slatch #(.DATA_WIDTH(4)) sl529(.MCLK(MCLK), .en(w885), .inp(l521), .val(l529), .ss_en(ss_en), .ss_in(ss_step708_sl528), .ss_out(ss_step709_sl529));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl530(.MCLK(MCLK), .en(w885), .inp(l522), .val(l530));
+	wire ss_step710_sl530;
+	ym_slatch #(.DATA_WIDTH(4)) sl530(.MCLK(MCLK), .en(w885), .inp(l522), .val(l530), .ss_en(ss_en), .ss_in(ss_step709_sl529), .ss_out(ss_step710_sl530));
 	
 	assign w851 = l472 >= 3'h1;
 	assign w867 = l472 >= 3'h2;
@@ -5673,19 +6460,26 @@ module ym7101
 	assign w870 = l472 >= 3'h6;
 	assign w871 = l472 >= 3'h7;
 	
-	ym_dlatch_1 dl531(.MCLK(MCLK), .c1(clk1), .inp(w851), .nval(l531));
+	wire ss_step711_dl531;
+	ym_dlatch_1 dl531(.MCLK(MCLK), .c1(clk1), .inp(w851), .nval(l531), .ss_en(ss_en), .ss_in(ss_step710_sl530), .ss_out(ss_step711_dl531));
 	
-	ym_dlatch_1 dl532(.MCLK(MCLK), .c1(clk1), .inp(w867), .nval(l532));
+	wire ss_step712_dl532;
+	ym_dlatch_1 dl532(.MCLK(MCLK), .c1(clk1), .inp(w867), .nval(l532), .ss_en(ss_en), .ss_in(ss_step711_dl531), .ss_out(ss_step712_dl532));
 	
-	ym_dlatch_1 dl533(.MCLK(MCLK), .c1(clk1), .inp(w868), .nval(l533));
+	wire ss_step713_dl533;
+	ym_dlatch_1 dl533(.MCLK(MCLK), .c1(clk1), .inp(w868), .nval(l533), .ss_en(ss_en), .ss_in(ss_step712_dl532), .ss_out(ss_step713_dl533));
 	
-	ym_dlatch_1 dl534(.MCLK(MCLK), .c1(clk1), .inp(w869), .nval(l534));
+	wire ss_step714_dl534;
+	ym_dlatch_1 dl534(.MCLK(MCLK), .c1(clk1), .inp(w869), .nval(l534), .ss_en(ss_en), .ss_in(ss_step713_dl533), .ss_out(ss_step714_dl534));
 	
-	ym_dlatch_1 dl535(.MCLK(MCLK), .c1(clk1), .inp(w827), .nval(l535));
+	wire ss_step715_dl535;
+	ym_dlatch_1 dl535(.MCLK(MCLK), .c1(clk1), .inp(w827), .nval(l535), .ss_en(ss_en), .ss_in(ss_step714_dl534), .ss_out(ss_step715_dl535));
 	
-	ym_dlatch_1 dl536(.MCLK(MCLK), .c1(clk1), .inp(w870), .nval(l536));
+	wire ss_step716_dl536;
+	ym_dlatch_1 dl536(.MCLK(MCLK), .c1(clk1), .inp(w870), .nval(l536), .ss_en(ss_en), .ss_in(ss_step715_dl535), .ss_out(ss_step716_dl536));
 	
-	ym_dlatch_1 dl537(.MCLK(MCLK), .c1(clk1), .inp(w871), .nval(l537));
+	wire ss_step717_dl537;
+	ym_dlatch_1 dl537(.MCLK(MCLK), .c1(clk1), .inp(w871), .nval(l537), .ss_en(ss_en), .ss_in(ss_step716_dl536), .ss_out(ss_step717_dl537));
 	
 	assign w886 = l531 ^ l461;
 	assign w887 = l532 ^ l461;
@@ -5714,21 +6508,29 @@ module ym7101
 	assign w908 = ~(w859 | (w900 & w948));
 	assign w909 = ~(w859 | (w901 & w949));
 	
-	ym_dlatch_2 dl538(.MCLK(MCLK), .c2(clk2), .inp(w902), .nval(l538));
+	wire ss_step718_dl538;
+	ym_dlatch_2 dl538(.MCLK(MCLK), .c2(clk2), .inp(w902), .nval(l538), .ss_en(ss_en), .ss_in(ss_step717_dl537), .ss_out(ss_step718_dl538));
 	
-	ym_dlatch_2 dl539(.MCLK(MCLK), .c2(clk2), .inp(w903), .nval(l539));
+	wire ss_step719_dl539;
+	ym_dlatch_2 dl539(.MCLK(MCLK), .c2(clk2), .inp(w903), .nval(l539), .ss_en(ss_en), .ss_in(ss_step718_dl538), .ss_out(ss_step719_dl539));
 	
-	ym_dlatch_2 dl540(.MCLK(MCLK), .c2(clk2), .inp(w904), .nval(l540));
+	wire ss_step720_dl540;
+	ym_dlatch_2 dl540(.MCLK(MCLK), .c2(clk2), .inp(w904), .nval(l540), .ss_en(ss_en), .ss_in(ss_step719_dl539), .ss_out(ss_step720_dl540));
 	
-	ym_dlatch_2 dl541(.MCLK(MCLK), .c2(clk2), .inp(w905), .nval(l541));
+	wire ss_step721_dl541;
+	ym_dlatch_2 dl541(.MCLK(MCLK), .c2(clk2), .inp(w905), .nval(l541), .ss_en(ss_en), .ss_in(ss_step720_dl540), .ss_out(ss_step721_dl541));
 	
-	ym_dlatch_2 dl542(.MCLK(MCLK), .c2(clk2), .inp(w906), .nval(l542));
+	wire ss_step722_dl542;
+	ym_dlatch_2 dl542(.MCLK(MCLK), .c2(clk2), .inp(w906), .nval(l542), .ss_en(ss_en), .ss_in(ss_step721_dl541), .ss_out(ss_step722_dl542));
 	
-	ym_dlatch_2 dl543(.MCLK(MCLK), .c2(clk2), .inp(w907), .nval(l543));
+	wire ss_step723_dl543;
+	ym_dlatch_2 dl543(.MCLK(MCLK), .c2(clk2), .inp(w907), .nval(l543), .ss_en(ss_en), .ss_in(ss_step722_dl542), .ss_out(ss_step723_dl543));
 	
-	ym_dlatch_2 dl544(.MCLK(MCLK), .c2(clk2), .inp(w908), .nval(l544));
+	wire ss_step724_dl544;
+	ym_dlatch_2 dl544(.MCLK(MCLK), .c2(clk2), .inp(w908), .nval(l544), .ss_en(ss_en), .ss_in(ss_step723_dl543), .ss_out(ss_step724_dl544));
 	
-	ym_dlatch_2 dl545(.MCLK(MCLK), .c2(clk2), .inp(w909), .nval(l545));
+	wire ss_step725_dl545;
+	ym_dlatch_2 dl545(.MCLK(MCLK), .c2(clk2), .inp(w909), .nval(l545), .ss_en(ss_en), .ss_in(ss_step724_dl544), .ss_out(ss_step725_dl545));
 	
 	assign w910 = l538 & clk1;
 	
@@ -5897,32 +6699,42 @@ module ym7101
 		end
 	endgenerate
 	
+	wire ss_step726_sr546;
 	ym_dbg_read #(.DATA_WIDTH(8)) sr546(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .prev(1'h0), .load(w951),
-		.load_val(load_val_pal0), .next(spr_pal[0]));
+		.load_val(load_val_pal0), .next(spr_pal[0]), .ss_en(ss_en), .ss_in(ss_step725_dl545), .ss_out(ss_step726_sr546));
 	
+	wire ss_step727_sr547;
 	ym_dbg_read #(.DATA_WIDTH(8)) sr547(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .prev(1'h0), .load(w951),
-		.load_val(load_val_pal1), .next(spr_pal[1]));
+		.load_val(load_val_pal1), .next(spr_pal[1]), .ss_en(ss_en), .ss_in(ss_step726_sr546), .ss_out(ss_step727_sr547));
 	
+	wire ss_step728_sr548;
 	ym_dbg_read #(.DATA_WIDTH(8)) sr548(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .prev(1'h0), .load(w951),
-		.load_val(load_val_priority), .next(spr_priority));
+		.load_val(load_val_priority), .next(spr_priority), .ss_en(ss_en), .ss_in(ss_step727_sr547), .ss_out(ss_step728_sr548));
 	
+	wire ss_step729_sr549;
 	ym_dbg_read #(.DATA_WIDTH(8)) sr549(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .prev(1'h0), .load(w951),
-		.load_val(load_val_index0), .next(spr_index[0]));
+		.load_val(load_val_index0), .next(spr_index[0]), .ss_en(ss_en), .ss_in(ss_step728_sr548), .ss_out(ss_step729_sr549));
 	
+	wire ss_step730_sr550;
 	ym_dbg_read #(.DATA_WIDTH(8)) sr550(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .prev(1'h0), .load(w951),
-		.load_val(load_val_index1), .next(spr_index[1]));
+		.load_val(load_val_index1), .next(spr_index[1]), .ss_en(ss_en), .ss_in(ss_step729_sr549), .ss_out(ss_step730_sr550));
 	
+	wire ss_step731_sr551;
 	ym_dbg_read #(.DATA_WIDTH(8)) sr551(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .prev(1'h0), .load(w951),
-		.load_val(load_val_index2), .next(spr_index[2]));
+		.load_val(load_val_index2), .next(spr_index[2]), .ss_en(ss_en), .ss_in(ss_step730_sr550), .ss_out(ss_step731_sr551));
 	
+	wire ss_step732_sr552;
 	ym_dbg_read #(.DATA_WIDTH(8)) sr552(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .prev(1'h0), .load(w951),
-		.load_val(load_val_index3), .next(spr_index[3]));
+		.load_val(load_val_index3), .next(spr_index[3]), .ss_en(ss_en), .ss_in(ss_step731_sr551), .ss_out(ss_step732_sr552));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(2)) sr553(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(spr_pal), .data_out(l553));
+	wire ss_step733_sr553;
+	ym_sr_bit_array #(.DATA_WIDTH(2)) sr553(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(spr_pal), .data_out(l553), .ss_en(ss_en), .ss_in(ss_step732_sr552), .ss_out(ss_step733_sr553));
 	
-	ym_sr_bit sr554(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(spr_priority), .sr_out(l554));
+	wire ss_step734_sr554;
+	ym_sr_bit sr554(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(spr_priority), .sr_out(l554), .ss_en(ss_en), .ss_in(ss_step733_sr553), .ss_out(ss_step734_sr554));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr555(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(spr_index), .data_out(l555));
+	wire ss_step735_sr555;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr555(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(spr_index), .data_out(l555), .ss_en(ss_en), .ss_in(ss_step734_sr554), .ss_out(ss_step735_sr555));
 	
 	assign w970 = reg_m5 ? l553 : spr_pal;
 	
@@ -5930,11 +6742,14 @@ module ym7101
 	
 	assign w972 = reg_m5 ? l555 : spr_index;
 	
-	ym_sr_bit_array #(.DATA_WIDTH(2)) sr556(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w970), .data_out(l556));
+	wire ss_step736_sr556;
+	ym_sr_bit_array #(.DATA_WIDTH(2)) sr556(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w970), .data_out(l556), .ss_en(ss_en), .ss_in(ss_step735_sr555), .ss_out(ss_step736_sr556));
 	
-	ym_sr_bit sr557(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w971), .sr_out(l557));
+	wire ss_step737_sr557;
+	ym_sr_bit sr557(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w971), .sr_out(l557), .ss_en(ss_en), .ss_in(ss_step736_sr556), .ss_out(ss_step737_sr557));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr558(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w972), .data_out(l558));
+	wire ss_step738_sr558;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr558(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w972), .data_out(l558), .ss_en(ss_en), .ss_in(ss_step737_sr557), .ss_out(ss_step738_sr558));
 	
 	assign w973 = l557 & reg_m5;
 	
@@ -5948,15 +6763,20 @@ module ym7101
 
 	assign w978 = l558 == 4'hf;
 	
-	ym_sr_bit_array #(.DATA_WIDTH(2)) sr559(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w974), .data_out(l559));
+	wire ss_step739_sr559;
+	ym_sr_bit_array #(.DATA_WIDTH(2)) sr559(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w974), .data_out(l559), .ss_en(ss_en), .ss_in(ss_step738_sr558), .ss_out(ss_step739_sr559));
 	
-	ym_sr_bit sr560(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w973), .sr_out(l560));
+	wire ss_step740_sr560;
+	ym_sr_bit sr560(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w973), .sr_out(l560), .ss_en(ss_en), .ss_in(ss_step739_sr559), .ss_out(ss_step740_sr560));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(4)) sr561(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l558), .data_out(l561));
+	wire ss_step741_sr561;
+	ym_sr_bit_array #(.DATA_WIDTH(4)) sr561(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(l558), .data_out(l561), .ss_en(ss_en), .ss_in(ss_step740_sr560), .ss_out(ss_step741_sr561));
 	
-	ym_sr_bit sr562(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(w877), .sr_out(l562));
+	wire ss_step742_sr562;
+	ym_sr_bit sr562(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(w877), .sr_out(l562), .ss_en(ss_en), .ss_in(ss_step741_sr561), .ss_out(ss_step742_sr562));
 	
-	ym_dlatch_1 dl563(.MCLK(MCLK), .c1(clk1), .inp(l514), .nval(l563));
+	wire ss_step743_dl563;
+	ym_dlatch_1 dl563(.MCLK(MCLK), .c1(clk1), .inp(l514), .nval(l563), .ss_en(ss_en), .ss_in(ss_step742_sr562), .ss_out(ss_step743_dl563));
 	
 	assign w979 = reg_test0[13] ? io_data[10] : w811;
 	
@@ -5966,7 +6786,8 @@ module ym7101
 	
 	assign w983 = reg_test0[13] ? io_data[1:0] : w812;
 	
-	ym_sr_bit sr600(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(w1020), .sr_out(l600));
+	wire ss_step744_sr600;
+	ym_sr_bit sr600(.MCLK(MCLK), .c1(clk2), .c2(clk1), .bit_in(w1020), .sr_out(l600), .ss_en(ss_en), .ss_in(ss_step743_dl563), .ss_out(ss_step744_sr600));
 	
 	assign w1020 = w926 | w927 | w928 | w929 | w930 | w931 | w932 | w933;
 	
@@ -5974,7 +6795,7 @@ module ym7101
 	
 	// sat cache
 	
-	wire [6:0] sat_index = w695;
+	wire [7:0] sat_index = ss_sat_sel ? ss_sat_addr[9:2] : {1'b0, w695};
 	
 	wire [20:0] sat_data_in;
 	
@@ -5988,9 +6809,23 @@ module ym7101
 	
 	always @(posedge MCLK)
 	begin
-		if (sat_index < 7'd80)
+		if (ss_en)
 		begin
-			if (hclk1) // write cycle
+			sat_out <= {sat_out[19:0], ss_step744_sr600};
+		end
+		else
+		begin
+
+		if (sat_index < 8'd80)
+		begin
+			if (ss_sat_sel & ss_sat_wr)
+			begin
+				if (ss_sat_addr[1:0] == 2'd0)
+					sat[sat_index][15:0] <= ss_sat_din;
+				else if (ss_sat_addr[1:0] == 2'd1)
+					sat[sat_index][20:16] <= ss_sat_din[4:0];
+			end
+			else if (hclk1 && !ss_en) // write cycle
 			begin
 				if (w687)
 					sat[sat_index][6:0] <= sat_data_in[6:0];
@@ -6018,7 +6853,8 @@ module ym7101
 				2'h3: sat_out <= sat_out & sat_out_3;
 			endcase
 		end
-	end
+			end
+end
 	
 	// sprdata
 	
@@ -6041,9 +6877,18 @@ module ym7101
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			sprdata_out <= {sprdata_out[32:0], sat_out[20]};
+			sprdata_out_1 <= {sprdata_out_1[32:0], sprdata_out[33]};
+			sprdata_out_0 <= {sprdata_out_0[32:0], sprdata_out_1[33]};
+		end
+		else
+		begin
+
 		if (sprdata_index < 5'd20)
 		begin
-			if (hclk1) // write cycle
+			if (hclk1 && !ss_en) // write cycle
 			begin
 				if (w712)
 					sprdata[sprdata_index][10:0] <= sprdata_in[10:0];
@@ -6065,7 +6910,8 @@ module ym7101
 			else
 				sprdata_out <= sprdata_out & sprdata_out_0;
 		end
-	end
+			end
+end
 	
 	// linebuffer
 	
@@ -6118,9 +6964,16 @@ module ym7101
 	
 	always @(posedge MCLK)
 	begin
+		// not in the scan chain: parallel loaded from linebuffer, which is not saved
+		if (ss_en)
+		begin
+		end
+		else
+		begin
+
 		if (linebuffer_index < 6'd40)
 		begin
-			if (w817) // write cycle
+			if (w817 && !ss_en) // write cycle
 			begin
 				if (w910)
 					linebuffer[linebuffer_index][6:0] <= linebuffer_data_in[6:0];
@@ -6152,17 +7005,22 @@ module ym7101
 			else
 				linebuffer_out <= linebuffer_out & linebuffer_out_0;
 		end
-	end
+			end
+end
 	
 	// VRAM interface block
 	
-	ym_dlatch_1 dl564(.MCLK(MCLK), .c1(hclk1), .inp(l116), .nval(l564));
+	wire ss_step748_dl564;
+	ym_dlatch_1 dl564(.MCLK(MCLK), .c1(hclk1), .inp(l116), .nval(l564), .ss_en(ss_en), .ss_in(sprdata_out_0[33]), .ss_out(ss_step748_dl564));
 	
-	ym_sr_bit sr565(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l564), .sr_out(l565));
+	wire ss_step749_sr565;
+	ym_sr_bit sr565(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(l564), .sr_out(l565), .ss_en(ss_en), .ss_in(ss_step748_dl564), .ss_out(ss_step749_sr565));
 	
-	ym_dlatch_1 dl566(.MCLK(MCLK), .c1(clk1), .inp(l565), .nval(l566));
+	wire ss_step750_dl566;
+	ym_dlatch_1 dl566(.MCLK(MCLK), .c1(clk1), .inp(l565), .nval(l566), .ss_en(ss_en), .ss_in(ss_step749_sr565), .ss_out(ss_step750_dl566));
 	
-	ym_dlatch_2 dl567(.MCLK(MCLK), .c2(clk2), .inp(l566), .nval(l567));
+	wire ss_step751_dl567;
+	ym_dlatch_2 dl567(.MCLK(MCLK), .c2(clk2), .inp(l566), .nval(l567), .ss_en(ss_en), .ss_in(ss_step750_dl566), .ss_out(ss_step751_dl567));
 	
 	wire l576_delay = l576; // FIXME
 	
@@ -6178,69 +7036,92 @@ module ym7101
 	
 	assign w990 = (w992 & l579) | l576 | reg_test0[5];
 	
-	ym_sr_bit sr568(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w991), .sr_out(l568));
+	wire ss_step752_sr568;
+	ym_sr_bit sr568(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w991), .sr_out(l568), .ss_en(ss_en), .ss_in(ss_step751_dl567), .ss_out(ss_step752_sr568));
 	
 	assign w991 = w286 | l571;
 	
 	assign w992 = l569 | ~l570;
 	
-	ym_dlatch_2 dl569(.MCLK(MCLK), .c2(hclk2), .inp(l570), .nval(l569));
+	wire ss_step753_dl569;
+	ym_dlatch_2 dl569(.MCLK(MCLK), .c2(hclk2), .inp(l570), .nval(l569), .ss_en(ss_en), .ss_in(ss_step752_sr568), .ss_out(ss_step753_dl569));
 	
-	ym_dlatch_1 dl570(.MCLK(MCLK), .c1(hclk1), .inp(w1000), .nval(l570));
+	wire ss_step754_dl570;
+	ym_dlatch_1 dl570(.MCLK(MCLK), .c1(hclk1), .inp(w1000), .nval(l570), .ss_en(ss_en), .ss_in(ss_step753_dl569), .ss_out(ss_step754_dl570));
 	
-	ym_sr_bit sr571(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w286), .sr_out(l571));
+	wire ss_step755_sr571;
+	ym_sr_bit sr571(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w286), .sr_out(l571), .ss_en(ss_en), .ss_in(ss_step754_dl570), .ss_out(ss_step755_sr571));
 	
 	assign w993 = ~w992 & (l572 | ~l573);
 	
-	ym_dlatch_2 dl572(.MCLK(MCLK), .c2(hclk2), .inp(l573), .nval(l572));
+	wire ss_step756_dl572;
+	ym_dlatch_2 dl572(.MCLK(MCLK), .c2(hclk2), .inp(l573), .nval(l572), .ss_en(ss_en), .ss_in(ss_step755_sr571), .ss_out(ss_step756_dl572));
 	
-	ym_dlatch_1 dl573(.MCLK(MCLK), .c1(hclk1), .inp(l590), .nval(l573));
+	wire ss_step757_dl573;
+	ym_dlatch_1 dl573(.MCLK(MCLK), .c1(hclk1), .inp(l590), .nval(l573), .ss_en(ss_en), .ss_in(ss_step756_dl572), .ss_out(ss_step757_dl573));
 	
-	ym_sr_bit sr574(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l109), .sr_out(l574));
+	wire ss_step758_sr574;
+	ym_sr_bit sr574(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l109), .sr_out(l574), .ss_en(ss_en), .ss_in(ss_step757_dl573), .ss_out(ss_step758_sr574));
 	
-	ym_dlatch_1 dl575(.MCLK(MCLK), .c1(hclk1), .inp(w1001), .nval(l575));
+	wire ss_step759_dl575;
+	ym_dlatch_1 dl575(.MCLK(MCLK), .c1(hclk1), .inp(w1001), .nval(l575), .ss_en(ss_en), .ss_in(ss_step758_sr574), .ss_out(ss_step759_dl575));
 	
-	ym_sr_bit sr576(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~l564), .sr_out(l576));
+	wire ss_step760_sr576;
+	ym_sr_bit sr576(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(~l564), .sr_out(l576), .ss_en(ss_en), .ss_in(ss_step759_dl575), .ss_out(ss_step760_sr576));
 	
-	ym_dlatch_1 dl577(.MCLK(MCLK), .c1(clk1), .inp(l576), .nval(l577));
+	wire ss_step761_dl577;
+	ym_dlatch_1 dl577(.MCLK(MCLK), .c1(clk1), .inp(l576), .nval(l577), .ss_en(ss_en), .ss_in(ss_step760_sr576), .ss_out(ss_step761_dl577));
 	
-	ym_dlatch_2 dl578(.MCLK(MCLK), .c2(clk2), .inp(l577), .nval(l578));
+	wire ss_step762_dl578;
+	ym_dlatch_2 dl578(.MCLK(MCLK), .c2(clk2), .inp(l577), .nval(l578), .ss_en(ss_en), .ss_in(ss_step761_dl577), .ss_out(ss_step762_dl578));
 	
-	ym_dlatch_1 dl579(.MCLK(MCLK), .c1(clk1), .inp(~l578), .nval(l579));
+	wire ss_step763_dl579;
+	ym_dlatch_1 dl579(.MCLK(MCLK), .c1(clk1), .inp(~l578), .nval(l579), .ss_en(ss_en), .ss_in(ss_step762_dl578), .ss_out(ss_step763_dl579));
 	
 	assign w994 = ~((l116 & ~w265 & ~w263) | (w265 & l581));
 	
-	ym_dlatch_1 dl580(.MCLK(MCLK), .c1(hclk1), .inp(w994), .nval(l580));
+	wire ss_step764_dl580;
+	ym_dlatch_1 dl580(.MCLK(MCLK), .c1(hclk1), .inp(w994), .nval(l580), .ss_en(ss_en), .ss_in(ss_step763_dl579), .ss_out(ss_step764_dl580));
 	
-	ym_sr_bit sr581(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l582), .sr_out(l581));
+	wire ss_step765_sr581;
+	ym_sr_bit sr581(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l582), .sr_out(l581), .ss_en(ss_en), .ss_in(ss_step764_dl580), .ss_out(ss_step765_sr581));
 	
 	assign w995 = l565;
 	assign w996 = l576 & l567; // addr high
 	assign w997 = l578 & l576; // addr low
 	
-	ym_sr_bit sr582(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w195), .sr_out(l582));
+	wire ss_step766_sr582;
+	ym_sr_bit sr582(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w195), .sr_out(l582), .ss_en(ss_en), .ss_in(ss_step765_sr581), .ss_out(ss_step766_sr582));
 	
 	assign w998 = l577 & l579;
 	
-	ym_sr_bit sr583(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1004), .sr_out(l583));
+	wire ss_step767_sr583;
+	ym_sr_bit sr583(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1004), .sr_out(l583), .ss_en(ss_en), .ss_in(ss_step766_sr582), .ss_out(ss_step767_sr583));
 	
-	ym_sr_bit sr584(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w999), .sr_out(l584));
+	wire ss_step768_sr584;
+	ym_sr_bit sr584(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w999), .sr_out(l584), .ss_en(ss_en), .ss_in(ss_step767_sr583), .ss_out(ss_step768_sr584));
 	
 	assign w999 = w288 | l585;
 	
-	ym_sr_bit sr585(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w288), .sr_out(l585));
+	wire ss_step769_sr585;
+	ym_sr_bit sr585(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w288), .sr_out(l585), .ss_en(ss_en), .ss_in(ss_step768_sr584), .ss_out(ss_step769_sr585));
 	
 	assign w1000 = l585 | l571;
 	
-	ym_sr_bit sr586(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w1007), .sr_out(l586));
+	wire ss_step770_sr586;
+	ym_sr_bit sr586(.MCLK(MCLK), .c1(clk1), .c2(clk2), .bit_in(w1007), .sr_out(l586), .ss_en(ss_en), .ss_in(ss_step769_sr585), .ss_out(ss_step770_sr586));
 	
-	ym_sr_bit sr587(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1008), .sr_out(l587));
+	wire ss_step771_sr587;
+	ym_sr_bit sr587(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1008), .sr_out(l587), .ss_en(ss_en), .ss_in(ss_step770_sr586), .ss_out(ss_step771_sr587));
 	
-	ym_sr_bit sr588(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l108), .sr_out(l588));
+	wire ss_step772_sr588;
+	ym_sr_bit sr588(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l108), .sr_out(l588), .ss_en(ss_en), .ss_in(ss_step771_sr587), .ss_out(ss_step772_sr588));
 	
-	ym_sr_bit sr589(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l588), .sr_out(l589));
+	wire ss_step773_sr589;
+	ym_sr_bit sr589(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l588), .sr_out(l589), .ss_en(ss_en), .ss_in(ss_step772_sr588), .ss_out(ss_step773_sr589));
 	
-	ym_sr_bit sr590(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l574), .sr_out(l590));
+	wire ss_step774_sr590;
+	ym_sr_bit sr590(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l574), .sr_out(l590), .ss_en(ss_en), .ss_in(ss_step773_sr589), .ss_out(ss_step774_sr590));
 	
 	assign w1001 = l574 | l590 | w1008;
 	
@@ -6250,7 +7131,8 @@ module ym7101
 	
 	assign w1004 = l116 & l30;
 	
-	ym_sr_bit sr591(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w265), .sr_out(l591));
+	wire ss_step775_sr591;
+	ym_sr_bit sr591(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w265), .sr_out(l591), .ss_en(ss_en), .ss_in(ss_step774_sr590), .ss_out(ss_step775_sr591));
 	
 	assign w1005 = hclk1 & l116;
 	
@@ -6274,30 +7156,38 @@ module ym7101
 	
 	assign w1014 = reg_m5 ? vram_address[9:2] : vram_address[8:1];
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl592(.MCLK(MCLK), .en(w1002), .inp(w1012), .val(l592));
+	wire ss_step776_sl592;
+	ym_slatch #(.DATA_WIDTH(8)) sl592(.MCLK(MCLK), .en(w1002), .inp(w1012), .val(l592), .ss_en(ss_en), .ss_in(ss_step775_sr591), .ss_out(ss_step776_sl592));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl593(.MCLK(MCLK), .en(w1002), .inp(w1014), .val(l593));
+	wire ss_step777_sl593;
+	ym_slatch #(.DATA_WIDTH(8)) sl593(.MCLK(MCLK), .en(w1002), .inp(w1014), .val(l593), .ss_en(ss_en), .ss_in(ss_step776_sl592), .ss_out(ss_step777_sl593));
 	
 	assign w1015 =
 		(w997 ? l592 : 8'h0) |
 		(w996 ? l593 : 8'h0) |
 		(w995 ? l594 : 8'h0);
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl594(.MCLK(MCLK), .en(w1003), .inp(w1016), .val(l594));
+	wire ss_step778_sl594;
+	ym_slatch #(.DATA_WIDTH(8)) sl594(.MCLK(MCLK), .en(w1003), .inp(w1016), .val(l594), .ss_en(ss_en), .ss_in(ss_step777_sl593), .ss_out(ss_step778_sl594));
 	
 	assign w1016 = l591 ? l599 : l595;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl595(.MCLK(MCLK), .en(w1005), .inp(vram_data[7:0]), .val(l595));
+	wire ss_step779_sl595;
+	ym_slatch #(.DATA_WIDTH(8)) sl595(.MCLK(MCLK), .en(w1005), .inp(vram_data[7:0]), .val(l595), .ss_en(ss_en), .ss_in(ss_step778_sl594), .ss_out(ss_step779_sl595));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl596(.MCLK(MCLK), .en(w1005), .inp(vram_data[15:8]), .val(l596));
+	wire ss_step780_sl596;
+	ym_slatch #(.DATA_WIDTH(8)) sl596(.MCLK(MCLK), .en(w1005), .inp(vram_data[15:8]), .val(l596), .ss_en(ss_en), .ss_in(ss_step779_sl595), .ss_out(ss_step780_sl596));
 	
 	assign w1017 = l591 ? l598 : l596;
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl597(.MCLK(MCLK), .en(w1003), .inp(w1017), .val(l597));
+	wire ss_step781_sl597;
+	ym_slatch #(.DATA_WIDTH(8)) sl597(.MCLK(MCLK), .en(w1003), .inp(w1017), .val(l597), .ss_en(ss_en), .ss_in(ss_step780_sl596), .ss_out(ss_step781_sl597));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl598(.MCLK(MCLK), .en(w998), .inp(RD_i), .val(l598));
+	wire ss_step782_sl598;
+	ym_slatch #(.DATA_WIDTH(8)) sl598(.MCLK(MCLK), .en(w998), .inp(RD_i), .val(l598), .ss_en(ss_en), .ss_in(ss_step781_sl597), .ss_out(ss_step782_sl598));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl599(.MCLK(MCLK), .en(w998), .inp(AD_i), .val(l599));
+	wire ss_step783_sl599;
+	ym_slatch #(.DATA_WIDTH(8)) sl599(.MCLK(MCLK), .en(w998), .inp(AD_i), .val(l599), .ss_en(ss_en), .ss_in(ss_step782_sl598), .ss_out(ss_step783_sl599));
 	
 	assign w1018 = reg_test0[5] ? vram_address[7:0] : w1015;
 	
@@ -6326,9 +7216,11 @@ module ym7101
 	
 	assign w1021 = w302 | w178 | w303;
 	
-	ym_sr_bit sr601(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w302), .sr_out(l601));
+	wire ss_step784_sr601;
+	ym_sr_bit sr601(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w302), .sr_out(l601), .ss_en(ss_en), .ss_in(ss_step783_sl599), .ss_out(ss_step784_sr601));
 	
-	ym_sr_bit sr602(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w303), .sr_out(l602));
+	wire ss_step785_sr602;
+	ym_sr_bit sr602(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w303), .sr_out(l602), .ss_en(ss_en), .ss_in(ss_step784_sr601), .ss_out(ss_step785_sr602));
 	
 	assign w1022 = l273 ? w973 : ~l320;
 	
@@ -6409,13 +7301,17 @@ module ym7101
 	
 	assign w1062 = ~reg_test0[6] & l618;
 	
-	ym_sr_bit sr603(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1044), .sr_out(l603));
+	wire ss_step786_sr603;
+	ym_sr_bit sr603(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1044), .sr_out(l603), .ss_en(ss_en), .ss_in(ss_step785_sr602), .ss_out(ss_step786_sr603));
 	
-	ym_sr_bit sr604(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1051), .sr_out(l604));
+	wire ss_step787_sr604;
+	ym_sr_bit sr604(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1051), .sr_out(l604), .ss_en(ss_en), .ss_in(ss_step786_sr603), .ss_out(ss_step787_sr604));
 	
-	ym_sr_bit sr605(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1058), .sr_out(l605));
+	wire ss_step788_sr605;
+	ym_sr_bit sr605(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1058), .sr_out(l605), .ss_en(ss_en), .ss_in(ss_step787_sr604), .ss_out(ss_step788_sr605));
 	
-	ym_sr_bit sr606(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1061), .sr_out(l606));
+	wire ss_step789_sr606;
+	ym_sr_bit sr606(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1061), .sr_out(l606), .ss_en(ss_en), .ss_in(ss_step788_sr605), .ss_out(ss_step789_sr606));
 	
 	assign w1063 = ~w1044 & ~w977;
 	
@@ -6425,49 +7321,63 @@ module ym7101
 	
 	assign w1066 = w1064 & w977 & w1045;
 	
-	ym_sr_bit sr607(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1066), .sr_out(l607));
+	wire ss_step790_sr607;
+	ym_sr_bit sr607(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1066), .sr_out(l607), .ss_en(ss_en), .ss_in(ss_step789_sr606), .ss_out(ss_step790_sr607));
 	
 	assign w1067 = (w1045 & w978) | (~w977 & w1027) | (~w1064 & w1063);
 	
 	assign w1068 = w1067 & l618;
 	
-	ym_sr_bit sr608(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1068), .sr_out(l608));
+	wire ss_step791_sr608;
+	ym_sr_bit sr608(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1068), .sr_out(l608), .ss_en(ss_en), .ss_in(ss_step790_sr607), .ss_out(ss_step791_sr608));
 	
 	assign w1069 = reg_test0[6] ? reg_col_b6 : l608;
 	
-	ym_sr_bit sr609(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1069), .sr_out(l609));
+	wire ss_step792_sr609;
+	ym_sr_bit sr609(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1069), .sr_out(l609), .ss_en(ss_en), .ss_in(ss_step791_sr608), .ss_out(ss_step792_sr609));
 	
-	ym_sr_bit sr610(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l609), .sr_out(l610));
+	wire ss_step793_sr610;
+	ym_sr_bit sr610(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l609), .sr_out(l610), .ss_en(ss_en), .ss_in(ss_step792_sr609), .ss_out(ss_step793_sr610));
 	
 	assign w1070 = reg_test0[6] ? reg_col_b7 : l607;
 	
-	ym_sr_bit sr611(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1070), .sr_out(l611));
+	wire ss_step794_sr611;
+	ym_sr_bit sr611(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1070), .sr_out(l611), .ss_en(ss_en), .ss_in(ss_step793_sr610), .ss_out(ss_step794_sr611));
 	
-	ym_sr_bit sr612(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l611), .sr_out(l612));
+	wire ss_step795_sr612;
+	ym_sr_bit sr612(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l611), .sr_out(l612), .ss_en(ss_en), .ss_in(ss_step794_sr611), .ss_out(ss_step795_sr612));
 	
 	assign w1071 = ~(l603 & reg_8c_b4);
 	
-	ym_sr_bit sr613(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1071), .sr_out(l613));
+	wire ss_step796_sr613;
+	ym_sr_bit sr613(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1071), .sr_out(l613), .ss_en(ss_en), .ss_in(ss_step795_sr612), .ss_out(ss_step796_sr613));
 	
 	assign w1072 = reg_m5 & w1021;
 	
 	assign w1073 = ~reg_m5 & w1021;
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl_col_index(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[3:0]), .val(reg_col_index));
+	wire ss_step797_sl_col_index;
+	ym_slatch #(.DATA_WIDTH(4)) sl_col_index(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[3:0]), .val(reg_col_index), .ss_en(ss_en), .ss_in(ss_step796_sr613), .ss_out(ss_step797_sl_col_index));
 	
-	ym_slatch #(.DATA_WIDTH(2)) sl_col_pal(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[5:4]), .val(reg_col_pal));
+	wire ss_step798_sl_col_pal;
+	ym_slatch #(.DATA_WIDTH(2)) sl_col_pal(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[5:4]), .val(reg_col_pal), .ss_en(ss_en), .ss_in(ss_step797_sl_col_index), .ss_out(ss_step798_sl_col_pal));
 	
-	ym_slatch sl_col_b6(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[6]), .val(reg_col_b6));
+	wire ss_step799_sl_col_b6;
+	ym_slatch sl_col_b6(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[6]), .val(reg_col_b6), .ss_en(ss_en), .ss_in(ss_step798_sl_col_pal), .ss_out(ss_step799_sl_col_b6));
 	
-	ym_slatch sl_col_b7(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[7]), .val(reg_col_b7));
+	wire ss_step800_sl_col_b7;
+	ym_slatch sl_col_b7(.MCLK(MCLK), .en(w221), .inp(reg_data_l2[7]), .val(reg_col_b7), .ss_en(ss_en), .ss_in(ss_step799_sl_col_b6), .ss_out(ss_step800_sl_col_b7));
 	
-	ym_sr_bit sr614(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1074), .sr_out(l614));
+	wire ss_step801_sr614;
+	ym_sr_bit sr614(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1074), .sr_out(l614), .ss_en(ss_en), .ss_in(ss_step800_sl_col_b7), .ss_out(ss_step801_sr614));
 	
-	ym_sr_bit sr615(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(i_spa), .sr_out(l615));
+	wire ss_step802_sr615;
+	ym_sr_bit sr615(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(i_spa), .sr_out(l615), .ss_en(ss_en), .ss_in(ss_step801_sr614), .ss_out(ss_step802_sr615));
 	
 	assign w1074 = ~(w1082 | (l615 & ~reg_8c_b4));
 	
-	ym_sr_bit #(.SR_LENGTH(8)) sr616(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w389), .sr_out(l616));
+	wire ss_step803_sr616;
+	ym_sr_bit #(.SR_LENGTH(8)) sr616(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w389), .sr_out(l616), .ss_en(ss_en), .ss_in(ss_step802_sr615), .ss_out(ss_step803_sr616));
 	
 	assign w1075 = reg_m5 ? l616 : w389;
 	
@@ -6476,37 +7386,48 @@ module ym7101
 		(w1072 ? vram_address[6:1] : 6'h0) |
 		(w1073 ? { 1'h0, vram_address[4:0] } : 6'h0);
 	
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr617(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w1076), .data_out(l617));
+	wire ss_step804_sr617;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr617(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w1076), .data_out(l617), .ss_en(ss_en), .ss_in(ss_step803_sr616), .ss_out(ss_step804_sr617));
 	
-	ym_sr_bit #(.SR_LENGTH(3)) sr618(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1075), .sr_out(l618));
+	wire ss_step805_sr618;
+	ym_sr_bit #(.SR_LENGTH(3)) sr618(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1075), .sr_out(l618), .ss_en(ss_en), .ss_in(ss_step804_sr617), .ss_out(ss_step805_sr618));
 	
 	assign w1077 = color_index == 4'h0;
 	
-	ym_sr_bit sr619(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1077), .sr_out(l619));
+	wire ss_step806_sr619;
+	ym_sr_bit sr619(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1077), .sr_out(l619), .ss_en(ss_en), .ss_in(ss_step805_sr618), .ss_out(ss_step806_sr619));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(3)) sr620(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_data[11:9]), .data_out(l620));
+	wire ss_step807_sr620;
+	ym_sr_bit_array #(.DATA_WIDTH(3)) sr620(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vram_data[11:9]), .data_out(l620), .ss_en(ss_en), .ss_in(ss_step806_sr619), .ss_out(ss_step807_sr620));
 	
 	assign w1078 = reg_m5 ? l104[3:1] : l104[2:0];
 	
 	assign w1079 = reg_m5 ? l104[7:5] : l104[5:3];
 	
-	ym_slatch #(.DATA_WIDTH(9)) sl621(.MCLK(MCLK), .en(w1080), .inp(color_ram_out), .val(l621));
+	wire ss_step808_sl621;
+	ym_slatch #(.DATA_WIDTH(9)) sl621(.MCLK(MCLK), .en(w1080), .inp(color_ram_out), .val(l621), .ss_en(ss_en), .ss_in(ss_step807_sr620), .ss_out(ss_step808_sl621));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(9)) sr622(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vdp_cramdot_dis ? color_ram_out_dp : color_ram_out), .data_out(l622));
+	wire ss_step809_sr622;
+	ym_sr_bit_array #(.DATA_WIDTH(9)) sr622(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vdp_cramdot_dis ? color_ram_out_dp : color_ram_out), .data_out(l622), .ss_en(ss_en), .ss_in(ss_step808_sl621), .ss_out(ss_step809_sr622));
 	
-	ym_sr_bit sr623_1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w178), .sr_out(l623_1));
+	wire ss_step810_sr623_1;
+	ym_sr_bit sr623_1(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w178), .sr_out(l623_1), .ss_en(ss_en), .ss_in(ss_step809_sr622), .ss_out(ss_step810_sr623_1));
 	
-	ym_sr_bit sr623_2(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l623_1), .sr_out(l623_2));
+	wire ss_step811_sr623_2;
+	ym_sr_bit sr623_2(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l623_1), .sr_out(l623_2), .ss_en(ss_en), .ss_in(ss_step810_sr623_1), .ss_out(ss_step811_sr623_2));
 	
-	ym_sr_bit sr623_3(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l623_2), .sr_out(l623_3));
+	wire ss_step812_sr623_3;
+	ym_sr_bit sr623_3(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l623_2), .sr_out(l623_3), .ss_en(ss_en), .ss_in(ss_step811_sr623_2), .ss_out(ss_step812_sr623_3));
 	
 	assign w1080 = l623_1 & hclk1;
 	
 	assign w1081 = ~(w422 | t37);
 	
-	ym_sr_bit sr624(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1081), .sr_out(l624));
+	wire ss_step813_sr624;
+	ym_sr_bit sr624(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(w1081), .sr_out(l624), .ss_en(ss_en), .ss_in(ss_step812_sr623_3), .ss_out(ss_step813_sr624));
 	
-	ym_sr_bit sr625(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l619), .sr_out(l625));
+	wire ss_step814_sr625;
+	ym_sr_bit sr625(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l619), .sr_out(l625), .ss_en(ss_en), .ss_in(ss_step813_sr624), .ss_out(ss_step814_sr625));
 	
 	assign w1082 = l625 & l624;
 	
@@ -6528,15 +7449,20 @@ module ym7101
 	assign w1099 = l622[3] & l624 & reg_m5;
 	assign w1100 = l622[0] & l624 & reg_m5;
 	
-	ym_sr_bit_array #(.DATA_WIDTH(3)) sr626(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w1090, w1089, w1100 }), .data_out(l626));
+	wire ss_step815_sr626;
+	ym_sr_bit_array #(.DATA_WIDTH(3)) sr626(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w1090, w1089, w1100 }), .data_out(l626), .ss_en(ss_en), .ss_in(ss_step814_sr625), .ss_out(ss_step815_sr626));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(3)) sr627(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w1092, w1091, w1099 }), .data_out(l627));
+	wire ss_step816_sr627;
+	ym_sr_bit_array #(.DATA_WIDTH(3)) sr627(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w1092, w1091, w1099 }), .data_out(l627), .ss_en(ss_en), .ss_in(ss_step815_sr626), .ss_out(ss_step816_sr627));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(3)) sr628(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w1094, w1093, w1098 }), .data_out(l628));
+	wire ss_step817_sr628;
+	ym_sr_bit_array #(.DATA_WIDTH(3)) sr628(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in({ w1094, w1093, w1098 }), .data_out(l628), .ss_en(ss_en), .ss_in(ss_step816_sr627), .ss_out(ss_step817_sr628));
 	
-	ym_sr_bit sr629(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l610), .sr_out(l629));
+	wire ss_step818_sr629;
+	ym_sr_bit sr629(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l610), .sr_out(l629), .ss_en(ss_en), .ss_in(ss_step817_sr628), .ss_out(ss_step818_sr629));
 	
-	ym_sr_bit sr630(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l612), .sr_out(l630));
+	wire ss_step819_sr630;
+	ym_sr_bit sr630(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(l612), .sr_out(l630), .ss_en(ss_en), .ss_in(ss_step818_sr629), .ss_out(ss_step819_sr630));
 	
 	assign w1101 = ~(l629 | l630 | ~reg_m5);
 	
@@ -6746,13 +7672,22 @@ module ym7101
 	
 	// color ram
 	
-	wire [5:0] color_ram_index = l617;
+	wire [5:0] color_ram_index = ss_arr_sel ? ss_arr_addr[5:0] : l617;
 	
 	wire [8:0] color_ram_data_in = { l620, w1079, w1078 };
 	
 	always @(posedge MCLK)
 	begin
-		if (hclk1) // write cycle
+		if (ss_en)
+		begin
+			color_ram_out <= {color_ram_out[7:0], ss_step819_sr630};
+		end
+		else
+		begin
+
+		if (ss_arr_sel & ss_arr_wr & ~ss_arr_addr[6])
+			color_ram[color_ram_index] <= ss_arr_din[8:0];
+		else if (hclk1 && !ss_en) // write cycle
 		begin
 			if (l602)
 				color_ram[color_ram_index][5:0] <= color_ram_data_in[5:0];
@@ -6760,43 +7695,55 @@ module ym7101
 				color_ram[color_ram_index][8:6] <= color_ram_data_in[8:6];
 		end
 		color_ram_out <= color_ram[color_ram_index];
-	end
+			end
+end
 	
 	// PSG block
 	
 	assign psg_clk1 = cpu_clk0;
 	assign psg_clk2 = ~cpu_clk0;
 	
-	ym_sr_bit sr631(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(reset_comb), .sr_out(l631));
-	ym_sr_bit sr632(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(l631), .sr_out(l632));
+	wire ss_step821_sr631;
+	ym_sr_bit sr631(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(reset_comb), .sr_out(l631), .ss_en(ss_en), .ss_in(color_ram_out[8]), .ss_out(ss_step821_sr631));
+	wire ss_step822_sr632;
+	ym_sr_bit sr632(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(l631), .sr_out(l632), .ss_en(ss_en), .ss_in(ss_step821_sr631), .ss_out(ss_step822_sr632));
 	
 	assign w1104 = l631 & ~l632;
 	
 	assign w1105 = ~w1104 & ~l633;
 	
-	ym_cnt_bit cnt649(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .c_in(l633), .reset(w1104), .val(l649));
+	wire ss_step823_cnt649;
+	ym_cnt_bit cnt649(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .c_in(l633), .reset(w1104), .val(l649), .ss_en(ss_en), .ss_in(ss_step822_sr632), .ss_out(ss_step823_cnt649));
 	
-	ym_sr_bit sr633(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(w1105), .sr_out(l633));
+	wire ss_step824_sr633;
+	ym_sr_bit sr633(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(w1105), .sr_out(l633), .ss_en(ss_en), .ss_in(ss_step823_cnt649), .ss_out(ss_step824_sr633));
 	
-	ym_dlatch_1 dl634(.MCLK(MCLK), .c1(psg_clk1), .inp(l649), .nval(l634));
+	wire ss_step825_dl634;
+	ym_dlatch_1 dl634(.MCLK(MCLK), .c1(psg_clk1), .inp(l649), .nval(l634), .ss_en(ss_en), .ss_in(ss_step824_sr633), .ss_out(ss_step825_dl634));
 	
 	assign psg_hclk1 = l634 & l633;
 	
 	assign psg_hclk2 = ~l634 & l633;
 	
-	ym7101_rs_trig rs43(.MCLK(MCLK), .set(l635), .rst(w111), .q(t43));
+	wire ss_step826_rs43;
+	ym7101_rs_trig rs43(.MCLK(MCLK), .set(l635), .rst(w111), .q(t43), .ss_en(ss_en), .ss_in(ss_step825_dl634), .ss_out(ss_step826_rs43));
 	
 	assign w1106 = ~t43 & ~w111;
 	
-	ym_sr_bit sr635(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(w1106), .sr_out(l635));
+	wire ss_step827_sr635;
+	ym_sr_bit sr635(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(w1106), .sr_out(l635), .ss_en(ss_en), .ss_in(ss_step826_rs43), .ss_out(ss_step827_sr635));
 	
-	ym_sr_bit sr636(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(l635), .sr_out(l636));
+	wire ss_step828_sr636;
+	ym_sr_bit sr636(.MCLK(MCLK), .c1(psg_clk1), .c2(psg_clk2), .bit_in(l635), .sr_out(l636), .ss_en(ss_en), .ss_in(ss_step827_sr635), .ss_out(ss_step828_sr636));
 	
-	ym_sr_bit sr637(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(reset_comb), .sr_out(l637));
+	wire ss_step829_sr637;
+	ym_sr_bit sr637(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(reset_comb), .sr_out(l637), .ss_en(ss_en), .ss_in(ss_step828_sr636), .ss_out(ss_step829_sr637));
 	
-	ym7101_rs_trig rs44(.MCLK(MCLK), .set(w1142), .rst(l638), .q(t44));
+	wire ss_step830_rs44;
+	ym7101_rs_trig rs44(.MCLK(MCLK), .set(w1142), .rst(l638), .q(t44), .ss_en(ss_en), .ss_in(ss_step829_sr637), .ss_out(ss_step830_rs44));
 	
-	ym_sr_bit sr638(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(t44), .sr_out(l638));
+	wire ss_step831_sr638;
+	ym_sr_bit sr638(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(t44), .sr_out(l638), .ss_en(ss_en), .ss_in(ss_step830_rs44), .ss_out(ss_step831_sr638));
 	
 	assign w1107 = ~l638 & ~l637;
 	
@@ -6806,7 +7753,8 @@ module ym7101
 	
 	assign w1110 = ~l639 & w1111;
 	
-	ym_sr_bit sr639(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(w1111), .sr_out(l639));
+	wire ss_step832_sr639;
+	ym_sr_bit sr639(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(w1111), .sr_out(l639), .ss_en(ss_en), .ss_in(ss_step831_sr638), .ss_out(ss_step832_sr639));
 	
 	assign w1111 = l662[1:0] == 2'h3 ? l647 : l648;
 	
@@ -6821,20 +7769,25 @@ module ym7101
 	
 	assign w1118 = l640[15] ^ l640[12];
 	
+	wire ss_step833_sr640;
 	ym_sr_bit_en #(.SR_LENGTH(16)) sr640(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .en1(w1109), .en2(w1108),
-		.data_in(~w1119 | ~w1120), .data_out(l640));
+		.data_in(~w1119 | ~w1120), .data_out(l640), .ss_en(ss_en), .ss_in(ss_step832_sr639), .ss_out(ss_step833_sr640));
 	
 	assign w1119 = l640[14:0] != 15'h0;
 	
 	assign w1120 = ~(w1118 & l662[2]);
 	
-	ym_sr_bit_array #(.DATA_WIDTH(10)) sr641(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(w1117), .data_out(l641));
+	wire ss_step834_sr641;
+	ym_sr_bit_array #(.DATA_WIDTH(10)) sr641(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(w1117), .data_out(l641), .ss_en(ss_en), .ss_in(ss_step833_sr640), .ss_out(ss_step834_sr641));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(10)) sr642(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(l641), .data_out(l642));
+	wire ss_step835_sr642;
+	ym_sr_bit_array #(.DATA_WIDTH(10)) sr642(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(l641), .data_out(l642), .ss_en(ss_en), .ss_in(ss_step834_sr641), .ss_out(ss_step835_sr642));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(10)) sr643(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(l642), .data_out(l643));
+	wire ss_step836_sr643;
+	ym_sr_bit_array #(.DATA_WIDTH(10)) sr643(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(l642), .data_out(l643), .ss_en(ss_en), .ss_in(ss_step835_sr642), .ss_out(ss_step836_sr643));
 	
-	ym_sr_bit_array #(.DATA_WIDTH(10)) sr644(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(l643), .data_out(l644));
+	wire ss_step837_sr644;
+	ym_sr_bit_array #(.DATA_WIDTH(10)) sr644(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .data_in(l643), .data_out(l644), .ss_en(ss_en), .ss_in(ss_step836_sr643), .ss_out(ss_step837_sr644));
 	
 	assign w1121 = ~l651 & ~w1127;
 	
@@ -6843,13 +7796,17 @@ module ym7101
 	assign w1124 = l650[0] & l652[1];
 	assign w1125 = l650[0] & l652[0];
 	
-	ym_cnt_bit cnt645(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1122), .reset(l651), .val(l645));
+	wire ss_step838_cnt645;
+	ym_cnt_bit cnt645(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1122), .reset(l651), .val(l645), .ss_en(ss_en), .ss_in(ss_step837_sr644), .ss_out(ss_step838_cnt645));
 	
-	ym_cnt_bit cnt646(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1123), .reset(l651), .val(l646));
+	wire ss_step839_cnt646;
+	ym_cnt_bit cnt646(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1123), .reset(l651), .val(l646), .ss_en(ss_en), .ss_in(ss_step838_cnt645), .ss_out(ss_step839_cnt646));
 	
-	ym_cnt_bit cnt647(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1124), .reset(l651), .val(l647));
+	wire ss_step840_cnt647;
+	ym_cnt_bit cnt647(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1124), .reset(l651), .val(l647), .ss_en(ss_en), .ss_in(ss_step839_cnt646), .ss_out(ss_step840_cnt647));
 	
-	ym_cnt_bit cnt648(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1125), .reset(l651), .val(l648));
+	wire ss_step841_cnt648;
+	ym_cnt_bit cnt648(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .c_in(w1125), .reset(l651), .val(l648), .ss_en(ss_en), .ss_in(ss_step840_cnt647), .ss_out(ss_step841_cnt648));
 	
 	assign w1126 =
 		(w1131 ? l659 : 10'h0) |
@@ -6864,33 +7821,44 @@ module ym7101
 	assign w1130 = l650[1] & ~l651;
 	assign w1131 = l650[0] & ~l651;
 	
-	ym_sr_bit sr650_0(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(w1132), .sr_out(l650[0]));
+	wire ss_step842_sr650_0;
+	ym_sr_bit sr650_0(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(w1132), .sr_out(l650[0]), .ss_en(ss_en), .ss_in(ss_step841_cnt648), .ss_out(ss_step842_sr650_0));
 	
-	ym_sr_bit sr650_1(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l650[0]), .sr_out(l650[1]));
+	wire ss_step843_sr650_1;
+	ym_sr_bit sr650_1(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l650[0]), .sr_out(l650[1]), .ss_en(ss_en), .ss_in(ss_step842_sr650_0), .ss_out(ss_step843_sr650_1));
 	
-	ym_sr_bit sr650_2(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l650[1]), .sr_out(l650[2]));
+	wire ss_step844_sr650_2;
+	ym_sr_bit sr650_2(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l650[1]), .sr_out(l650[2]), .ss_en(ss_en), .ss_in(ss_step843_sr650_1), .ss_out(ss_step844_sr650_2));
 	
-	ym_sr_bit sr650_3(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l650[2]), .sr_out(l650[3]));
+	wire ss_step845_sr650_3;
+	ym_sr_bit sr650_3(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l650[2]), .sr_out(l650[3]), .ss_en(ss_en), .ss_in(ss_step844_sr650_2), .ss_out(ss_step845_sr650_3));
 
 	assign w1132 = l650[2:0] == 3'h0 & ~l637;
 	
-	ym_sr_bit sr651(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l637), .sr_out(l651));
+	wire ss_step846_sr651;
+	ym_sr_bit sr651(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l637), .sr_out(l651), .ss_en(ss_en), .ss_in(ss_step845_sr650_3), .ss_out(ss_step846_sr651));
 	
 	assign w1133 = ~l651;
 	
-	ym_sr_bit sr652_0(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(w1127), .sr_out(l652[0]));
+	wire ss_step847_sr652_0;
+	ym_sr_bit sr652_0(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(w1127), .sr_out(l652[0]), .ss_en(ss_en), .ss_in(ss_step846_sr651), .ss_out(ss_step847_sr652_0));
 	
-	ym_sr_bit sr652_1(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l652[0]), .sr_out(l652[1]));
+	wire ss_step848_sr652_1;
+	ym_sr_bit sr652_1(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l652[0]), .sr_out(l652[1]), .ss_en(ss_en), .ss_in(ss_step847_sr652_0), .ss_out(ss_step848_sr652_1));
 	
-	ym_sr_bit sr652_2(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l652[1]), .sr_out(l652[2]));
+	wire ss_step849_sr652_2;
+	ym_sr_bit sr652_2(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l652[1]), .sr_out(l652[2]), .ss_en(ss_en), .ss_in(ss_step848_sr652_1), .ss_out(ss_step849_sr652_2));
 	
-	ym_sr_bit sr652_3(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l652[2]), .sr_out(l652[3]));
+	wire ss_step850_sr652_3;
+	ym_sr_bit sr652_3(.MCLK(MCLK), .c1(psg_hclk1), .c2(psg_hclk2), .bit_in(l652[2]), .sr_out(l652[3]), .ss_en(ss_en), .ss_in(ss_step849_sr652_2), .ss_out(ss_step850_sr652_3));
 	
-	ym_slatch #(.DATA_WIDTH(8)) sl653(.MCLK(MCLK), .en(w111), .inp(io_data[7:0]), .val(l653));
+	wire ss_step851_sl653;
+	ym_slatch #(.DATA_WIDTH(8)) sl653(.MCLK(MCLK), .en(w111), .inp(io_data[7:0]), .val(l653), .ss_en(ss_en), .ss_in(ss_step850_sr652_3), .ss_out(ss_step851_sl653));
 	
 	assign w1134 = w1133 ? l653 : 8'h0;
 	
-	ym_slatch #(.DATA_WIDTH(3)) sl654(.MCLK(MCLK), .en(l635 & w1134[7]), .inp(w1134[6:4]), .val(l654));
+	wire ss_step852_sl654;
+	ym_slatch #(.DATA_WIDTH(3)) sl654(.MCLK(MCLK), .en(l635 & w1134[7]), .inp(w1134[6:4]), .val(l654), .ss_en(ss_en), .ss_in(ss_step851_sl653), .ss_out(ss_step852_sl654));
 	
 	assign w1135 = l637 | (l636 & l654 == 3'h1);
 	assign w1136 = l637 | (l636 & l654 == 3'h3);
@@ -6903,26 +7871,37 @@ module ym7101
 	
 	assign w1143 = w1133 ? w1134[3:0] : 4'hf;
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl655(.MCLK(MCLK), .en(w1135), .inp(w1143), .val(l655));
+	wire ss_step853_sl655;
+	ym_slatch #(.DATA_WIDTH(4)) sl655(.MCLK(MCLK), .en(w1135), .inp(w1143), .val(l655), .ss_en(ss_en), .ss_in(ss_step852_sl654), .ss_out(ss_step853_sl655));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl656(.MCLK(MCLK), .en(w1136), .inp(w1143), .val(l656));
+	wire ss_step854_sl656;
+	ym_slatch #(.DATA_WIDTH(4)) sl656(.MCLK(MCLK), .en(w1136), .inp(w1143), .val(l656), .ss_en(ss_en), .ss_in(ss_step853_sl655), .ss_out(ss_step854_sl656));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl657(.MCLK(MCLK), .en(w1139), .inp(w1143), .val(l657));
+	wire ss_step855_sl657;
+	ym_slatch #(.DATA_WIDTH(4)) sl657(.MCLK(MCLK), .en(w1139), .inp(w1143), .val(l657), .ss_en(ss_en), .ss_in(ss_step854_sl656), .ss_out(ss_step855_sl657));
 	
-	ym_slatch #(.DATA_WIDTH(4)) sl658(.MCLK(MCLK), .en(w1141), .inp(w1143), .val(l658));
+	wire ss_step856_sl658;
+	ym_slatch #(.DATA_WIDTH(4)) sl658(.MCLK(MCLK), .en(w1141), .inp(w1143), .val(l658), .ss_en(ss_en), .ss_in(ss_step855_sl657), .ss_out(ss_step856_sl658));
 	
 	assign w1144 = w1134[7] | l637;
 	
-	ym_slatch #(.DATA_WIDTH(6)) sl661_1(.MCLK(MCLK), .en(w1137 & ~w1134[7]), .inp(w1134[5:0]), .val(l661[9:4]));
-	ym_slatch #(.DATA_WIDTH(4)) sl661_2(.MCLK(MCLK), .en(w1137 & w1144), .inp(w1134[3:0]), .val(l661[3:0]));
+	wire ss_step857_sl661_1;
+	ym_slatch #(.DATA_WIDTH(6)) sl661_1(.MCLK(MCLK), .en(w1137 & ~w1134[7]), .inp(w1134[5:0]), .val(l661[9:4]), .ss_en(ss_en), .ss_in(ss_step856_sl658), .ss_out(ss_step857_sl661_1));
+	wire ss_step858_sl661_2;
+	ym_slatch #(.DATA_WIDTH(4)) sl661_2(.MCLK(MCLK), .en(w1137 & w1144), .inp(w1134[3:0]), .val(l661[3:0]), .ss_en(ss_en), .ss_in(ss_step857_sl661_1), .ss_out(ss_step858_sl661_2));
 	
-	ym_slatch #(.DATA_WIDTH(6)) sl660_1(.MCLK(MCLK), .en(w1138 & ~w1134[7]), .inp(w1134[5:0]), .val(l660[9:4]));
-	ym_slatch #(.DATA_WIDTH(4)) sl660_2(.MCLK(MCLK), .en(w1138 & w1144), .inp(w1134[3:0]), .val(l660[3:0]));
+	wire ss_step859_sl660_1;
+	ym_slatch #(.DATA_WIDTH(6)) sl660_1(.MCLK(MCLK), .en(w1138 & ~w1134[7]), .inp(w1134[5:0]), .val(l660[9:4]), .ss_en(ss_en), .ss_in(ss_step858_sl661_2), .ss_out(ss_step859_sl660_1));
+	wire ss_step860_sl660_2;
+	ym_slatch #(.DATA_WIDTH(4)) sl660_2(.MCLK(MCLK), .en(w1138 & w1144), .inp(w1134[3:0]), .val(l660[3:0]), .ss_en(ss_en), .ss_in(ss_step859_sl660_1), .ss_out(ss_step860_sl660_2));
 	
-	ym_slatch #(.DATA_WIDTH(6)) sl659_1(.MCLK(MCLK), .en(w1140 & ~w1134[7]), .inp(w1134[5:0]), .val(l659[9:4]));
-	ym_slatch #(.DATA_WIDTH(4)) sl659_2(.MCLK(MCLK), .en(w1140 & w1144), .inp(w1134[3:0]), .val(l659[3:0]));
+	wire ss_step861_sl659_1;
+	ym_slatch #(.DATA_WIDTH(6)) sl659_1(.MCLK(MCLK), .en(w1140 & ~w1134[7]), .inp(w1134[5:0]), .val(l659[9:4]), .ss_en(ss_en), .ss_in(ss_step860_sl660_2), .ss_out(ss_step861_sl659_1));
+	wire ss_step862_sl659_2;
+	ym_slatch #(.DATA_WIDTH(4)) sl659_2(.MCLK(MCLK), .en(w1140 & w1144), .inp(w1134[3:0]), .val(l659[3:0]), .ss_en(ss_en), .ss_in(ss_step861_sl659_1), .ss_out(ss_step862_sl659_2));
 	
-	ym_slatch #(.DATA_WIDTH(3)) sl662(.MCLK(MCLK), .en(w1142), .inp(w1134[2:0]), .val(l662));
+	wire ss_step863_sl662;
+	ym_slatch #(.DATA_WIDTH(3)) sl662(.MCLK(MCLK), .en(w1142), .inp(w1134[2:0]), .val(l662), .ss_en(ss_en), .ss_in(ss_step862_sl659_2), .ss_out(ss_step863_sl662));
 	
 	assign w1145 = ~reg_test0[9] & ~l645;
 	assign w1146 = ~reg_test0[9] & ~l646;
@@ -6970,12 +7949,21 @@ module ym7101
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			SOUND <= {SOUND[14:0], ss_step863_sl662};
+		end
+		else
+		begin
+
 		SOUND <= psg_val[0] + psg_val[1] + psg_val[2] + psg_val[3];
-	end
+			end
+end
 	
 	// vram bus
 	
-	ym_dlatch_1 #(.DATA_WIDTH(8)) dl_vs(.MCLK(MCLK), .c1(clk1), .inp(SD), .val(vram_serial));
+	wire ss_step865_dl_vs;
+	ym_dlatch_1 #(.DATA_WIDTH(8)) dl_vs(.MCLK(MCLK), .c1(clk1), .inp(SD), .val(vram_serial), .ss_en(ss_en), .ss_in(SOUND[15]), .ss_out(ss_step865_dl_vs));
 	
 	wire [15:0] vram_data_val =
 		(w328 ? { l96, w351 } : 16'hffff) &
@@ -7080,9 +8068,18 @@ module ym7101
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			vram_data <= {vram_data[14:0], ss_step865_dl_vs};
+			vram_address <= {vram_address[15:0], vram_data[15]};
+		end
+		else
+		begin
+
 		vram_data <= (vram_data_pull & vram_data_val) | (~vram_data_pull & vram_data);	
 		vram_address <= (vram_address_pull & vram_address_val) | (~vram_address_pull & vram_address);
-	end
+			end
+end
 	
 	// io bus
 	
@@ -7162,11 +8159,20 @@ module ym7101
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			io_data <= {io_data[14:0], vram_address[16]};
+			io_address <= {io_address[21:0], io_data[15]};
+		end
+		else
+		begin
+
 		io_data <= (io_data_pull & io_data_val) | (~io_data_pull & io_data);
 		io_address[22:20] <= io_address_t[22:20];
 		io_address[19:18] <= reg_sa_high[3:2];
 		io_address[17:0] <= io_address_t[17:0];
-	end
+			end
+end
 	
 	// color bus
 	
@@ -7182,14 +8188,22 @@ module ym7101
 		(l605 ? { l321, l323, l319 } : 7'h7f) &
 		(l604 ? { l274, l272, l270 } : 7'h7f);
 	
-	reg [6:0] color_bus_mem;
+	reg [6:0] color_bus_mem = 0;
 	
 	assign color_bus = (l606 | l603 | l605 | l604) ? color_bus_val : color_bus_mem;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			color_bus_mem <= {color_bus_mem[5:0], io_address[22]};
+		end
+		else
+		begin
+
 		color_bus_mem <= color_bus;
-	end
+			end
+end
 	
 	// extra
 	
@@ -7200,12 +8214,14 @@ module ym7101
 	wire [1:0] vdp_de_1 = { t38, t29 };
 	wire [1:0] vdp_de_delay_m5;
 	
-	ym_sr_bit_array #(.SR_LENGTH(8), .DATA_WIDTH(2)) vdp_de_delay_m5_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vdp_de_1), .data_out(vdp_de_delay_m5));
+	wire ss_step869_vdp_de_delay_m5_sr;
+	ym_sr_bit_array #(.SR_LENGTH(8), .DATA_WIDTH(2)) vdp_de_delay_m5_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vdp_de_1), .data_out(vdp_de_delay_m5), .ss_en(ss_en), .ss_in(color_bus_mem[6]), .ss_out(ss_step869_vdp_de_delay_m5_sr));
 	
 	wire [1:0] vdp_de_2 = reg_m5 ? vdp_de_delay_m5 : vdp_de_1;
 	wire [1:0] vdp_de_3;
 	
-	ym_sr_bit_array #(.SR_LENGTH(7), .DATA_WIDTH(2)) vdp_de_delay_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vdp_de_2), .data_out(vdp_de_3));
+	wire ss_step870_vdp_de_delay_sr;
+	ym_sr_bit_array #(.SR_LENGTH(7), .DATA_WIDTH(2)) vdp_de_delay_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(vdp_de_2), .data_out(vdp_de_3), .ss_en(ss_en), .ss_in(ss_step869_vdp_de_delay_m5_sr), .ss_out(ss_step870_vdp_de_delay_sr));
 	
 	assign vdp_de_h = vdp_de_3[0];
 	assign vdp_de_v = vdp_de_3[1];
@@ -7218,19 +8234,34 @@ module ym7101
 	assign vdp_psg_clk1 = psg_hclk1;
 	
 	wire vdp_hsync2_delay1;
-	ym_sr_bit #(.SR_LENGTH(2)) vdp_hsync2_delay1_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t33), .sr_out(vdp_hsync2_delay1));
+	wire ss_step871_vdp_hsync2_delay1_sr;
+	ym_sr_bit #(.SR_LENGTH(2)) vdp_hsync2_delay1_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(t33), .sr_out(vdp_hsync2_delay1), .ss_en(ss_en), .ss_in(ss_step870_vdp_de_delay_sr), .ss_out(ss_step871_vdp_hsync2_delay1_sr));
 	wire vdp_hsync2_delay2;
-	ym_sr_bit #(.SR_LENGTH(7)) vdp_hsync2_delay2_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vdp_hsync2_delay1), .sr_out(vdp_hsync2_delay2));
+	wire ss_step872_vdp_hsync2_delay2_sr;
+	ym_sr_bit #(.SR_LENGTH(7)) vdp_hsync2_delay2_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vdp_hsync2_delay1), .sr_out(vdp_hsync2_delay2), .ss_en(ss_en), .ss_in(ss_step871_vdp_hsync2_delay1_sr), .ss_out(ss_step872_vdp_hsync2_delay2_sr));
 	wire vdp_hsync2_1 = reg_m5 ? vdp_hsync2_delay2 : vdp_hsync2_delay1;
 	wire vdp_hsync2_delay3;
-	ym_sr_bit vdp_hsync2_delay3_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vdp_hsync2_1), .sr_out(vdp_hsync2_delay3));
+	wire ss_step873_vdp_hsync2_delay3_sr;
+	ym_sr_bit vdp_hsync2_delay3_sr(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .bit_in(vdp_hsync2_1), .sr_out(vdp_hsync2_delay3), .ss_en(ss_en), .ss_in(ss_step872_vdp_hsync2_delay2_sr), .ss_out(ss_step873_vdp_hsync2_delay3_sr));
 	
 	assign vdp_hsync2 = vdp_hsync2_delay3;
 	
 	assign w1076_dp = { color_pal, color_index };
-	ym_sr_bit_array #(.DATA_WIDTH(6)) sr617_dp(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w1076_dp), .data_out(l617_dp));
+	wire ss_step874_sr617_dp;
+	ym_sr_bit_array #(.DATA_WIDTH(6)) sr617_dp(.MCLK(MCLK), .c1(hclk1), .c2(hclk2), .data_in(w1076_dp), .data_out(l617_dp), .ss_en(ss_en), .ss_in(ss_step873_vdp_hsync2_delay3_sr), .ss_out(ss_step874_sr617_dp));
 	
-	always @(posedge MCLK) color_ram_out_dp <= color_ram[l617_dp];
+	always @(posedge MCLK) 
+		begin
+		if (ss_en)
+		begin
+			color_ram_out_dp <= {color_ram_out_dp[7:0], ss_step874_sr617_dp};
+		end
+		else
+		begin
+color_ram_out_dp <= color_ram[l617_dp];
+		end
+		end
+
 	
 	assign vdp_dma_oe_early = reg_8b_b6 ?
 		(io_m1_dff2_l2 | w15 | w28 | w30 | w102) :
@@ -7238,10 +8269,20 @@ module ym7101
 	
 	assign vdp_dma = l6 | l8;
 
+
+	assign ss_out = color_ram_out_dp[8];
+	assign ss_arr_dout = ss_arr_addr[6] ? {5'd0, vsram_out} : {7'd0, color_ram_out};
+	assign ss_sat_dout = (ss_sat_addr[1:0] == 2'd0) ? sat_out[15:0] :
+	                     (ss_sat_addr[1:0] == 2'd1) ? {11'd0, sat_out[20:16]} : 16'd0;
+
 endmodule
 
 module ym7101_rs_trig
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input set,
 	input rst,
@@ -7256,14 +8297,29 @@ module ym7101_rs_trig
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			q <= ss_in;
+			nq <= q;
+		end
+		else
+		begin
+
 		q <= set ? 1'h1 : (rst ? 1'h0 : q);
 		nq <= rst ? 1'h1 : (set ? 1'h0 : ~q);
-	end
+			end
+end
 	
+
+	assign ss_out = nq;
 endmodule
 
 /*module ym7101_rs_trig
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input set,
 	input rst,
@@ -7276,11 +8332,18 @@ endmodule
 	assign q = set | ~nq;
 	assign nq = rst | ~q; 
 	
+
+	assign ss_out = ss_in;
 endmodule*/
 
 
 module ym7101_dff #(parameter DATA_WIDTH = 1)
 	(
+	output [DATA_WIDTH-1:0] outp_nr,
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input clk,
 	input [DATA_WIDTH-1:0] inp,
@@ -7292,11 +8355,28 @@ module ym7101_dff #(parameter DATA_WIDTH = 1)
 	
 	wire [DATA_WIDTH-1:0] l2_assign = rst ? {DATA_WIDTH{1'h0}} : (clk ? l1 : l2);
 	
-	assign outp = l2_assign;
+	assign outp = ss_en ? l2 : l2_assign;
+	assign outp_nr = ss_en ? l2 : (clk ? l1 : l2);
 	//assign outp = l2;
 	
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			if (DATA_WIDTH == 1)
+			begin
+				l1 <= ss_in;
+				l2 <= l1;
+			end
+			else
+			begin
+				l1 <= { l1[DATA_WIDTH-2:0], ss_in };
+				l2 <= { l2[DATA_WIDTH-2:0], l1[DATA_WIDTH-1] };
+			end
+		end
+		else
+		begin
+
 		if (rst)
 		begin
 			l1 <= {DATA_WIDTH{1'h0}};
@@ -7307,12 +8387,19 @@ module ym7101_dff #(parameter DATA_WIDTH = 1)
 				l1 <= inp;
 		end
 		l2 <= l2_assign;
-	end
+			end
+end
 	
+
+	assign ss_out = l2[DATA_WIDTH-1];
 endmodule
 
 /*module ym7101_dff #(parameter DATA_WIDTH = 1)
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input clk,
 	input [DATA_WIDTH-1:0] inp,
@@ -7327,6 +8414,14 @@ endmodule
 	
 	always @(*)
 	begin
+		if (ss_en)
+		begin
+			l1 <= ss_in;
+			l2 <= l1;
+		end
+		else
+		begin
+
 		if (rst)
 		begin
 			l1 <= {DATA_WIDTH{1'h0}};
@@ -7339,12 +8434,19 @@ endmodule
 			else
 				l2 <= l1;
 		end
-	end
+			end
+end
 	
+
+	assign ss_out = l2;
 endmodule*/
 
 /*module ym7101_dff #(parameter DATA_WIDTH = 1)
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input clk,
 	input [DATA_WIDTH-1:0] inp,
@@ -7358,10 +8460,20 @@ endmodule*/
 	
 	always @(posedge clk or posedge rst)
 	begin
+		if (ss_en)
+		begin
+			l2 <= ss_in;
+		end
+		else
+		begin
+
 		if (rst)
 			l2 <= {DATA_WIDTH{1'h0}};
 		else
 			l2 <= inp;
-	end
+			end
+end
 	
+
+	assign ss_out = l2;
 endmodule*/

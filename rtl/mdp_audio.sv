@@ -34,6 +34,9 @@ module mdp_audio
 	input      [15:0] buf_wr_ptr,
 	output     [15:0] buf_rd_ptr,
 
+	input             ddr_hold,
+	output            ddr_idle,
+
 	input             track_start,
 	input             stop_request,
 	input       [7:0] fade_sectors,
@@ -175,28 +178,38 @@ localparam [2:0] DDR_IDLE    = 3'd0,
 
 reg  [2:0] ddr_state;
 reg [63:0] ddr_latch;
+reg        rd_inflight = 0;
+
+assign ddr_idle = (ddr_state == DDR_IDLE) && !DDRAM_RD && !rd_inflight;
 
 always @(posedge clk) begin
+	// outside the reset branch: the word can land while reset is held
+	if (DDRAM_DOUT_READY) rd_inflight <= 0;
+
 	if (reset) begin
-		ddr_state  <= DDR_IDLE;
-		DDRAM_RD   <= 0;
-		rd_ptr     <= 0;
-		fifo_wr    <= 0;
+		ddr_state   <= DDR_IDLE;
+		DDRAM_RD    <= 0;
+		rd_ptr      <= 0;
+		fifo_wr     <= 0;
 	end else begin
 		DDRAM_RD <= 0;
 
 		case (ddr_state)
 			DDR_IDLE: begin
-				if (active && !paused && !osd_pause && !muted && fifo_low && buf_has_data)
+				if (!ddr_hold && active && !paused && !osd_pause && !muted && fifo_low && buf_has_data)
 					ddr_state <= DDR_REQ;
 			end
 
 			DDR_REQ: begin
-				if (!DDRAM_BUSY) begin
+				if (!DDRAM_RD) begin
 					DDRAM_ADDR     <= DDRAM_BASE + {16'd0, rd_ptr[15:3]};
 					DDRAM_BURSTCNT <= 8'd1;
 					DDRAM_RD       <= 1;
-					ddr_state      <= DDR_WAIT;
+				end
+				else if (DDRAM_BUSY) DDRAM_RD <= 1;
+				else begin
+					rd_inflight <= 1;
+					ddr_state   <= DDR_WAIT;
 				end
 			end
 

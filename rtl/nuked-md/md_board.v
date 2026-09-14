@@ -25,8 +25,31 @@
 //`define EXT_CLOCKS
 //`define VRAM_128K
 
-module md_board
+module md_board #(parameter SS_EN_SPLIT = 0)
 	(
+	input ss_en,
+	input ss_en_cpu,
+	input ss_en_vdp_fm,
+	input ss_en_vram,
+	input ss_in,
+	output ss_out,
+	input ss_arr_sel,
+	input [15:0] ss_arr_addr,
+	input [15:0] ss_arr_din,
+	input ss_arr_wr,
+	output [15:0] ss_arr_dout,
+	input ss_sat_sel,
+	input [15:0] ss_sat_addr,
+	input [15:0] ss_sat_din,
+	input ss_sat_wr,
+	output [15:0] ss_sat_dout,
+
+	input ss_mem_sel,
+	input [15:0] ss_mem_addr,
+	input [7:0] ss_mem_din,
+	input ss_mem_wr,
+	output [7:0] ss_mem_dout,
+
 	// input MCLK,
 	input MCLK2,
 	input ext_reset,
@@ -135,6 +158,12 @@ module md_board
 	output vdp_dma
 	
 	);
+	// The integrated controller supplies same-cycle, unmerged enable replicas.
+	// Standalone board users can retain the single-enable interface.
+	wire scan_cpu = SS_EN_SPLIT ? ss_en_cpu : ss_en;
+	wire scan_vdp_fm = SS_EN_SPLIT ? ss_en_vdp_fm : ss_en;
+	wire scan_vram = SS_EN_SPLIT ? ss_en_vram : ss_en;
+
 	
 	wire [7:0] SD;
 	wire SE1;
@@ -163,14 +192,14 @@ module md_board
 	wire HSYNC;
 	wire HSYNC_pull;
 	//wire M3;
-	reg _M3;
+	reg _M3 = 0;
 	wire NTSC;
 	wire VPA;
 	wire ym_HALT_pull;
 	wire ym_RESET_pull;
 	wire FC0;
 	wire FC1;
-	reg MREQ;
+	reg MREQ = 0;
 	wire ym_MREQ_o;
 	wire ym_MREQ_d;
 	wire SOUND;
@@ -234,7 +263,7 @@ module md_board
 	wire IO;
 	wire IO_o;
 	wire IO_d;
-	reg [15:0] ZA;
+	reg [15:0] ZA = 0;
 	wire [15:0] ym_ZA_o;
 	wire [15:0] ym_ZA_d;
 	wire SRES;
@@ -249,40 +278,40 @@ module md_board
 	wire EDCLK;
 	wire EDCLK_o;
 	wire EDCLK_d;
-	reg [15:0] VD;
+	reg [15:0] VD = 0;
 	wire [15:0] ym_VD_o;
 	wire [15:0] ym_VD_d;
-	reg [22:0] VA;
+	reg [22:0] VA = 0;
 	wire [22:0] ym_VA_o;
 	wire [22:0] ym_VA_d;
 	wire ym_INT_pull;
 	wire ym_BR_pull;
-	reg BGACK;
+	reg BGACK = 0;
 	wire ym_BGACK_pull;
 	wire BG;
 	wire ym_IPL1_pull;
 	wire ym_IPL2_pull;
-	reg IORQ;
-	reg ZRD;
+	reg IORQ = 0;
+	reg ZRD = 0;
 	wire ym_ZRD_o;
 	wire ym_ZRD_d;
-	reg ZWR;
+	reg ZWR = 0;
 	wire ym_ZWR_o;
 	wire ym_ZWR_d;
 	wire M1;
-	reg AS;
+	reg AS = 0;
 	wire ym_AS_o;
 	wire ym_AS_d;
-	reg UDS;
+	reg UDS = 0;
 	wire ym_UDS_o;
 	wire ym_UDS_d;
-	reg LDS;
+	reg LDS = 0;
 	wire ym_LDS_o;
 	wire ym_LDS_d;
-	reg RW;
+	reg RW = 0;
 	wire ym_RW_o;
 	wire ym_RW_d;
-	reg DTACK;
+	reg DTACK = 0;
 	wire ym_DTACK_pull;
 	wire UWR;
 	wire LWR;
@@ -292,17 +321,26 @@ module md_board
 	wire CAS0_o;
 	wire CAS0_d;
 	wire RAS0;
-	reg [7:0] ZD;
+	reg [7:0] ZD = 0;
 	wire [7:0] ym_ZD_o;
 	wire [7:0] ym_ZD_d;
 	
-	reg MCLK_e;
+	reg MCLK_e = 0;
 	
 	always @(posedge MCLK2)
 	begin
+		if (ss_en)
+		begin
+			MCLK_e <= ss_in;
+		end
+		else
+		begin
+
 		MCLK_e <= ~MCLK_e;
-	end
+			end
+end
 	
+	wire ss_step2_ym;
 	fc1004 ym
 		(
 		.MCLK(MCLK2),
@@ -490,12 +528,16 @@ module md_board
 		.ym2612_status_enable(ym2612_status_enable),
 		.vdp_dma_oe_early(vdp_dma_oe_early),
 		.vdp_dma(vdp_dma)
-		);
+		, .ss_en(scan_vdp_fm), .ss_in(MCLK_e), .ss_out(ss_step2_ym)
+		, .ss_arr_sel(ss_arr_sel), .ss_arr_addr(ss_arr_addr), .ss_arr_din(ss_arr_din)
+		, .ss_arr_wr(ss_arr_wr), .ss_arr_dout(ss_arr_dout)
+		, .ss_sat_sel(ss_sat_sel), .ss_sat_addr(ss_sat_addr), .ss_sat_din(ss_sat_din)
+		, .ss_sat_wr(ss_sat_wr), .ss_sat_dout(ss_sat_dout));
 	
 	assign fm_sel23 = TEST0_o;
 	
 	wire [2:0] IPL;
-	reg BR;
+	reg BR = 0;
 	wire BERR;
 	wire m68k_RESET_pull;
 	wire m68k_HALT_pull;
@@ -522,6 +564,7 @@ module md_board
 	assign ext_ZCLK_o = ZCLK;
 `endif
 	
+	wire ss_step3_m68k;
 	m68kcpu m68k
 		(
 		.MCLK(MCLK2),
@@ -558,7 +601,7 @@ module md_board
 		.UDS(m68k_UDS_o),
 		.strobe_z(m68k_S_d),
 		.VPA(VPA)
-		);
+		, .ss_en(scan_cpu), .ss_in(ss_step2_ym), .ss_out(ss_step3_m68k));
 
 `ifdef M68K_CHEAT
 	assign m68k_addr = m68k_VA_o;
@@ -581,6 +624,7 @@ module md_board
 	wire z80_ZWR_d;
 	wire INT;
 	
+	wire ss_step4_z80;
 	z80cpu z80
 		(
 		.MCLK(MCLK2),
@@ -615,7 +659,7 @@ module md_board
 		.BUSRQ(ZBR),
 		.BUSAK(ZBAK),
 		.RESET(ZRES)
-		);
+		, .ss_en(scan_cpu), .ss_in(ss_step3_m68k), .ss_out(ss_step4_z80));
 	
 `ifdef Z80_CHEAT
 	assign z80_addr = z80_ZA_o;
@@ -627,6 +671,7 @@ module md_board
 	wire [7:0] vram1_SD_o;
 	wire vram1_SD_d;
 	
+	wire ss_step5_vram1;
 	vram vram1
 		(
 		.MCLK(MCLK2),
@@ -642,7 +687,9 @@ module md_board
 		.RD_d(vram1_AD_d),
 		.SD_o(vram1_SD_o),
 		.SD_d(vram1_SD_d)
-		);
+		, .ss_en(scan_vram), .ss_in(ss_step4_z80), .ss_out(ss_step5_vram1)
+		, .ss_mem_sel(ss_mem_sel), .ss_mem_addr(ss_mem_addr), .ss_mem_din(ss_mem_din)
+		, .ss_mem_wr(ss_mem_wr), .ss_mem_dout(ss_mem_dout));
 
 `ifdef VRAM_128K
 	wire [7:0] vram2_RD_o;
@@ -671,11 +718,11 @@ module md_board
 	assign ram_68k_address = { VA[14], IA14, VA[12:0] };
 	assign ram_68k_byteena = { ~UWR, ~LWR };
 	assign ram_68k_data = VD;
-	assign ram_68k_wren = (~UWR | ~LWR) & ~RAS0;
+	assign ram_68k_wren = (~UWR | ~LWR) & ~RAS0 & ~ss_en;
 	
 	assign ram_z80_address = ZA[12:0];
 	assign ram_z80_data = ZD;
-	assign ram_z80_wren = ~ZRAM & ~ZWR;
+	assign ram_z80_wren = ~ZRAM & ~ZWR & ~ss_en;
 	
 	//wire [14:0] ram_68k_address = { VA[14], IA14, VA[12:0] };
 	//
@@ -702,9 +749,9 @@ module md_board
 	//	.q(ram_z80_o)
 	//	);
 	
-	reg [7:0] RD_mem;
-	reg [7:0] AD_mem;
-	reg [7:0] SD_mem;
+	reg [7:0] RD_mem = 0;
+	reg [7:0] AD_mem = 0;
+	reg [7:0] SD_mem = 0;
 	
 `ifndef VRAM_128K
 	assign RD =
@@ -723,10 +770,20 @@ module md_board
 	
 	always @(posedge MCLK2)
 	begin
+		if (ss_en)
+		begin
+			RD_mem <= {RD_mem[6:0], ss_step5_vram1};
+			AD_mem <= {AD_mem[6:0], RD_mem[7]};
+			SD_mem <= {SD_mem[6:0], AD_mem[7]};
+		end
+		else
+		begin
+
 		RD_mem <= RD;
 		AD_mem <= AD;
 		SD_mem <= SD;
-	end
+			end
+end
 	
 	assign ZBR = (ZBR_d | ZBR_o) & ~dma_z80_req;
 	
@@ -751,6 +808,28 @@ module md_board
 	
 	always @(posedge MCLK2)
 	begin
+		if (ss_en)
+		begin
+			VD <= {VD[14:0], SD_mem[7]};
+			VA <= {VA[21:0], VD[15]};
+			ZD <= {ZD[6:0], VA[22]};
+			ZA <= {ZA[14:0], ZD[7]};
+			DTACK <= ZA[15];
+			BGACK <= DTACK;
+			BR <= BGACK;
+			AS <= BR;
+			UDS <= AS;
+			LDS <= UDS;
+			RW <= LDS;
+			_M3 <= RW;
+			ZRD <= _M3;
+			ZWR <= ZRD;
+			MREQ <= ZWR;
+			IORQ <= MREQ;
+		end
+		else
+		begin
+
 		VD <= 
 			(~ym_VD_d & ym_VD_o) |
 			(~m68k_VD_d & m68k_VD_o) |
@@ -806,7 +885,8 @@ module md_board
 			(~ym_MREQ_d & ym_MREQ_o) |
 			(~z80_MREQ_d & z80_MREQ_o);
 		IORQ <= z80_IORQ_d ? 1'h1 : z80_IORQ_o;
-	end
+			end
+end
 	
 	assign RESET = ~(ym_RESET_pull | m68k_RESET_pull | ext_vres);
 	assign HALT = ~(ym_HALT_pull | m68k_HALT_pull | ext_vres);
@@ -908,4 +988,6 @@ module md_board
 	
 	assign FRES = FRES_d ? 1'h1 : FRES_o;
 
+
+	assign ss_out = IORQ;
 endmodule

@@ -1,5 +1,9 @@
 module ym3438_ch
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input c1,
 	input c2,
@@ -27,6 +31,7 @@ module ym3438_ch
 	wire [8:0] ch_accm_sr_i;
 	wire [8:0] ch_accm_sr_o;
 	
+	wire ss_step1_ch_accm_sr;
 	ym_sr_bit_array #(.DATA_WIDTH(9), .SR_LENGTH(6)) ch_accm_sr
 		(
 		.MCLK(MCLK),
@@ -34,7 +39,7 @@ module ym3438_ch
 		.c2(c2),
 		.data_in(ch_accm_sr_i),
 		.data_out(ch_accm_sr_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_ch_accm_sr));
 	
 	wire ch_load_accm = ~(dac_test | op1_sel);
 	
@@ -54,6 +59,7 @@ module ym3438_ch
 	wire [8:0] ch_value_sr_o1;
 	wire [8:0] ch_value_sr_o2;
 	
+	wire ss_step2_ch_value_sr1;
 	ym_sr_bit_array #(.DATA_WIDTH(9), .SR_LENGTH(5)) ch_value_sr1
 		(
 		.MCLK(MCLK),
@@ -61,8 +67,9 @@ module ym3438_ch
 		.c2(c2),
 		.data_in(ch_value_sr_i),
 		.data_out(ch_value_sr_o1)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_ch_accm_sr), .ss_out(ss_step2_ch_value_sr1));
 	
+	wire ss_step3_ch_value_sr2;
 	ym_sr_bit_array #(.DATA_WIDTH(9)) ch_value_sr2
 		(
 		.MCLK(MCLK),
@@ -70,19 +77,20 @@ module ym3438_ch
 		.c2(c2),
 		.data_in(ch_value_sr_o1),
 		.data_out(ch_value_sr_o2)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_ch_value_sr1), .ss_out(ss_step3_ch_value_sr2));
 	
 	wire ch_sel = ~(dac_test | fsm_dac_out_sel);
 	
 	wire load_ed_o;
 	
+	wire ss_step4_load_ed;
 	ym_edge_detect load_ed
 		(
 		.MCLK(MCLK),
 		.c1(c1),
 		.inp(fsm_dac_load),
 		.outp(load_ed_o)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_ch_value_sr2), .ss_out(ss_step4_load_ed));
 	
 	wire ch_lock = ~(dac_test | load_ed_o);
 	
@@ -94,6 +102,7 @@ module ym3438_ch
 	
 	wire [8:0] ch_value_lock_o;
 
+	wire ss_step5_ch_value_lock;
 	ym_slatch #(.DATA_WIDTH(9)) ch_value_lock
 		(
 		.MCLK(MCLK),
@@ -101,7 +110,7 @@ module ym3438_ch
 		.inp(ch_value_o),
 		.val(ch_value_lock_o),
 		.nval()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step4_load_ed), .ss_out(ss_step5_ch_value_lock));
 	
 	assign ch_dbg = ch_value_lock_o;
 	
@@ -115,4 +124,6 @@ module ym3438_ch
 	
 	assign dac_out_enable_2612 = dac_test | fsm_dac_load;
 
+
+	assign ss_out = ss_step5_ch_value_lock;
 endmodule
