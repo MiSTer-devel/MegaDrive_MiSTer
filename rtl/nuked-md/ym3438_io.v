@@ -145,14 +145,15 @@ module ym3438_io
 	wire [8:0] data_in = { address[1], data };
 	wire data_l_en = ~WR & ~CS;
 	
-	ym_slatch data_l[0:8]
+	wire ss_step8b_data_l;
+	ym_slatch #(.DATA_WIDTH(9)) data_l
 		(
 		.MCLK(MCLK),
 		.en(data_l_en),
 		.inp(data_in),
 		.val(data_l_out),
 		.nval()
-		, .ss_en(ss_en));
+		, .ss_en(ss_en), .ss_in(ss_step8_write_d_sr), .ss_out(ss_step8b_data_l));
 	
 	wire busy_of;
 	
@@ -168,7 +169,7 @@ module ym3438_io
 		.reset(~io_IC),
 		.val(),
 		.c_out(busy_of)
-		, .ss_en(ss_en), .ss_in(ss_step8_write_d_sr), .ss_out(ss_step9_busy_cnt));
+		, .ss_en(ss_en), .ss_in(ss_step8b_data_l), .ss_out(ss_step9_busy_cnt));
 	
 	wire busy_state_i = ~(write_data_en | (~busy_state_o & ~(busy_of | ~io_IC)));
 	

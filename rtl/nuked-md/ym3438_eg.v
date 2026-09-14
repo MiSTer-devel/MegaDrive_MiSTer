@@ -174,6 +174,8 @@ module ym3438_eg
 	
 	wire [11:0] timer_shift_sel;
 	wire [11:0] timer_shift_i;
+	wire [12:0] ss_timer_shift_link;
+	assign ss_timer_shift_link[0] = ss_step9_carry_sr;
 	
 	genvar i;
 	generate
@@ -192,7 +194,7 @@ module ym3438_eg
 				.c2(c2),
 				.bit_in(timer_shift_i[i]),
 				.sr_out(timer_shift_sel[i])
-				, .ss_en(ss_en));
+				, .ss_en(ss_en), .ss_in(ss_timer_shift_link[11-i]), .ss_out(ss_timer_shift_link[12-i]));
 		end
 	endgenerate
 	
@@ -205,7 +207,7 @@ module ym3438_eg
 		.c1(c1),
 		.inp(subcnt_of_sr_o & fsm_sel1),
 		.outp(eg_cnt_ed_o)
-		, .ss_en(ss_en), .ss_in(ss_step9_carry_sr), .ss_out(ss_step10_eg_cnt_ed));
+		, .ss_en(ss_en), .ss_in(ss_timer_shift_link[12]), .ss_out(ss_step10_eg_cnt_ed));
 	
 	wire [1:0] eg_cnt_low_o;
 		

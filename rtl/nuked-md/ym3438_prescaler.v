@@ -47,6 +47,9 @@ module ym3438_prescaler(
 
 	genvar i;
 	
+	wire [6:0] ss_clkgen_link;
+	assign ss_clkgen_link[0] = ss_step2_fsm_res_latch;
+
 	generate
 		for (i = 0; i < 6; i=i+1)
 		begin : l1
@@ -57,7 +60,7 @@ module ym3438_prescaler(
 				.sr_out(clkgen_sr_out[i]),
 				.c1(pc1),
 				.c2(pc2)
-				, .ss_en(ss_en));
+				, .ss_en(ss_en), .ss_in(ss_clkgen_link[i]), .ss_out(ss_clkgen_link[i+1]));
 			if (i != 0)
 				assign clkgen_sr_in[i] = clkgen_sr_out[i-1];
 		end
@@ -77,7 +80,7 @@ module ym3438_prescaler(
 		.sr_out(c1),
 		.c1(pc1),
 		.c2(pc2)
-		, .ss_en(ss_en), .ss_in(ss_step2_fsm_res_latch), .ss_out(ss_step3_c1_sr));
+		, .ss_en(ss_en), .ss_in(ss_clkgen_link[6]), .ss_out(ss_step3_c1_sr));
 	
 	wire ss_step4_c2_sr;
 	ym_sr_bit c2_sr(

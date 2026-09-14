@@ -19,25 +19,9 @@ module ym_sr_bit #(parameter SR_LENGTH = 1)
 	assign sr_out = v2[SR_LENGTH-1];
 	assign ss_out = v2[SR_LENGTH-1];
 
-	// The scan rides this cell's own shift network rather than a second one built
-	// beside it. v1's upper bits come from v2 either way and v2 always takes v1,
-	// so the only multiplexer left is on the single bit coming in, and the two
-	// phases turn into clock enables - which is what "v2 <= c2 ? v1 : v2" always
-	// was. One 2:1 mux per cell instead of two per bit.
-	//
-	// It matters because a plain shift register packs into ALM registers with the
-	// look-up tables unused, and a mux on every stage's D input forces a LUT per
-	// bit that has nothing to share it with. Measured on the FM chip, whose model
-	// is almost entirely long shift registers: 2.3 ALMs per chain bit against
-	// 0.42 for the design as a whole, 1189 ALMs becoming 3565.
-	//
-	// The chain now interleaves the two banks instead of walking one then the
-	// other: ss_in -> v1[0] -> v2[0] -> v1[1] -> v2[1] -> ... -> v2[N-1] -> out.
-	// Still 2N stages, still one bit a clock, still a bijection over every flop,
-	// which is all the controller needs - it shifts the length it measured and
-	// puts back exactly what it took. Only the order on the wire changes, so
-	// snapshots taken by an older build no longer match and are refused by the
-	// chain length in their header.
+	// scan rides this cell's own network, one 2:1 mux per cell (a mux per stage
+	// cost 2.3 ALMs/bit vs 0.42 overall). interleaves v1/v2 instead of walking one
+	// bank then the other, so older snapshots see a different length and are refused.
 	wire in_bit = ss_en ? ss_in : bit_in;
 
 	always @(posedge MCLK)
@@ -286,10 +270,8 @@ module ym_slatch_t #(parameter DATA_WIDTH = 1)
 
 	wire [DATA_WIDTH-1:0] mem_assign = en ? inp : mem;
 
-	// the scan output has to come from the register, never from mem_assign. that
-	// expression is the transparent path: en stays live while the chain shifts, so
-	// tapping it feeds the neighbouring cell a functional input instead of the
-	// stored bit and cuts the chain wherever en happens to be high.
+	// never mem_assign: that's the transparent path, live while en is high, and
+	// tapping it feeds the next cell a functional input instead of the stored bit
 	assign ss_out = mem[DATA_WIDTH-1];
 
 	always @(posedge MCLK)
@@ -307,10 +289,8 @@ module ym_slatch_t #(parameter DATA_WIDTH = 1)
 		end
 	end
 
-	// while ss_en is high the machine must be frozen. leaving the transparent
-	// path live lets the surrounding combinational network oscillate around the
-	// latch, which verilator catches as a non-converging loop and which would be
-	// a real hazard in silicon too. drive the stored value instead.
+	// the transparent path left live would let the surrounding network oscillate
+	// around the latch while frozen: a non-converging loop, and a real hazard too
 	assign val = ss_en ? mem : mem_assign;
 	assign nval = ~val;
 

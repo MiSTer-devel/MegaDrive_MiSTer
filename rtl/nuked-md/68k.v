@@ -4013,6 +4013,8 @@ end
 			ncode_addr <= {ncode_addr[6:0], ucode_addr[5]};
 			w522 <= {w522[15:0], ncode_addr[7]};
 			w529 <= {w529[66:0], w522[16]};
+			ucode_out <= {ucode_out[270:0], w529[67]};
+			ncode_out <= {ncode_out[270:0], ucode_out[271]};
 		end
 		else
 		begin
@@ -4176,7 +4178,7 @@ end
 	begin
 		if (ss_en)
 		begin
-			w530 <= {w530[14:0], w529[67]};
+			w530 <= {w530[14:0], ncode_out[271]};
 		end
 		else
 		begin
