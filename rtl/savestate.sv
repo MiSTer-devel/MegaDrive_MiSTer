@@ -1,21 +1,8 @@
-// Savestate controller.
-//
-// Reading the scan chain is destructive, so the machine has to be put back
-// afterwards. The obvious trick, feeding ss_out straight back into ss_in, does
-// not work here: several stages of the chain are combinational pass-throughs,
-// so closing that loop creates a real combinational cycle. Measured on the
-// running core, a full rotation of any length left the machine limping at one
-// percent of its normal bus rate, and on hardware it killed video sync outright.
-//
-// So the chain is read into a local buffer and shifted back from there. The
-// buffer is 12409 bits, under 2 KB, which is one M10K block on a device where
-// block RAM is only half used.
-//
-// Chain length is measured on the actual chip at reset rather than trusted from
-// a parameter: what synthesis builds can differ from what simulation says, and a
-// rotation off by one position scrambles every flop into its neighbour.
-
-module savestate
+// destructive read: some stages are combinational, so ss_out can't loop back to ss_in.
+module savestate #(
+	// at least 17: ST_PAUSE reads guard[16]
+	parameter GUARD_BITS = 24
+)
 (
 	input             clk,
 	input             reset,
@@ -24,19 +11,16 @@ module savestate
 	input             ss_load,
 	output            busy,
 
-	// the measurement destroys machine state, so the core must be held in reset
-	// until it finishes. without this the machine boots out of whatever the
-	// calibration left in its flops, which on hardware is a black screen.
+	// measurement destroys machine state; unheld, the core boots on whatever
+	// calibration left in the flops, a black screen on hardware
 	output            cal_busy,
 	output            cal_failed,
 	// the measured length, which ss_ddr needs: a transfer of the chain asks for
 	// "the whole chain" rather than a word count, and this is that count
 	output reg [15:0] chain_len = 0,
 
-	// asks the machine to let go of the bus before anything is frozen, through the
-	// same arbitration the OSD pause uses. freezing mid bus cycle left the 68000
-	// with a half finished access while the memory around it kept running, and the
-	// game restarted every time.
+	// freezing mid bus cycle left the 68000 with a half finished access while
+	// memory around it kept running, and the game restarted every time
 	output reg        pause_req = 0,
 	input             bus_free,
 	// port B of the snapshot buffer, on the DDRAM clock: ss_ddr reads a
@@ -52,18 +36,15 @@ module savestate
 	output reg        ss_in = 0,
 	input             ss_out,
 
-	// the snapshot goes to DDR3 from ss_ddr, on the clock the memory port is
-	// driven from. this module used to write it straight from clk_md with no
-	// ddr_busy handshake, which is the bug ss_ddr exists to avoid; that path was
-	// dead behind a DRY_RUN parameter and is gone. save_req stays up until ss_ddr
-	// answers, which also keeps busy high so the buffer is not overwritten mid-copy.
+	// save_req stays up until ss_ddr answers, keeping busy high so the buffer
+	// is not overwritten mid-copy
 	output reg        save_req = 0,
 	output reg        load_req = 0,
 	input             xfer_ack,
-	// The header MiSTer main polls at the start of every slot: a change detector
-	// it watches to know a save happened, and the payload size it needs to write
-	// the file. See process_ss() in Main_MiSTer's user_io.cpp.
+	// header main polls at the slot start: a change detector plus payload size.
+	// See process_ss() in Main_MiSTer's user_io.cpp.
 	output reg        blk_hdr = 0,
+	output reg        blk_id = 0,
 	output     [31:0] hdr_words32,
 	input             hdr_present,
 	input      [15:0] hdr_chain,
@@ -106,57 +87,31 @@ module savestate
 	localparam ST_MIN     = 5'd14;   // a chunk on its way back from the slot
 	localparam ST_MWRITE  = 5'd15;   // writing that chunk back into a memory
 	localparam ST_CHOUT   = 5'd16;   // the chain is on its way to the slot
+	localparam ST_IDCHK   = 5'd19;   // read identity before a restore: magic, chain length
+	localparam ST_ID      = 5'd20;   // write identity after a save, before the header
 
-	// The machine's memories, walked one after another. Every one of them is read
-	// as 16-bit words on a shared bus, four to a 64-bit buffer word, whatever its
-	// real width: the Z80's RAM and VRAM are bytes and waste the upper half. That
-	// costs slot space, which is free here, and buys one walk instead of three.
-	//
-	// A chunk is 256 buffer words, so 1024 words of memory. Offsets are in 64-bit
-	// words from the start of the slot; the chain sits at 0 and needs 260.
-	//
-	//   sel  memory            16-bit words  chunks  slot offset
-	//    0   68000 work RAM          32768      32         1024
-	//    1   Z80 RAM                  8192       8         9216
-	//    2   VRAM                    65536      64        11264
-	//    3   CRAM and VSRAM           1024       1        27648
-	//    4   cartridge state          1024       1        28672
-	//
-	// The last one is the VDP's own palette and vertical scroll, 104 words of a
-	// 1024-word window; the rest of it reads zero and goes nowhere. sat and
-	// sprdata are not here on purpose: the VDP refills them from VRAM, which is
-	// restored, so carrying them would be work for nothing.
-	//
-	// ponytail: three clocks a word puts a save at about three milliseconds of
-	// pause. the machine is off the bus the whole time, which is what the OSD pause
-	// does anyway; pipeline the walk if that ever shows.
+	// sel: 0 68000 RAM, 1 Z80 RAM, 2 VRAM, 3 CRAM/VSRAM, 4 cartridge state, 5 sprite cache
+	// sat is written only on VRAM writes to the sprite table, never refilled from VRAM
 	localparam  [9:0] CHUNK_BASE = 10'd512;  // the top half of the buffer
 	localparam  [9:0] CHUNK      = 10'd256;
-	localparam  [2:0] N_MEM      = 3'd5;
+	localparam  [2:0] N_MEM      = 3'd6;
 
-	// derived from the buffer, never typed: this was a hand-written 200 and stayed
-	// there when the chain grew past 12800 bits, at which point calibration
-	// silently stored chain_len 0 and the core refused every snapshot. the buffer
-	// holds two captures, so one capture can be at most half of it.
+	// derived from the buffer, never hand-typed: a stale hand-written value here
+	// once outgrew the chain and calibration silently stored chain_len 0.
 	localparam BUF_WORDS = 1024;
 	localparam MAX_WORDS = BUF_WORDS/2;
 
-	// what simulation measured. a hardware chain that comes back a different length
-	// means synthesis built something other than what was tested, and restoring it
-	// would shift every flop into its neighbour.
+	// a hardware chain that comes back a different length than simulation measured
+	// means synthesis built something other than what was tested
 
-	// must infer as M10K. reading a single bit straight out of the array
-	// (buf_mem[w][63-b]) does not: it forces the whole word out
-	// combinationally and Quartus builds the buffer from flip-flops and
-	// muxes instead. measured cost of getting this wrong: 122 percent of
-	// the device. so read a whole word into a register, then shift that.
+	// reading a single bit straight out of buf_mem forces the whole word out
+	// combinationally, and Quartus builds it from flip-flops and muxes instead
+	// of M10K: measured cost of getting this wrong, 122 percent of the device.
 	reg [63:0] outsh = 0;
 	reg  [8:0] rdaddr = 0;
 
-	// every one of these gets a power-up value. the FPGA brings registers up as
-	// zero, so without them the controller depends on a reset pulse arriving
-	// before anything else happens, and simulation can never show the difference
-	// because a testbench always resets first. zero here would mean ST_FLUSH.
+	// every reg here needs its own power-up value: a testbench always resets first,
+	// so simulation can never show what hardware does before a reset pulse arrives.
 	reg  [4:0] state = ST_FILL1;
 	reg        calibrated = 0;
 	reg [15:0] bitcnt = 0;
@@ -164,7 +119,7 @@ module savestate
 	reg  [5:0] bidx = 0;
 	reg [63:0] shreg = 0;
 	reg        out_pad = 0;   // the capture is past chain_len, filling the last word
-	reg [23:0] guard = 0;
+	reg [GUARD_BITS-1:0] guard = 0;
 	reg [21:0] save_guard = 0;
 	reg        saving = 0;
 	reg        loading = 0;
@@ -188,70 +143,46 @@ module savestate
 	assign cal_busy = ~calibrated;
 	assign cal_failed = calibrated & (chain_len == 0);
 
-	// came back both set, which their own logic makes impossible, so neither could
-	// be believed. these ask only whether the chain output moves at all.
-
-	// save_ack comes back on the DDRAM clock
-	// the header check is a sixteen bit compare and the state machine that reads
-	// it also drives the scan enable, so leaving the compare in that cone put it
-	// in front of every enable replica and cost several nanoseconds. the answer
-	// is stable long before the state machine looks at it.
+	// hdr_ok is registered rather than compared inline: the compare sat in front
+	// of every scan-enable replica and cost several nanoseconds there.
 	reg        hdr_ok = 0;
 	reg  [1:0] ack_sync = 0;
 	always @(posedge clk) ack_sync <= {ack_sync[0], xfer_ack};
 
-	// The cartridge is the one walked memory that does not run on this clock: it
-	// is on clk_sys, half of clk_md, both rising together out of the same PLL. A
-	// strobe one clock wide at 107.37 MHz falls entirely between two 53.69 MHz
-	// edges whenever it starts on an even clock, and which words start on an even
-	// clock is fixed by the walk, so the same words of the cartridge vector were
-	// dropped on every restore - all sixty-four times the walk writes them.
-	// The address and the data already hold for the whole three clock phase; this
-	// strobe holds with them, which no 53.69 MHz edge can step over.
+	// the cartridge runs on clk_sys, half of clk_md: a one-clock strobe at 107 MHz
+	// falls between clk_sys edges on words that start on an even clock, so those
+	// words were dropped on every restore. hold it for the whole three-clock phase.
 	reg [1:0] wr_ext = 0;
 	always @(posedge clk) begin
 		if (mem_wr)       wr_ext <= 2'd2;
 		else if (|wr_ext) wr_ext <= wr_ext - 1'd1;
 	end
 	assign mem_wr_hold = mem_wr | (|wr_ext);
-	// A transfer is over when the request is down AND the acknowledge has come
-	// back down with it. ss_ddr holds ack until the request drops, and ack then
-	// takes two more clocks to cross back through this synchroniser. A state that
-	// waited only for its own request to fall could raise the next one inside that
-	// window, and the guard below would see the *previous* transfer's ack, drop
-	// the new request in one clock and report it as done. ss_ddr never sees it.
-	// That is what stopped the header from ever being written: the header request
-	// follows the last memory chunk immediately, with nothing in between.
+	// idle needs ack_sync[1] down too, two clocks behind ack: a state waiting only
+	// on its own request could raise the next one inside that window and see the
+	// *previous* transfer's ack, which is what stopped the header ever being written.
 	wire xfer_idle = ~save_req & ~load_req & ~ack_sync[1];
 	wire [63:0] nextword = {shreg[62:0], ss_out};
-	// the last word is partial when the chain does not divide by 64: 14534 bits is
-	// 227 full words plus 6. those bits sit at the low end of the shift register
-	// while ST_IN feeds the chain from bit 63 downwards, so the tail has to reach
-	// the top of the word. it used to get there through a 64 bit variable shift,
-	// which is six stages of 64 multiplexers and was a third of this module's area.
-	// shifting the capture on to the word boundary does the same job for nothing:
-	// ST_OUT feeds zeros into the chain, so the padding bits are the zeros the
-	// alignment would have inserted anyway, and ST_IN still stops at chain_len.
+	// a partial last word sits at the low end of the shift register while ST_IN
+	// feeds from bit 63 down; ST_OUT already zero-fills the padding, so shifting
+	// onto the word boundary needs nothing extra to reach it.
 
-
-	// continuous assignments, not an always @* block: that block waits for an event
-	// before it ever runs, so at time zero cur_last was x, "mchunk != cur_last" was
-	// x, the branch was not taken and the walk left work RAM after one chunk of
-	// thirty-two. Synthesis would have built the right logic and simulation would
-	// have gone on failing, which is the worst of both.
+	// continuous assignments, not always @*: that block skips the first event, so
+	// at time zero cur_last read x, "mchunk != cur_last" was x, and the walk left
+	// work RAM after one chunk in simulation while synthesis built it correctly.
 	wire  [3:0] cur_sel  = (mem_idx == 3'd0) ? 4'd0      : (mem_idx == 3'd1) ? 4'd1     :
-	                       (mem_idx == 3'd2) ? 4'd2      : (mem_idx == 3'd3) ? 4'd3     : 4'd4;
+	                       (mem_idx == 3'd2) ? 4'd2      : (mem_idx == 3'd3) ? 4'd3     :
+	                       (mem_idx == 3'd4) ? 4'd4      : 4'd5;
 	wire [15:0] cur_off  = (mem_idx == 3'd0) ? 16'd1024  : (mem_idx == 3'd1) ? 16'd9216 :
-	                       (mem_idx == 3'd2) ? 16'd11264 : (mem_idx == 3'd3) ? 16'd27648 : 16'd28672;
+	                       (mem_idx == 3'd2) ? 16'd11264 : (mem_idx == 3'd3) ? 16'd27648 :
+	                       (mem_idx == 3'd4) ? 16'd28672 : 16'd28928;
 	wire  [5:0] cur_last = (mem_idx == 3'd0) ? 6'd31     : (mem_idx == 3'd1) ? 6'd7     :
 	                       (mem_idx == 3'd2) ? 6'd63     : 6'd0;
 	wire [15:0] nxt_off  = (mem_idx == 3'd0) ? 16'd9216  : (mem_idx == 3'd1) ? 16'd11264 :
-	                       (mem_idx == 3'd2) ? 16'd27648 : 16'd28672;
-	// mem_sel is registered with the address rather than derived from mem_idx: the
-	// last write of a memory happens on the same clock that advances mem_idx, so a
-	// combinational selector already pointed at the next memory and sent that word
-	// to the wrong one. Two bytes per restore, at the end of work RAM and of the
-	// Z80's.
+	                       (mem_idx == 3'd2) ? 16'd27648 : (mem_idx == 3'd3) ? 16'd28672 : 16'd28928;
+	// mem_sel is registered with the address, not derived from mem_idx: mem_idx
+	// advances on the last write, so a combinational selector sent that word
+	// to the next memory instead.
 
 	// the memory walk borrows the top half of the buffer, a chunk at a time, while
 	// the chain capture keeps the bottom half
@@ -267,19 +198,11 @@ module savestate
 	wire  [9:0] addra = mem_phase ? (CHUNK_BASE + {1'b0, mword})
 	                              : {1'b0, in_phase ? rdaddr : widx};
 
-	// calibration results are written straight to the DDR3 region this core
-	// reserves, where Linux on the board can read them back with devmem. the OSD
-	// carries one usable bit per boot and needs a person to read it; this carries
-	// sixty four and needs nobody.
-
-
-	// the buffer lives in ss_buf so the dump can read it on the DDRAM clock.
-	// port A carries one address for both the fill and the replay, because they
-	// never happen at once and two addresses on one port stop M10K inference.
+	// port A carries one address for both fill and replay: they never happen at
+	// once, and two addresses on one port stop M10K inference.
 	wire [63:0] rdword;
-	// the second half starts at 256, not 200: the address is a concatenation, so
-	// the chain lives in the bottom half. sizing the memory at 400 words put the
-	// whole second capture past its end.
+	// second half starts at 256, not 200: the address is a concatenation, and
+	// sizing the memory at 400 words put the second capture past its end.
 	ss_buf #(.WORDS(BUF_WORDS)) buf_mem
 	(
 		.clka(clk), .wea(buf_we), .addra(addra), .dina(bufword), .qa(rdword),
@@ -309,19 +232,16 @@ module savestate
 			blk_len    <= 0;
 			blk_base   <= 0;
 			blk_hdr    <= 0;
+			blk_id     <= 0;
 			payload_end <= 0;
 		end
 		else begin
-			// one clock wide, always: leaving ST_MWRITE with it set left it high for
-			// the whole of the next chunk fetch, and every clock of that wrote the
-			// stale data at the stale address into the memory being restored.
+			// one clock wide, always: left set past ST_MWRITE it wrote stale data
+			// at a stale address into the memory being restored on every later clock.
 			mem_wr <= 0;
 
-			// a request that is never answered would hold busy high for good: no
-			// further snapshots, and hold_off keeps the heartbeat dump off the memory
-			// port, so the core goes quiet with no way to see why. give up after
-			// about forty milliseconds and say so in the flags. the copy itself needs
-			// tens of microseconds.
+			// give up after about forty milliseconds: an unanswered request would
+			// hold busy high for good and the copy itself needs only tens of us.
 			if (save_req | load_req) begin
 				save_guard <= save_guard + 1'b1;
 				if (ack_sync[1] || &save_guard) begin
@@ -366,15 +286,12 @@ module savestate
 				ss_in  <= 0;
 				bitcnt <= bitcnt + 1'b1;
 				if (ss_out) begin
-					// a chain longer than the buffer would be written past the end of
-					// buf_mem and shifted back as undefined data, leaving the machine
-					// running on garbage with no reset to recover it. treat it as a
-					// failed measurement instead.
+					// a chain longer than the buffer would write past buf_mem's end and
+					// shift back as garbage with no reset to recover; treat it as failed.
 					chain_len  <= (bitcnt > MAX_WORDS*64) ? 16'd0 : bitcnt;
-					// a marker that is already there on the first measuring clock is not a
-					// short chain, it is a chain that never shifted: ss_out is showing the
-					// functional IORQ, which sits high while the Z80 is held in reset.
-					// both cases end up storing zero, which is why they read alike.
+					// a marker present on the first measuring clock means the chain never
+					// shifted (ss_out is the Z80's IORQ, held high in reset), not a short
+					// chain; both cases store zero, which is why they read alike.
 					hit_cnt    <= bitcnt;
 					calibrated <= 1;
 					widx       <= 0;
@@ -383,10 +300,8 @@ module savestate
 					ss_en_next = 0;
 				end
 				else if (bitcnt > 16'd60000) begin
-					// marker never came back, so the chain is not usable on this build.
-					// release the core anyway and simply refuse snapshots: a failed
-					// measurement must never leave the machine held in reset, which is
-					// a dead core with no picture and no OSD to escape with.
+					// marker never came back: release the core and refuse snapshots
+					// instead, a failed measurement must never hold it in reset.
 					ss_en_next = 0;
 					chain_len  <= 0;
 					calibrated <= 1;
@@ -396,30 +311,10 @@ module savestate
 				end
 			end
 
-			// four words of results into DDR3, then carry on as before. the guard
-			// counter is here because a stuck memory controller must not leave the
-			// machine frozen: a diagnostic that can hang the core is worse than none.
-
 			ST_IDLE: begin
 				ss_en_next = 0;
 				pause_req <= 0;
 				fsm_busy  <= 0;
-				// once, a couple of seconds after calibration, run the round trip by
-				// itself: capture, put it back, capture again into the other half of
-				// the buffer. the machine stays frozen throughout, so the two halves
-				// have to match bit for bit. anything that differs names a cell the
-				// chain does not carry properly, read straight out of DDR3.
-				// only count while the 68000 is actually writing work RAM. a fixed timer
-				// from calibration expires while the core is still on a black screen with
-				// no cartridge, and a snapshot of an idle machine proves nothing.
-				// The automatic self test used to count here and fire a snapshot ten
-				// seconds after the machine started doing something. It captured,
-				// restored and captured again into the two halves of the buffer so
-				// tools/diff_chain.sh could compare them, which is how the round trip
-				// was first shown to be bit exact on real silicon. It has done that,
-				// and what is left of it on a player's machine is a stall and an
-				// audible click a few seconds into every game.
-
 				// a restore fetches its slot into the buffer before anything is frozen:
 				// the machine should stand still for the shift, not for a memory read
 				// that can be done while it is running.
@@ -432,16 +327,7 @@ module savestate
 					bitcnt      <= 0;
 					widx        <= 0;
 					bidx        <= 0;
-					// the chain, from the top of the slot into the bottom of the buffer.
-					// These were the descriptor of whatever ran last: after a save that is
-					// the final memory chunk, offset 28672 length 256 into buffer word 512.
-					// The fetch then read the cartridge region into the top half and the
-					// chain was shifted in from buffer words 0..259, which nobody had
-					// written this time round - they still held the chain the last SAVE
-					// read out. Restoring the slot you had just saved therefore worked, by
-					// accident, and restoring any other slot put that slot's memories under
-					// the other slot's registers: structured video garbage and a hung 68000.
-					// A restore had never once read a chain out of DDR3.
+					// the chain, from the top of the slot into the bottom of the buffer
 					blk_off     <= 0;
 					blk_len     <= 0;      // 0 means the chain, whose length the core measured
 					blk_base    <= 0;
@@ -453,11 +339,6 @@ module savestate
 					state       <= ST_HDRCHK;
 				end
 				else if (ss_save & calibrated & (chain_len != 0)) begin
-					// only the automatic test compares two captures, and it always does.
-					// a manual save must not: the memory walk that follows it writes the
-					// top half of the buffer, which is exactly where the second capture
-					// would sit, so the comparison would be against memory data. the
-					// automatic test does no memory walk and keeps both halves intact.
 					saving  <= ss_save;
 					loading <= 0;
 					fsm_busy   <= 1;
@@ -471,21 +352,30 @@ module savestate
 				end
 			end
 
-			// read the chain out, packing 64 bits per word. the machine is left
-			// holding zeros at this point and is only sane again after ST_IN.
-			// let the processors reach a boundary and drop the bus. the acknowledge
-			// comes from the Z80 side; the 68000 has none exposed, so a settling
-			// count covers it. a millisecond is nothing against a 232 microsecond
-			// snapshot and it is the difference between a clean freeze and a crash.
-			// the slot is on its way into the buffer. the guard above drops load_req
-			// on the answer or on the timeout, so this only has to look at which.
+			// the guard above already dropped load_req on the answer or the timeout,
+			// so this only has to look at which one it was
 			ST_HDRCHK: begin
 				if (xfer_idle) begin
 					blk_hdr <= 0;
-					// a slot written by a build with a different chain would shift the
-					// wrong number of bits into every register and hang the machine
-					// without saying anything, so the length in the header has to match.
-					if (xfer_ok && hdr_present && hdr_ok) begin
+					if (xfer_ok && hdr_present) begin
+						blk_id   <= 1;
+						blk_off  <= 0;
+						load_req <= 1;
+						state    <= ST_IDCHK;
+					end
+					else begin
+						fsm_busy <= 0;
+						loading  <= 0;
+						state    <= ST_IDLE;
+					end
+				end
+			end
+
+			ST_IDCHK: begin
+				if (xfer_idle) begin
+					blk_id <= 0;
+					if (xfer_ok && hdr_ok) begin
+						blk_off  <= 16'd1;
 						load_req <= 1;
 						state    <= ST_FETCH;
 					end
@@ -494,6 +384,16 @@ module savestate
 						loading  <= 0;
 						state    <= ST_IDLE;
 					end
+				end
+			end
+
+			// before the header: main must not see the counter move before the payload is in
+			ST_ID: begin
+				if (xfer_idle) begin
+					blk_id   <= 0;
+					blk_hdr  <= 1;
+					save_req <= 1;
+					state    <= ST_HDR;
 				end
 			end
 
@@ -523,6 +423,8 @@ module savestate
 				end
 			end
 
+			// guard[16]: a settling count for the 68000, which has no bus-free
+			// acknowledge of its own the way the Z80 side does
 			ST_PAUSE: begin
 				guard <= guard + 1'b1;
 				if (bus_free && guard[16]) begin
@@ -531,10 +433,8 @@ module savestate
 					widx   <= 0;
 					bidx   <= 0;
 					rdaddr <= 0;
-					// a restore puts the memories back first, with the machine paused but
-					// the chain untouched, and only then freezes and shifts the registers
-					// in. the other way round the processors would run for the length of
-					// the memory walk with registers that no longer match anything.
+					// memories go back first, chain untouched; the other way round the
+					// processors would run the length of the memory walk on stale registers
 					if (loading) begin
 						mchunk   <= 0;
 						mword    <= 0;
@@ -553,27 +453,24 @@ module savestate
 					end
 				end
 				else if (&guard) begin
-					// giving up has to be final for the self test, otherwise it retries
-					// every couple of seconds and each attempt holds the bus request long
-					// enough to click the audio and stall the game.
+					// final, not a retry: retrying holds the bus request long enough to
+					// click the audio and stall the game
 					pause_req     <= 0;
 					fsm_busy      <= 0;
 					state         <= ST_IDLE;
 				end
 			end
 
+			// the machine is left holding zeros here, only sane again after ST_IN
 			ST_OUT: begin
 				ss_in  <= 0;
 				shreg  <= nextword;
 				bidx   <= bidx + 1'b1;
 				bitcnt <= bitcnt + 1'b1;
 
-				// exactly one write statement for buf_mem in the whole design. two
-				// conditional writes, even to the same address, stop Quartus inferring
-				// M10K: it reported "can't infer memory for variable buf_mem" and put
-				// 12800 bits into logic, taking the design to 117 percent of the device.
-				// value comes from bufword, the address from addra: one write statement,
-				// one read address, which is the shape Quartus needs for block RAM.
+				// exactly one write statement for buf_mem: two conditional writes, even
+				// to the same address, stop Quartus inferring M10K and put 12800 bits
+				// into logic instead, 117 percent of the device.
 
 				if (&bidx) widx <= widx + 1'b1;
 
@@ -591,17 +488,9 @@ module savestate
 			// give the registered read a couple of clocks to present word zero before
 			// the first bit is needed, otherwise the opening 64 bits shift in stale.
 			ST_PRE: begin
-				// Let go of the memories here, before the chain goes in and not with
-				// the last word of the walk. The cartridge applies its bank registers
-				// when its select line drops, and that line is (busy && sel == 4):
-				// left at 4 it stayed up through the whole chain shift, and the banks
-				// landed after the machine had already resumed - a game with no
-				// banking never noticed, Super Street Fighter II fetched a few
-				// instructions from the wrong half of a five megabyte ROM and died.
-				//
-				// Not one state earlier: that clock still carries mem_wr for the last
-				// word of the walk, and a select that changes with it sends that word
-				// to the wrong memory. Signals that qualify a transfer travel with it.
+				// cartridge banking latches when sel drops from 4; left selected through
+				// the shift, a banked game resumes on the wrong bank. Not a state earlier:
+				// that clock still carries mem_wr for the walk's last word.
 				mem_sel <= 4'd15;
 				bidx <= bidx + 1'b1;
 				if (bidx == 6'd2) begin
@@ -635,11 +524,10 @@ module savestate
 			ST_DONE: begin
 				loading       <= 0;
 				ss_en_next = 0;
-				// a real save keeps the machine paused and walks its memories out after
-				// the chain. the self test has nowhere to put them and stops here.
+				// a save walks its memories out after the chain; a restore is done here
 				if (saving) begin
-					blk_off  <= 0;
-					blk_len  <= 0;      // the chain, the chain, whose length the core measured
+					blk_off  <= 16'd1;
+					blk_len  <= 0;      // the chain, whose length the core measured
 					blk_base <= 0;
 					save_req <= 1;
 					mchunk   <= 0;
@@ -668,10 +556,6 @@ module savestate
 				end
 			end
 
-			// one chunk of a memory into the top half of the buffer. three clocks a
-			// word: set the address, let the block RAM answer, take the answer.
-			// ponytail: 8192 words at three clocks is under a millisecond of pause,
-			// pipeline it if that ever shows on screen.
 			ST_MREAD: begin
 				mrd <= mrd + 1'b1;
 				if (mrd == 2'd0) begin
@@ -715,9 +599,13 @@ module savestate
 						state   <= ST_MREAD;
 					end
 					else begin
-						blk_hdr  <= 1;
+						mem_sel  <= 4'd15;
+						blk_id   <= 1;
+						blk_off  <= 0;
+						blk_len  <= 0;
+						blk_base <= 0;
 						save_req <= 1;
-						state    <= ST_HDR;
+						state    <= ST_ID;
 					end
 				end
 			end
@@ -782,8 +670,7 @@ module savestate
 								end
 								else begin
 									// memories are back; the chain goes in last, so the
-									// processors resume with registers that match them.
-									//
+									// processors resume with registers that match them
 									ss_en_next = 1;
 									bitcnt <= 0;
 									widx   <= 0;
@@ -806,7 +693,7 @@ module savestate
 			// watchdog last so it overrides the case above. a snapshot freezes the
 			// whole machine, so a stuck controller takes the core down with it and
 			// the only way out is a power cycle.
-			if (state != ST_IDLE && calibrated) begin
+			if (state != ST_IDLE && state != ST_PAUSE && calibrated) begin
 				guard <= guard + 1'b1;
 				if (&guard) begin
 					// unfreezing here leaves the machine holding a half-restored chain,

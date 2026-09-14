@@ -38,6 +38,11 @@ module md_board #(parameter SS_EN_SPLIT = 0)
 	input [15:0] ss_arr_din,
 	input ss_arr_wr,
 	output [15:0] ss_arr_dout,
+	input ss_sat_sel,
+	input [15:0] ss_sat_addr,
+	input [15:0] ss_sat_din,
+	input ss_sat_wr,
+	output [15:0] ss_sat_dout,
 
 	input ss_mem_sel,
 	input [15:0] ss_mem_addr,
@@ -531,7 +536,9 @@ end
 		.vdp_dma(vdp_dma)
 		, .ss_en(scan_vdp_fm), .ss_in(MCLK_e), .ss_out(ss_step2_ym)
 		, .ss_arr_sel(ss_arr_sel), .ss_arr_addr(ss_arr_addr), .ss_arr_din(ss_arr_din)
-		, .ss_arr_wr(ss_arr_wr), .ss_arr_dout(ss_arr_dout));
+		, .ss_arr_wr(ss_arr_wr), .ss_arr_dout(ss_arr_dout)
+		, .ss_sat_sel(ss_sat_sel), .ss_sat_addr(ss_sat_addr), .ss_sat_din(ss_sat_din)
+		, .ss_sat_wr(ss_sat_wr), .ss_sat_dout(ss_sat_dout));
 	
 	assign fm_sel23 = TEST0_o;
 	

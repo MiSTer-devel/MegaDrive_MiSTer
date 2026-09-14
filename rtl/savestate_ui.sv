@@ -59,14 +59,14 @@ always @(posedge clk) begin
 	
 	if(allow_ss) begin
 	
-		// keyboard
+
 		if(old_state != ps2_key[10]) begin
 			case(ps2_key[7:0])
 				'h11: alt <= pressed;
-				'h05: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 0; statusUpdate <= 1'b1; end // F1
-				'h06: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 1; statusUpdate <= 1'b1; end // F2
-				'h04: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 2; statusUpdate <= 1'b1; end // F3
-				'h0C: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 3; statusUpdate <= 1'b1; end // F4
+				'h03: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 0; statusUpdate <= 1'b1; end // F5
+				'h0B: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 1; statusUpdate <= 1'b1; end // F6
+				'h83: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 2; statusUpdate <= 1'b1; end // F7
+				'h0A: begin ss_save <= pressed & alt; ss_load <= pressed & ~alt; ss_base <= 3; statusUpdate <= 1'b1; end // F8
 			endcase
 		end
 	
@@ -76,7 +76,7 @@ always @(posedge clk) begin
 			statusUpdate <= 1'b1;
 		end
 
-		// gamepad
+
 		if (joySS) begin
 			// timeout with no button pressed -> help text
 			InfoWaitcnt <= InfoWaitcnt + 1'b1;
@@ -85,7 +85,7 @@ always @(posedge clk) begin
 				ss_info_req <= 1'b1;
 				InfoWaitcnt <= 25'b0;
 			end
-			// switch slot
+
 			if (joyRight & ~lastRight & ss_base < 3) begin
 				ss_base      <= ss_base + 1'd1;
 				statusUpdate <= 1'b1;
@@ -98,12 +98,12 @@ always @(posedge clk) begin
 				slotswitched <= 1'b1;
 				InfoWaitcnt  <= 25'b0;
 			end
-			// save and load
+
 			if (joyStart & joyDown & ~lastDown) begin
 				ss_save     <= 1'b1;
 				InfoWaitcnt <= 25'b0;
 			end
-			// save and load
+
 			if (joyStart & joyUp & ~lastUp) begin
 				ss_load     <= 1'b1;
 				InfoWaitcnt <= 25'b0;
@@ -112,12 +112,12 @@ always @(posedge clk) begin
 			InfoWaitcnt <= 25'b0;
 		end
 		
-		// OSD
+
 		old_st <= OSD_saveload;
 		if(old_st[0] ^ OSD_saveload[0]) ss_save <= OSD_saveload[0];
 		if(old_st[1] ^ OSD_saveload[1]) ss_load <= OSD_saveload[1];
 
-		// infotexts
+
 		if (slotswitched) begin
 			ss_info     <= 7'd2 + ss_base;
 			ss_info_req <= 1'b1;
@@ -128,7 +128,7 @@ always @(posedge clk) begin
 			ss_info_req <= 1'b1;
 		end
 		
-		// rewind info
+
 		if (rewindEnable & joyRewind) begin
 			ss_info_req <= 1'b1;
 			ss_info     <= 7'd14;

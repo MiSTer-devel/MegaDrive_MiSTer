@@ -17,17 +17,9 @@
 //  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 //============================================================================
 
-// The cartridge state a restore carries. The same concatenation is the source
-// below and appears again inside each always block that owns those registers:
-// it cannot be applied from a block of its own, because a second block driving
-// the same reg is two drivers and Quartus refuses that outright.
-//
-// This is the two sets of bank registers and nothing else. The quirk registers -
-// Pier's protection, Realtec, the SF mappers, the EEPROM lines, jcart, chk_data -
-// were carried too, and cost four percent of a device already at ninety-four:
-// the fitter spent four hours in placement and gave up nothing usable. They are
-// out until something else here gets smaller. Banking is what a restore cannot
-// do without; the rest matters to games this can no longer afford to carry.
+// just the two sets of bank registers: the quirk registers (Pier's protection,
+// Realtec, the SF mappers, EEPROM, jcart, chk_data) cost four percent of a device
+// already at ninety-four and are out until something else here gets smaller.
 `define SS_VEC_MD { \
 	md_bank[0], md_bank[1], md_bank[2], md_bank[3], \
 	md_bank[4], md_bank[5], md_bank[6], md_bank[7], \
@@ -36,13 +28,8 @@
 	ms_bank[0], ms_bank[1], ms_bank[2], ms_bank[3], ms_cfg, ms_ram_c }
 `define SS_VEC_BOOT { boot_en }
 
-// One layout, named once. It used to be written out four times - the read
-// vector, three offsets, and the same concatenation again inside each of the
-// three always blocks that own those registers, because a block of its own
-// would be a second driver on the same regs and Quartus refuses that. Four
-// copies of a 92-bit layout is four chances to disagree, and a wrong offset
-// does not fail to compile: it puts the banks back pointing somewhere else and
-// the game dies a second after the restore.
+// one layout, named once: a second copy that disagrees does not fail to compile,
+// it puts the banks back pointing somewhere else and the game dies after restore
 `define SS_CART_VEC { `SS_VEC_MD, `SS_VEC_MS, `SS_VEC_BOOT }
 
 module cartridge
@@ -83,31 +70,19 @@ module cartridge
 	output            cart_dtack,
 	input             cart_dma,
 
-	// Everything in here that changes while a game runs, as one vector. The
-	// snapshot reads it sixteen bits at a time and writes it back the same way,
-	// then applies the whole thing when it moves on. The registers set once at
-	// ROM load are deliberately absent: they are the same before and after a
-	// restore, and carrying them would mean carrying the ROM.
+	// registers set once at ROM load are absent: carrying them means carrying the ROM
 	input             ss_cart_sel,
 	input       [3:0] ss_cart_addr,
 	input      [15:0] ss_cart_din,
 	input             ss_cart_wr,
 	output     [15:0] ss_cart_dout,
-	// High while the cartridge has an access the snapshot could not put back, so
-	// the freeze waits for it to clear. cart_cs, which the top level already
-	// waits on, only covers the low four megabytes; anything above that is
-	// cart_cs_ext and is answered by dtack_ext, a register on the SDRAM clock
-	// that is in neither the scan chain nor the vector below. Freeze in the
-	// middle of one and the 68000 comes back waiting for an acknowledge that
-	// will never arrive - which is a five megabyte game standing dead still
-	// after a restore, and a small one never noticing.
+	// high while an access above the low four megabytes (cart_cs_ext, answered by
+	// dtack_ext on the SDRAM clock) is in flight and outside the scan chain; freezing
+	// mid-access leaves the 68000 waiting for an acknowledge that never arrives.
 	output            cart_ss_hold,
 
-	// This cartridge holds live state the snapshot does not carry, so savestates
-	// have to be hidden for it rather than offered and broken. The quirk
-	// registers were carried once, in v42, and cost four percent of a device
-	// already at ninety-four. SVP is not a register at all: it is a second
-	// processor with its own DRAM and none of it is in the chain.
+	// SVP is a second processor with its own DRAM, none of it in the chain; the
+	// quirk registers cost four percent of a device already at ninety-four
 	output            ss_unsupported,
 
 	input      [14:0] save_addr,

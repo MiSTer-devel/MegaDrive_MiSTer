@@ -1,11 +1,4 @@
-// The savestate slots in DDR3: this module moves a capture out to a slot and
-// back. It lives apart from the controller because of the clock: the controller
-// runs on clk_md at 107 MHz, while DDRAM_CLK is driven from clk_sys at 53.69
-// MHz. Issuing memory requests straight from the fast domain crossed the
-// boundary with nothing to hold them steady, and the requests were taken or
-// dropped depending on how the fitter happened to place things: every word
-// arrived in one build and none at all in the next.
-
+// runs on clk_sys, DDRAM_CLK's own clock: issuing requests from clk_md dropped words.
 module ss_ddr #(
 	parameter [28:0] DDR_BASE = 29'h7C00000  // byte 0x3E000000
 )
@@ -21,35 +14,31 @@ module ss_ddr #(
 	output reg [63:0] ddr_din = 0,
 	output reg        ddr_we = 0,
 	output reg  [7:0] ddr_burstcnt = 0,
+	output reg  [7:0] ddr_be = 8'hFF,
 
-	// port B of the snapshot buffer: the whole captured chain goes out after the
-	// status words, so the machine state can be diffed from Linux
+	// port B: the captured chain goes out after the status words, so the
+	// machine state can be diffed from Linux
 	output      [9:0] buf_addr,
 	input      [63:0] buf_q,
 	output reg        buf_we = 0,
 	output reg [63:0] buf_din = 0,
 
-	// the snapshot itself: written to a slot on request and read back on request.
-	// both run here rather than in the controller because this is the clock the
-	// memory port is driven from.
 	input             req_save,
 	input             req_load,
 	input       [1:0] slot,
-	// where in the slot and where in the buffer a transfer runs. the chain uses
-	// offset 0, the whole measured length and the bottom of the buffer; the
-	// memories are walked through the top half a chunk at a time.
+	// the chain transfer uses offset 0 and the measured length; other transfers
+	// walk the memories through the top half a chunk at a time
 	input      [15:0] blk_off,
 	input       [9:0] blk_len,
 	input       [9:0] blk_base,
-	// The two-word header MiSTer main polls, at the very start of the slot.
-	// main reads word 0 as a change detector and word 1 as the payload size in
-	// 32-bit words, and writes the file when the detector changes. See
-	// process_ss() in user_io.cpp. A header transfer is one 64-bit word.
+	// two-word header at the start of the slot: main polls word 0 as a change
+	// detector and word 1 as the payload size, writing the file when word 0
+	// changes. See process_ss() in user_io.cpp.
 	input             blk_hdr,
-	// Off means: put the state in the slot but do not tell main about it. The
-	// change detector is handed back the value main already holds, so nothing
-	// looks new to it and no file is written; the size is still there, so a
-	// restore inside this session finds the slot and takes it.
+	input             blk_id,
+	// off: state goes into the slot but the change detector is handed back its
+	// old value, so main sees nothing new and writes no file; a restore inside
+	// this session still finds the slot
 	input             save_sd,
 	input      [31:0] hdr_words32,
 	output reg        hdr_present = 0,
@@ -58,7 +47,9 @@ module ss_ddr #(
 	output reg        ack = 0,
 	output reg        ddr_rd = 0,
 	input      [63:0] ddr_dout,
-	input             ddr_dout_ready
+	input             ddr_dout_ready,
+
+	input             port_ok
 );
 
 	// chain_len crosses from the machine clock. it changes only while calibration
@@ -74,23 +65,18 @@ module ss_ddr #(
 	reg        rd_pend = 0;        // a read was accepted and its data has not arrived
 	reg  [1:0] mode = 0;           // 0 idle, 1 save, 2 load
 
-	// combinational, not registered: a registered address plus the registered
-	// memory read is two clocks of latency, and one settle cycle only covers one.
-	// the dump came out shifted by a word.
-	// while a write is going out the address has to be the one the data was read
-	// for, not the one the counter has already moved on to: buf_we is registered
-	// and lands a clock after xw advances.
+	// combinational: a registered address plus registered memory read is two
+	// clocks of latency, and one settle cycle only covers one; the dump came out
+	// shifted by a word when this was registered.
 	assign buf_addr = buf_we ? wa : (blk_base + xw);
 
 
-	// how many 64-bit words one capture occupies, from the measured length. a
-	// second copy of this number in another module is a bug waiting for a build.
+	// words one capture occupies, from the measured length; duplicating this
+	// elsewhere is a bug waiting for a build
 	wire  [9:0] nwords = (s_len + 16'd63) >> 6;
-	// a slot is 32768 words, 256 KB: the chain needs 239 and the machine's
-	// memories another seventeen thousand, so the old 512-word slots are gone.
-	// four of them put the top of the region at byte 0x3E140000, well inside the
-	// part of DDR3 the kernel command line keeps away from Linux and nowhere near
-	// the CDDA ring buffer at byte 0x30000000.
+	// a slot is 32768 words, 256 KB: four put the top of the region at byte
+	// 0x3E140000, inside what the kernel command line keeps from Linux and clear
+	// of the CDDA ring buffer at byte 0x30000000
 	localparam [28:0] SLOT0 = DDR_BASE + 29'd32768;
 	wire [28:0] slot_base = SLOT0 + {12'd0, slot, 15'd0};
 
@@ -98,17 +84,15 @@ module ss_ddr #(
 	wire  [9:0] xlen  = (blk_len == 0) ? nwords : blk_len;
 	// the payload starts one 64-bit word in: main owns word 0 of every slot
 	wire [28:0] xbase = blk_hdr ? slot_base : (slot_base + 29'd1 + {13'd0, blk_off});
-	wire  [9:0] xwords = blk_hdr ? 10'd1 : xlen;
+	wire  [9:0] xwords = (blk_hdr || blk_id) ? 10'd1 : xlen;
 
-	// what a save writes into the header. main takes the low half as the change
-	// detector and the high half as the size, and the size is not a constant
-	// here: the controller hands over where its own walk ended.
+	// main takes the low half as the change detector, the high half as the size;
+	// the size is the controller's own walk length, not a constant
 	reg [31:0] save_count = 0;
-	// the low half is main's change detector, which only has to move on every
-	// save, so half of it carries the chain length instead. a slot written by a
-	// build with a different chain shifts into a different machine and hangs it,
-	// and nothing else in the slot says how long the chain was.
-	wire [63:0] hdr_word = {hdr_words32, s_len, save_sd ? save_count[15:0] : 16'hFFFF};
+	wire [63:0] hdr_word = {hdr_words32, 16'd0, save_count[15:0]};
+	// in its own word: main overwrites word 0 with 0xFFFFFFFF on every file load
+	localparam [31:0] ID_MAGIC = 32'h4D445353;   // "MDSS"
+	wire [63:0] id_word = {ID_MAGIC, 16'd0, s_len};
 
 
 
@@ -128,8 +112,8 @@ module ss_ddr #(
 			// pulse here is two clocks wide in the controller's faster domain, which
 			// is too thin to rely on a synchroniser catching.
 			if (!rq2[0] && !rq2[1]) ack <= 0;
-			if (rq2[0] && !ack)      begin mode <= 2'd1; xw <= 0; settle <= 1; busy <= 1; end
-			else if (rq2[1] && !ack) begin mode <= 2'd2; xw <= 0; rd_pend <= 0; busy <= 1; end
+			if (rq2[0] && !ack && port_ok)      begin mode <= 2'd1; xw <= 0; settle <= 1; busy <= 1; end
+			else if (rq2[1] && !ack && port_ok) begin mode <= 2'd2; xw <= 0; rd_pend <= 0; busy <= 1; end
 		end
 
 
@@ -138,8 +122,9 @@ module ss_ddr #(
 			if (settle) settle <= 0;
 			else if (!ddr_we) begin
 				ddr_addr     <= xbase + xw;
-				ddr_din      <= blk_hdr ? hdr_word : buf_q;
+				ddr_din      <= blk_hdr ? hdr_word : (blk_id ? id_word : buf_q);
 				ddr_burstcnt <= 8'd1;
+				ddr_be       <= (blk_hdr && !save_sd) ? 8'hF0 : 8'hFF;
 				ddr_we       <= 1;
 			end
 			else if (ddr_busy) ddr_we <= 1;
@@ -177,7 +162,9 @@ module ss_ddr #(
 				// empty and the restore has to be refused rather than shifted in.
 				if (blk_hdr) begin
 					hdr_present <= |ddr_dout[63:32];
-					hdr_chain   <= ddr_dout[31:16];
+				end
+				else if (blk_id) begin
+					hdr_chain <= (ddr_dout[63:32] == ID_MAGIC) ? ddr_dout[15:0] : 16'd0;
 				end
 				else begin
 					buf_din <= ddr_dout;

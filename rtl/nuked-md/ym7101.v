@@ -36,6 +36,11 @@ module ym7101
 	input [15:0] ss_arr_din,
 	input ss_arr_wr,
 	output [15:0] ss_arr_dout,
+	input ss_sat_sel,
+	input [15:0] ss_sat_addr,
+	input [15:0] ss_sat_din,
+	input ss_sat_wr,
+	output [15:0] ss_sat_dout,
 
 	input MCLK,
 	input [7:0] SD,
@@ -6783,7 +6788,7 @@ end
 	
 	// sat cache
 	
-	wire [6:0] sat_index = w695;
+	wire [7:0] sat_index = ss_sat_sel ? ss_sat_addr[9:2] : {1'b0, w695};
 	
 	wire [20:0] sat_data_in;
 	
@@ -6804,9 +6809,16 @@ end
 		else
 		begin
 
-		if (sat_index < 7'd80)
+		if (sat_index < 8'd80)
 		begin
-			if (hclk1 && !ss_en) // write cycle
+			if (ss_sat_sel & ss_sat_wr)
+			begin
+				if (ss_sat_addr[1:0] == 2'd0)
+					sat[sat_index][15:0] <= ss_sat_din;
+				else if (ss_sat_addr[1:0] == 2'd1)
+					sat[sat_index][20:16] <= ss_sat_din[4:0];
+			end
+			else if (hclk1 && !ss_en) // write cycle
 			begin
 				if (w687)
 					sat[sat_index][6:0] <= sat_data_in[6:0];
@@ -8253,6 +8265,8 @@ color_ram_out_dp <= color_ram[l617_dp];
 
 	assign ss_out = color_ram_out_dp[8];
 	assign ss_arr_dout = ss_arr_addr[6] ? {5'd0, vsram_out} : {7'd0, color_ram_out};
+	assign ss_sat_dout = (ss_sat_addr[1:0] == 2'd0) ? sat_out[15:0] :
+	                     (ss_sat_addr[1:0] == 2'd1) ? {11'd0, sat_out[20:16]} : 16'd0;
 
 endmodule
 
