@@ -85,6 +85,8 @@ module md_board
 	output ext_ZCLK_o,
 	input ext_VCLK_i,
 	input ext_ZCLK_i,
+	output ext_VCLK_next,
+	output ext_ZCLK_next,
 `endif
 	
 	// video
@@ -241,6 +243,7 @@ module md_board
 	wire SEL1;
 	wire VCLK;
 	wire VCLK_o;
+	wire VCLK_next_o, ZCLK_next_o;
 	wire VCLK_d;
 	wire SBCR;
 	wire ZCLK;
@@ -419,6 +422,8 @@ module md_board
 		.SBCR(SBCR),
 		.ZCLK_i(ZCLK),
 		.ZCLK_o(ZCLK_o),
+		.CLK_next_o(VCLK_next_o),
+		.ZCLK_next_o(ZCLK_next_o),
 		.ZCLK_d(ZCLK_d),
 		.EDCLK_i(EDCLK),
 		.EDCLK_o(EDCLK_o),
@@ -520,6 +525,8 @@ module md_board
 `ifdef EXT_CLOCKS
 	assign ext_VCLK_o = VCLK;
 	assign ext_ZCLK_o = ZCLK;
+	assign ext_VCLK_next = ~VCLK_d & VCLK_next_o;
+	assign ext_ZCLK_next = ~ZCLK_d & ZCLK_next_o;
 `endif
 	
 	m68kcpu m68k

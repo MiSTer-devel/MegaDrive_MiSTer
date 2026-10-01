@@ -138,6 +138,8 @@ module fc1004
 	output SBCR,
 	input ZCLK_i,
 	output ZCLK_o,
+	output CLK_next_o,
+	output ZCLK_next_o,
 	output ZCLK_d,
 	input EDCLK_i,
 	output EDCLK_o,
@@ -217,6 +219,7 @@ module fc1004
 	wire vdp_hl;
 	wire vdp_clk1_o;
 	wire vdp_clk0;
+	wire vdp_clk1_next, vdp_clk0_next;
 	wire vdp_edclk_o; // mclk_dclk
 	wire vdp_edclk_d; // reg_test1[1]
 	wire [15:0] vdp_cd_o;
@@ -327,6 +330,8 @@ module fc1004
 		.CLK1_o(vdp_clk1_o),
 		.SBCR(SBCR),
 		.CLK0(vdp_clk0),
+		.CLK1_next(vdp_clk1_next),
+		.CLK0_next(vdp_clk0_next),
 		.EDCLK_i(EDCLK_i),
 		.EDCLK_o(vdp_edclk_o),
 		.EDCLK_d(vdp_edclk_d),
@@ -648,6 +653,8 @@ module fc1004
 	assign CLK_o = vdp_clk1_o;
 	assign CLK_d = tmss_test_2 | SEL1;
 	assign ZCLK_o = vdp_clk0;
+	assign CLK_next_o = vdp_clk1_next;
+	assign ZCLK_next_o = vdp_clk0_next;
 	assign ZCLK_d = tmss_test_2;
 	assign EDCLK_o = (tmss_test_0 & ~tmss_test_2) ? vdp_edclk_o : arb_edclk;
 	assign EDCLK_d = tmss_test_0 & (tmss_test_2 | ~vdp_edclk_d);

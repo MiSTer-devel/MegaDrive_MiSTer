@@ -65,6 +65,8 @@ module ym7101
 	//output CLK1_d,
 	output SBCR,
 	output CLK0,
+	output CLK1_next,
+	output CLK0_next,
 	input MCLK_e,
 	input EDCLK_i,
 	output EDCLK_o,
@@ -2226,7 +2228,6 @@ module ym7101
 	
 	// prescaler
 	
-	assign mclk_and1 = prescaler_dff2_l2 & ~prescaler_dff1_l2;
 	
 	assign mclk_clk1 = prescaler_dff4_l2;
 	
@@ -2240,7 +2241,6 @@ module ym7101
 	
 	assign mclk_sbcr = PAL ? mclk_clk4 : mclk_clk5;
 	
-	assign mclk_cpu_clk0 = reg_test1[0] ? CLK1_i : mclk_clk5;
 	
 	assign mclk_dclk = (reg_rs0 | reg_test1[0]) ? EDCLK_i : (reg_rs1 ? mclk_clk1 : mclk_clk2);
 	//assign mclk_dclk = reg_rs1 ? mclk_clk1 : mclk_clk2;
@@ -2282,17 +2282,30 @@ module ym7101
 		end
 	end*/
 	
-	reg mclk_clk3_l;
-	
-	assign mclk_cpu_clk1 = ~(mclk_clk3 | mclk_clk3_l);
-	
-	always @(posedge MCLK)
-	begin
-		mclk_clk3_l <= mclk_clk3;
-	end
-	
 	ym7101_dff prescaler_dff1(.MCLK(MCLK), .clk(MCLK_e), .inp(reset_comb), .rst(1'h0), .outp(prescaler_dff1_l2));
 	ym7101_dff prescaler_dff2(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff1_l2), .rst(1'h0), .outp(prescaler_dff2_l2));
+	reg mclk_and1_r = 0;
+	assign mclk_and1 = mclk_and1_r;
+	wire mclk_and1_next = MCLK_e ? (prescaler_dff2_l2 & ~prescaler_dff1_l2) : (prescaler_dff1_l2 & ~reset_comb);
+	always @(posedge MCLK)
+		mclk_and1_r <= mclk_and1_next;
+
+	// CLK1_i is CLK1_o on this board, the test pins keep CLK_d low
+	wire mclk_clk2_next = ~mclk_and1_next & (MCLK_e ? prescaler_dff7_l2 : ~mclk_and1_r & ~(prescaler_dff5_l2 & prescaler_dff6_l2));
+	wire dff16_next = ~mclk_and1_next & (mclk_clk2_next ? ~mclk_and1_r & (prescaler_dff7_l2 ? prescaler_dff16_l2 : prescaler_dff15_l2) : prescaler_dff16_l2);
+	wire dff17_next = ~mclk_and1_next & (~mclk_clk2_next ? ~mclk_and1_r & (~prescaler_dff7_l2 ? prescaler_dff17_l2 : prescaler_dff16_l2) : prescaler_dff17_l2);
+	wire cpu_clk1_next = prescaler_dff11_l2 & ~mclk_and1_next & (MCLK_e | (~mclk_and1_r & prescaler_dff10_l2));
+	wire cpu_clk0_next = (reset_ext ? 1'b0 : (w85 ? io_data[0] : reg_test1[0])) ? cpu_clk1_next : (dff16_next | dff17_next);
+	reg cpu_clk1_r = 0, cpu_clk0_r = 0;
+	assign mclk_cpu_clk1 = cpu_clk1_r;
+	assign mclk_cpu_clk0 = cpu_clk0_r;
+	always @(posedge MCLK)
+	begin
+		cpu_clk1_r <= cpu_clk1_next;
+		cpu_clk0_r <= cpu_clk0_next;
+	end
+	assign CLK1_next = cpu_clk1_next;
+	assign CLK0_next = cpu_clk0_next;
 	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2));
 	ym7101_dff prescaler_dff4(.MCLK(MCLK), .clk(MCLK_e), .inp(~prescaler_dff3_l2), .rst(mclk_and1), .outp(prescaler_dff4_l2));
 	ym7101_dff prescaler_dff5(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff7_l2), .rst(mclk_and1), .outp(prescaler_dff5_l2));
@@ -2537,15 +2550,21 @@ module ym7101
 	
 	assign w37 = ~cpu_as;
 	
-	ym7101_dff dff12(.MCLK(MCLK), .clk(w37), .inp(1'h1), .rst(w10), .outp(dff12_l2));
+	wire dff12_nr;
+	ym7101_dff dff12(.MCLK(MCLK), .clk(w37), .inp(1'h1), .rst(w10), .outp(dff12_l2), .outp_nr(dff12_nr));
+
+	// dff12 before its reset clears dff13 as in the chip; the stock loop had no stable state
+	assign w38 = reset_comb | dff12_nr;
 	
-	assign w38 = dff12_l2 | reset_comb;
-	
-	ym7101_dff dff13(.MCLK(MCLK), .clk(w34), .inp(w44), .rst(w38), .outp(dff13_l2));
+	// dff13's clock without the loop through dff15's reset. it differs only when a
+	// refresh and a CPU access start on one clock, and then the refresh wins
+	wire dff15_nr;
+	wire w34_13 = w2 & cpu_as & (reset_comb | dff21_l2 | ~dff15_nr);
+	ym7101_dff dff13(.MCLK(MCLK), .clk(w34_13), .inp(w44), .rst(w38), .outp(dff13_l2));
 	
 	ym7101_dff dff14(.MCLK(MCLK), .clk(cpu_clk1), .inp(w43), .rst(1'h0), .outp(dff14_l2));
 	
-	ym7101_dff dff15(.MCLK(MCLK), .clk(dff14_l2), .inp(w44), .rst(w31), .outp(dff15_l2));
+	ym7101_dff dff15(.MCLK(MCLK), .clk(dff14_l2), .inp(w44), .rst(w31), .outp(dff15_l2), .outp_nr(dff15_nr));
 	
 	assign w39 = ~dff15_l2;
 	
@@ -7281,6 +7300,7 @@ endmodule*/
 
 module ym7101_dff #(parameter DATA_WIDTH = 1)
 	(
+	output [DATA_WIDTH-1:0] outp_nr,
 	input MCLK,
 	input clk,
 	input [DATA_WIDTH-1:0] inp,
@@ -7293,6 +7313,7 @@ module ym7101_dff #(parameter DATA_WIDTH = 1)
 	wire [DATA_WIDTH-1:0] l2_assign = rst ? {DATA_WIDTH{1'h0}} : (clk ? l1 : l2);
 	
 	assign outp = l2_assign;
+	assign outp_nr = clk ? l1 : l2;
 	//assign outp = l2;
 	
 	always @(posedge MCLK)
