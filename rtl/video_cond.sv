@@ -85,13 +85,13 @@ always @(posedge clk) begin
 	hcnt <= hcnt + 1'd1;
 
 	// Filter double HSync pulses around VSync
-	if(hs_begin & (hcnt[12] | vde_nobrd)) begin
+	if(hs_begin & (hcnt[11] | vde_nobrd)) begin
 		hcnt <= 0;
 		hs_clean <= 0;
 	end
 
 	// 4.7us pulse
-	if(hcnt == 504) hs_clean <= 1;
+	if(hcnt == 252) hs_clean <= 1;
 end
 
 // The pixel clock changes during HSync in 320 mode. This can cause issues with some DirectVideo DACs.
@@ -143,8 +143,8 @@ always @(posedge clk) begin
 	vbl_start <= res_v[1] ? vbl_s : res_v[0] ? (vbl_s+9'd8) : (vbl_s+9'd21);
 	vbl_end   <= res_v[1] ? vbl_e : res_v[0] ? (vbl_e-9'd8) : (vbl_e-9'd27);
 
-	hbl_start <= res_h[1] ? 13'((55    )*20) : 13'((53    )*20);
-	hbl_end   <= res_h[1] ? 13'((55+280)*20) : 13'((53+280)*20);
+	hbl_start <= res_h[1] ? 13'((55    )*10) : 13'((53    )*10);
+	hbl_end   <= res_h[1] ? 13'((55+280)*10) : 13'((53+280)*10);
 
 	vde_brd   <= pal_r ? (vcnt >= 22 && vcnt < 310) : (vcnt >= 20 && vcnt < 259);
 	vde_nobrd <= (vcnt >= vbl_start && vcnt <= vbl_end);

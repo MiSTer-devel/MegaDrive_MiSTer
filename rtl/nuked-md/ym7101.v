@@ -2304,7 +2304,15 @@ module ym7101
 		cpu_clk1_r <= cpu_clk1_next;
 		cpu_clk0_r <= cpu_clk0_next;
 	end
-	assign CLK1_next = cpu_clk1_next;
+	// next CPU clock for the top level: one gate from two registers; the reset term stays live because the
+	// prescaler reset acts one clock after reset_comb falls
+	reg clk1_a_r = 0, clk1_h_r = 0;
+	always @(posedge MCLK)
+	begin
+		clk1_a_r <= ~mclk_and1_next & prescaler_dff10_l2 & (~MCLK_e | prescaler_dff11_l2);
+		clk1_h_r <= MCLK_e & prescaler_dff1_l2;
+	end
+	assign CLK1_next = clk1_a_r & ~(clk1_h_r & ~reset_comb);
 	assign CLK0_next = cpu_clk0_next;
 	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2));
 	ym7101_dff prescaler_dff4(.MCLK(MCLK), .clk(MCLK_e), .inp(~prescaler_dff3_l2), .rst(mclk_and1), .outp(prescaler_dff4_l2));
