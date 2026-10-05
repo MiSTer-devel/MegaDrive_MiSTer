@@ -138,7 +138,7 @@ localparam CONF_STR = {
 
 ///////////////////////////////////////////////////
 
-wire clk_53m, clk_107m, clk_107m_v, pll_locked;
+wire clk_53m, clk_107m, clk_53m_v, pll_locked;
 
 pll pll
 (
@@ -146,7 +146,7 @@ pll pll
 	.rst(0),
 	.outclk_0(clk_53m),
 	.outclk_1(clk_107m),
-	.outclk_2(clk_107m_v),
+	.outclk_2(clk_53m_v),
 	.reconfig_to_pll(reconfig_to_pll),
 	.reconfig_from_pll(reconfig_from_pll),
 	.locked(pll_locked)
@@ -212,7 +212,7 @@ end
 wire clk_sys     = clk_53m;
 wire clk_ram     = clk_107m;
 wire clk_md      = clk_107m;
-assign CLK_VIDEO = clk_107m_v;
+assign CLK_VIDEO = clk_53m_v;
 
 ///////////////////////////////////////////////////
 
@@ -380,18 +380,14 @@ end
 reg vclk_en, zclk_en, clk_en;
 reg vclk_r = 0, zclk_r = 0;
 always @(posedge clk_md) begin
-	reg old_vclk, old_zclk;
-	
 	clk_en <= ~cart_download;
-	
-	old_vclk <= VCLK;
-	if(old_vclk & ~VCLK) vclk_en <= clk_en;
 
-	old_zclk <= ZCLK;
-	if(old_zclk & ~ZCLK) zclk_en <= clk_en;
+	// enables kept one clock ahead: the next clock value is then a 2-input AND of registers
+	if(VCLK & ~VCLK_next) vclk_en <= ~cart_download;
+	if(ZCLK & ~ZCLK_next) zclk_en <= ~cart_download;
 
-	vclk_r <= VCLK_next & ((old_vclk & ~VCLK) ? clk_en : vclk_en);
-	zclk_r <= ZCLK_next & ((old_zclk & ~ZCLK) ? clk_en : zclk_en);
+	vclk_r <= VCLK_next & vclk_en;
+	zclk_r <= ZCLK_next & zclk_en;
 end
 
 always @(posedge clk_md) begin
@@ -520,6 +516,7 @@ md_board md_board
 	.ext_VCLK_next(VCLK_next),
 	.ext_ZCLK_next(ZCLK_next),
 	.ext_VCLK_i(vclk_r),
+	.ext_VCLK_i_next(VCLK_next & vclk_en),
 	.ext_ZCLK_i(zclk_r),
 
 	// cart
@@ -826,23 +823,35 @@ wire       vblank_c, hblank_c, hs_c, vs_c;
 wire [7:0] r_c, g_c, b_c;
 wire[11:0] arx,ary;
 
+// CLK_VIDEO is clk_md/2 at a phase the PLL leaves open: hold the VDP video for two clk_md,
+// loading on the clocks vdp_hclk1 changes on, so video_cond sees each value once at either phase.
+reg  [7:0] vh_r, vh_g, vh_b;
+reg        vh_hs, vh_vs, vh_hclk1, vh_de_h, vh_de_v, vh_intfield, vh_m2, vh_m5, vh_rs1;
+reg        vh_ph, vh_h1d;
+always @(posedge clk_md) begin
+	vh_h1d <= vdp_hclk1;
+	vh_ph <= ~vh_ph & (vh_h1d == vdp_hclk1);
+	if(vh_ph) {vh_r, vh_g, vh_b, vh_hs, vh_vs, vh_hclk1, vh_de_h, vh_de_v, vh_intfield, vh_m2, vh_m5, vh_rs1}
+		<= {r, g, b, hs, vs, vdp_hclk1, vdp_de_h, vdp_de_v, vdp_intfield, vdp_m2, vdp_m5, vdp_rs1};
+end
+
 video_cond video_cond
 (
 	.clk(CLK_VIDEO),
 
-	.vdp_hclk1(vdp_hclk1),
-	.vdp_de_h(vdp_de_h),
-	.vdp_de_v(vdp_de_v),
-	.vdp_intfield(vdp_intfield),
-	.vdp_m2(vdp_m2),
-	.vdp_m5(vdp_m5),
-	.vdp_rs1(vdp_rs1),
+	.vdp_hclk1(vh_hclk1),
+	.vdp_de_h(vh_de_h),
+	.vdp_de_v(vh_de_v),
+	.vdp_intfield(vh_intfield),
+	.vdp_m2(vh_m2),
+	.vdp_m5(vh_m5),
+	.vdp_rs1(vh_rs1),
 
-	.r_in(r),
-	.g_in(g),
-	.b_in(b),
-	.hs_in(hs),
-	.vs_in(vs),
+	.r_in(vh_r),
+	.g_in(vh_g),
+	.b_in(vh_b),
+	.hs_in(vh_hs),
+	.vs_in(vh_vs),
 
 	.pal(PAL),
 	.border_en(status[29]),

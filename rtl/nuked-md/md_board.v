@@ -84,6 +84,7 @@ module md_board
 	output ext_VCLK_o,
 	output ext_ZCLK_o,
 	input ext_VCLK_i,
+	input ext_VCLK_i_next,
 	input ext_ZCLK_i,
 	output ext_VCLK_next,
 	output ext_ZCLK_next,
@@ -534,8 +535,10 @@ module md_board
 		.MCLK(MCLK2),
 `ifndef EXT_CLOCKS
 		.CLK(VCLK),
+		.CLK_n(~VCLK_d & VCLK_next_o),
 `else
 		.CLK(ext_VCLK_i),
+		.CLK_n(ext_VCLK_i_next),
 `endif
 		.BR(BR),
 		.BGACK(BGACK),

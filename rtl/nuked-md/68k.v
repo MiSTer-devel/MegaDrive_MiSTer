@@ -27,6 +27,7 @@ module m68kcpu
 	(
 	input MCLK,
 	input CLK,
+	input CLK_n,
 	input VPA,
 	input BR,
 	input BGACK,
@@ -55,48 +56,84 @@ module m68kcpu
 	output strobe_z
 	);
 	
-	wire w1;
+	wire w1_g;
 	reg l1;
 	reg l2;
-	wire w2;
+	wire w2_g;
 	reg l3;
 	reg l4;
 	wire w3;
+	(* dont_retime *) reg w3_l;
 	wire w4;
+	(* dont_retime *) reg w4_l;
 	wire w5;
+	(* dont_retime *) reg w5_l;
 	wire w6;
+	(* dont_retime *) reg w6_l;
 	wire w7;
+	(* dont_retime *) reg w7_l;
 	wire w8;
+	(* dont_retime *) reg w8_l;
 	wire w9;
+	(* dont_retime *) reg w9_l;
 	wire w10;
+	(* dont_retime *) reg w10_l;
 	wire w11;
+	(* dont_retime *) reg w11_l;
 	wire w12;
+	(* dont_retime *) reg w12_l;
 	wire w13;
+	(* dont_retime *) reg w13_l;
 	wire w14;
+	(* dont_retime *) reg w14_l;
 	wire w15;
+	(* dont_retime *) reg w15_l;
 	wire w16;
+	(* dont_retime *) reg w16_l;
 	wire w17;
+	(* dont_retime *) reg w17_l;
 	wire w18;
+	(* dont_retime *) reg w18_l;
 	wire w19;
+	(* dont_retime *) reg w19_l;
 	wire w20;
+	(* dont_retime *) reg w20_l;
 	wire w21;
+	(* dont_retime *) reg w21_l;
 	wire w22;
+	(* dont_retime *) reg w22_l;
 	wire w23;
+	(* dont_retime *) reg w23_l;
 	wire w24;
+	(* dont_retime *) reg w24_l;
 	wire w25;
+	(* dont_retime *) reg w25_l;
 	wire w26;
+	(* dont_retime *) reg w26_l;
 	wire w27;
+	(* dont_retime *) reg w27_l;
 	wire w28;
+	(* dont_retime *) reg w28_l;
 	wire w29;
+	(* dont_retime *) reg w29_l;
 	wire w30;
+	(* dont_retime *) reg w30_l;
 	wire w31;
+	(* dont_retime *) reg w31_l;
 	wire w32;
+	(* dont_retime *) reg w32_l;
 	wire w33;
+	(* dont_retime *) reg w33_l;
 	wire w34;
+	(* dont_retime *) reg w34_l;
 	wire w35;
+	(* dont_retime *) reg w35_l;
 	wire w36;
+	(* dont_retime *) reg w36_l;
 	wire w37;
+	(* dont_retime *) reg w37_l;
 	wire w38;
+	(* dont_retime *) reg w38_l;
 	wire w39;
 	wire w40;
 	wire w41;
@@ -133,7 +170,9 @@ module m68kcpu
 	wire w84;
 	wire w85;
 	wire w86;
+	(* dont_retime *) reg w86_l;
 	wire w87;
+	(* dont_retime *) reg w87_l;
 	wire w88;
 	wire w89;
 	wire w90;
@@ -181,7 +220,9 @@ module m68kcpu
 	wire w153;
 	wire w154;
 	wire w155;
+	(* dont_retime *) reg w155_l;
 	wire w156;
+	(* dont_retime *) reg w156_l;
 	wire w157;
 	reg [15:0] w158;
 	wire [15:0] w159;
@@ -261,23 +302,41 @@ module m68kcpu
 	reg w238;
 	wire w239;
 	wire w240;
+	(* dont_retime *) reg w240_l;
 	wire w241;
+	(* dont_retime *) reg w241_l;
 	wire w242;
+	(* dont_retime *) reg w242_l;
 	wire w243;
+	(* dont_retime *) reg w243_l;
 	wire w244;
+	(* dont_retime *) reg w244_l;
 	wire w245;
+	(* dont_retime *) reg w245_l;
 	wire w246;
+	(* dont_retime *) reg w246_l;
 	wire w247;
+	(* dont_retime *) reg w247_l;
 	wire w248;
+	(* dont_retime *) reg w248_l;
 	wire w249;
+	(* dont_retime *) reg w249_l;
 	wire w250;
+	(* dont_retime *) reg w250_l;
 	wire w251;
+	(* dont_retime *) reg w251_l;
 	wire w252;
+	(* dont_retime *) reg w252_l;
 	wire w253;
+	(* dont_retime *) reg w253_l;
 	wire w254;
+	(* dont_retime *) reg w254_l;
 	wire w255;
+	(* dont_retime *) reg w255_l;
 	wire w256;
+	(* dont_retime *) reg w256_l;
 	wire w257;
+	(* dont_retime *) reg w257_l;
 	reg w258;
 	reg [3:0] w259[0:1];
 	reg w260;
@@ -297,6 +356,8 @@ module m68kcpu
 	reg w276[0:2];
 	reg w277[0:5];
 	reg w278;
+	// copy of w278 for the outputs FC_z, RW_z, RESET_pull, HALT_pull, dont_merge keeps synthesis from folding it back
+	(* dont_merge *) reg w278_o;
 	reg _w279_0, _w279_2;
 	wire _w279_1, _w279_3;
 	reg w280_mem;
@@ -904,37 +965,55 @@ module m68kcpu
 	reg w841;
 	wire w842;
 	wire w843;
+	(* dont_retime *) reg w843_l;
 	reg w844;
 	reg w845;
 	reg w846;
-	wire w847;
+	wire w847_g;
 	reg w848;
 	wire w849;
 	reg w850;
 	reg w851;
 	reg w852;
-	wire w853;
+	wire w853_g;
 	wire w854;
 	wire w855;
 	wire w856;
 	wire w857;
 	wire w858;
+	(* dont_retime *) reg w858_l;
 	wire w859;
+	(* dont_retime *) reg w859_l;
 	wire w860;
+	(* dont_retime *) reg w860_l;
 	wire w861;
+	(* dont_retime *) reg w861_l;
 	wire w862;
+	(* dont_retime *) reg w862_l;
 	wire w863;
+	(* dont_retime *) reg w863_l;
 	wire w864;
+	(* dont_retime *) reg w864_l;
 	wire w865;
+	(* dont_retime *) reg w865_l;
 	wire w866;
+	(* dont_retime *) reg w866_l;
 	wire w867;
+	(* dont_retime *) reg w867_l;
 	wire w868;
+	(* dont_retime *) reg w868_l;
 	wire w869;
+	(* dont_retime *) reg w869_l;
 	wire w870;
+	(* dont_retime *) reg w870_l;
 	wire w871;
+	(* dont_retime *) reg w871_l;
 	wire w872;
+	(* dont_retime *) reg w872_l;
 	wire w873;
+	(* dont_retime *) reg w873_l;
 	wire w874;
+	(* dont_retime *) reg w874_l;
 	wire w875;
 	wire w876;
 	wire w877;
@@ -1117,6 +1196,7 @@ module m68kcpu
 		w335 = 1'h0;
 		w338 = 1'h0;
 		w278 = 1'h0;
+		w278_o = 1'h0;
 		w275[0] = 1'h0;
 		w275[1] = 1'h0;
 		w275[2] = 1'h0;
@@ -1141,6 +1221,82 @@ module m68kcpu
 		c3_l = 1'h0;
 		c4_l = 1'h0;
 		c5_l = 1'h0;
+		w156_l = 1'h0;
+		w241_l = 1'h0;
+		w242_l = 1'h0;
+		w245_l = 1'h0;
+		w246_l = 1'h0;
+		w249_l = 1'h0;
+		w250_l = 1'h0;
+		w253_l = 1'h0;
+		w254_l = 1'h0;
+		w257_l = 1'h0;
+		w843_l = 1'h0;
+		w860_l = 1'h0;
+		w861_l = 1'h0;
+		w864_l = 1'h0;
+		w865_l = 1'h0;
+		w868_l = 1'h0;
+		w869_l = 1'h0;
+		w872_l = 1'h0;
+		w873_l = 1'h0;
+		w155_l = 1'h0;
+		w240_l = 1'h0;
+		w243_l = 1'h0;
+		w244_l = 1'h0;
+		w247_l = 1'h0;
+		w248_l = 1'h0;
+		w251_l = 1'h0;
+		w252_l = 1'h0;
+		w255_l = 1'h0;
+		w256_l = 1'h0;
+		w858_l = 1'h0;
+		w859_l = 1'h0;
+		w862_l = 1'h0;
+		w863_l = 1'h0;
+		w866_l = 1'h0;
+		w867_l = 1'h0;
+		w870_l = 1'h0;
+		w871_l = 1'h0;
+		w874_l = 1'h0;
+		w4_l = 1'h0;
+		w5_l = 1'h0;
+		w8_l = 1'h0;
+		w9_l = 1'h0;
+		w12_l = 1'h0;
+		w13_l = 1'h0;
+		w16_l = 1'h0;
+		w17_l = 1'h0;
+		w20_l = 1'h0;
+		w21_l = 1'h0;
+		w24_l = 1'h0;
+		w25_l = 1'h0;
+		w28_l = 1'h0;
+		w29_l = 1'h0;
+		w32_l = 1'h0;
+		w33_l = 1'h0;
+		w36_l = 1'h0;
+		w37_l = 1'h0;
+		w86_l = 1'h0;
+		w3_l = 1'h0;
+		w6_l = 1'h0;
+		w7_l = 1'h0;
+		w10_l = 1'h0;
+		w11_l = 1'h0;
+		w14_l = 1'h0;
+		w15_l = 1'h0;
+		w18_l = 1'h0;
+		w19_l = 1'h0;
+		w22_l = 1'h0;
+		w23_l = 1'h0;
+		w26_l = 1'h0;
+		w27_l = 1'h0;
+		w30_l = 1'h0;
+		w31_l = 1'h0;
+		w34_l = 1'h0;
+		w35_l = 1'h0;
+		w38_l = 1'h0;
+		w87_l = 1'h0;
 		c6 = 1'h0;
 		codebus_mem = 10'h0;
 		codebus2_mem = 10'h0;
@@ -1185,77 +1341,77 @@ module m68kcpu
 		//	w2 <= c2;
 	end
 	
-	assign w1 = (~l2) ? c2 : ((~l1) ? c3 : 1'h0);
-	assign w2 = (~l4) ? c2 : ((~l3) ? c3 : 1'h0);
+	assign w1_g = CLK_n & ((~l2) ? c2_l : ((~l1) ? c3_l : 1'h0));
+	assign w2_g = CLK_n & ((~l4) ? c2_l : ((~l3) ? c3_l : 1'h0));
 	
 	wire v1_1 = w42 & ~w67 & ~w66;
 	wire v2_1 = ~w63 & ~w62 & w39;
 	
-	assign w3 = (v1_1 & ~w65) ? w1 : 1'h0;
-	assign w4 = (v2_1 & ~w64) ? w2 : 1'h0;
-	assign w5 = (v2_1 & w64) ? w2 : 1'h0;
-	assign w6 = (v1_1 & w65) ? w1 : 1'h0;
+	assign w3 = w3_l;
+	assign w4 = w4_l;
+	assign w5 = w5_l;
+	assign w6 = w6_l;
 	
 	wire v1_2 = w42 & ~w67 & w66;
 	wire v2_2 = w63 & ~w62 & w39;
 	
-	assign w7 = (v1_2 & ~w65) ? w1 : 1'h0;
-	assign w8 = (v2_2 & ~w64) ? w2 : 1'h0;
-	assign w9 = (v2_2 & w64) ? w2 : 1'h0;
-	assign w10 = (v1_2 & w65) ? w1 : 1'h0;
+	assign w7 = w7_l;
+	assign w8 = w8_l;
+	assign w9 = w9_l;
+	assign w10 = w10_l;
 	
 	wire v1_3 = w42 & w67 & ~w66;
 	wire v2_3 = ~w63 & w62 & w39;
 	
-	assign w11 = (v1_3 & ~w65) ? w1 : 1'h0;
-	assign w12 = (v2_3 & ~w64) ? w2 : 1'h0;
-	assign w13 = (v2_3 & w64) ? w2 : 1'h0;
-	assign w14 = (v1_3 & w65) ? w1 : 1'h0;
+	assign w11 = w11_l;
+	assign w12 = w12_l;
+	assign w13 = w13_l;
+	assign w14 = w14_l;
 	
 	wire v1_4 = w42 & w67 & w66;
 	wire v2_4 = w63 & w62 & w39;
 	
-	assign w15 = (v1_4 & ~w65) ? w1 : 1'h0;
-	assign w16 = (v2_4 & ~w64) ? w2 : 1'h0;
-	assign w17 = (v2_4 & w64) ? w2 : 1'h0;
-	assign w18 = (v1_4 & w65) ? w1 : 1'h0;
+	assign w15 = w15_l;
+	assign w16 = w16_l;
+	assign w17 = w17_l;
+	assign w18 = w18_l;
 	
 	wire v1_5 = w41 & ~w67 & ~w66;
 	wire v2_5 = ~w63 & ~w62 & w40;
 	
-	assign w19 = (v1_5 & ~w65) ? w1 : 1'h0;
-	assign w20 = (v2_5 & ~w64) ? w2 : 1'h0;
-	assign w21 = (v2_5 & w64) ? w2 : 1'h0;
-	assign w22 = (v1_5 & w65) ? w1 : 1'h0;
+	assign w19 = w19_l;
+	assign w20 = w20_l;
+	assign w21 = w21_l;
+	assign w22 = w22_l;
 	
 	wire v1_6 = ~w67 & w41 & w66;
 	wire v2_6 = w63 & ~w62 & w40;
 	
-	assign w23 = (v1_6 & ~w65) ? w1 : 1'h0;
-	assign w24 = (v2_6 & ~w64) ? w2 : 1'h0;
-	assign w25 = (v2_6 & w64) ? w2 : 1'h0;
-	assign w26 = (v1_6 & w65) ? w1 : 1'h0;
+	assign w23 = w23_l;
+	assign w24 = w24_l;
+	assign w25 = w25_l;
+	assign w26 = w26_l;
 	
 	wire v1_7 = w41 & w67 & ~w66;
 	wire v2_7 = ~w63 & w62 & w40;
 	
-	assign w27 = (v1_7 & ~w65) ? w1 : 1'h0;
-	assign w28 = (v2_7 & ~w64) ? w2 : 1'h0;
-	assign w29 = (v2_7 & w64) ? w2 : 1'h0;
-	assign w30 = (v1_7 & w65) ? w1 : 1'h0;
+	assign w27 = w27_l;
+	assign w28 = w28_l;
+	assign w29 = w29_l;
+	assign w30 = w30_l;
 	
 	wire v1_8 = w41 & w67 & w66;
 	wire v2_8 = w63 & w62 & w40;
 	
-	assign w31 = (v1_8 & ~w65) ? w1 : 1'h0;
-	assign w32 = (v2_8 & ~w64) ? w2 : 1'h0;
-	assign w33 = (v2_8 & w64 & w634) ? w2 : 1'h0;
-	assign w34 = (v1_8 & w65 & w634) ? w1 : 1'h0;
-	assign w35 = (v1_8 & w65 & w88) ? w1 : 1'h0;
-	assign w36 = (v2_8 & w64 & w88) ? w2 : 1'h0;
+	assign w31 = w31_l;
+	assign w32 = w32_l;
+	assign w33 = w33_l;
+	assign w34 = w34_l;
+	assign w35 = w35_l;
+	assign w36 = w36_l;
 	
-	assign w37 = (~w55 & ~w77) ? w2 : 1'h0;
-	assign w38 = (~w58 & ~w75) ? w1 : 1'h0;
+	assign w37 = w37_l;
+	assign w38 = w38_l;
 	
 	assign w39 = ~w57 & ~w73;
 	assign w40 = ~w57 & w73;
@@ -1319,9 +1475,57 @@ module m68kcpu
 	
 	assign w85 = ~(~w529[63] | ~w529[64]);
 	
-	assign w86 = w56 ? 1'h0 : w2;
+	assign w86 = w86_l;
 	
-	assign w87 = w59 ? 1'h0 : w1;
+	assign w87 = w87_l;
+	
+	// w2 select registers cut the c2_l/c3_l -> w2 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
+	always @(posedge MCLK)
+	begin
+		w4_l <= (v2_1 & ~w64) ? w2_g : 1'h0;
+		w5_l <= (v2_1 & w64) ? w2_g : 1'h0;
+		w8_l <= (v2_2 & ~w64) ? w2_g : 1'h0;
+		w9_l <= (v2_2 & w64) ? w2_g : 1'h0;
+		w12_l <= (v2_3 & ~w64) ? w2_g : 1'h0;
+		w13_l <= (v2_3 & w64) ? w2_g : 1'h0;
+		w16_l <= (v2_4 & ~w64) ? w2_g : 1'h0;
+		w17_l <= (v2_4 & w64) ? w2_g : 1'h0;
+		w20_l <= (v2_5 & ~w64) ? w2_g : 1'h0;
+		w21_l <= (v2_5 & w64) ? w2_g : 1'h0;
+		w24_l <= (v2_6 & ~w64) ? w2_g : 1'h0;
+		w25_l <= (v2_6 & w64) ? w2_g : 1'h0;
+		w28_l <= (v2_7 & ~w64) ? w2_g : 1'h0;
+		w29_l <= (v2_7 & w64) ? w2_g : 1'h0;
+		w32_l <= (v2_8 & ~w64) ? w2_g : 1'h0;
+		w33_l <= (v2_8 & w64 & w634) ? w2_g : 1'h0;
+		w36_l <= (v2_8 & w64 & w88) ? w2_g : 1'h0;
+		w37_l <= (~w55 & ~w77) ? w2_g : 1'h0;
+		w86_l <= w56 ? 1'h0 : w2_g;
+	end
+	
+	// w1 select registers cut the c2_l/c3_l -> w1 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
+	always @(posedge MCLK)
+	begin
+		w3_l <= (v1_1 & ~w65) ? w1_g : 1'h0;
+		w6_l <= (v1_1 & w65) ? w1_g : 1'h0;
+		w7_l <= (v1_2 & ~w65) ? w1_g : 1'h0;
+		w10_l <= (v1_2 & w65) ? w1_g : 1'h0;
+		w11_l <= (v1_3 & ~w65) ? w1_g : 1'h0;
+		w14_l <= (v1_3 & w65) ? w1_g : 1'h0;
+		w15_l <= (v1_4 & ~w65) ? w1_g : 1'h0;
+		w18_l <= (v1_4 & w65) ? w1_g : 1'h0;
+		w19_l <= (v1_5 & ~w65) ? w1_g : 1'h0;
+		w22_l <= (v1_5 & w65) ? w1_g : 1'h0;
+		w23_l <= (v1_6 & ~w65) ? w1_g : 1'h0;
+		w26_l <= (v1_6 & w65) ? w1_g : 1'h0;
+		w27_l <= (v1_7 & ~w65) ? w1_g : 1'h0;
+		w30_l <= (v1_7 & w65) ? w1_g : 1'h0;
+		w31_l <= (v1_8 & ~w65) ? w1_g : 1'h0;
+		w34_l <= (v1_8 & w65 & w634) ? w1_g : 1'h0;
+		w35_l <= (v1_8 & w65 & w88) ? w1_g : 1'h0;
+		w38_l <= (~w58 & ~w75) ? w1_g : 1'h0;
+		w87_l <= w59 ? 1'h0 : w1_g;
+	end
 	
 	assign w88 = ~w634;
 	
@@ -1453,8 +1657,8 @@ module m68kcpu
 	assign w152 = w149 ? c2 : 1'h0;
 	assign w153 = w150 ? c2 : 1'h0;
 	assign w154 = w151 ? c2 : 1'h0;
-	assign w155 = w675 ? 1'h0 : w847;
-	assign w156 = w668 ? 1'h0 : w853;
+	assign w155 = w155_l;
+	assign w156 = w156_l;
 	
 	assign w157 = w147[5:0] == 6'h0;
 	
@@ -1614,41 +1818,41 @@ module m68kcpu
 	
 	assign w239 = w238 ? 1'h0 : (w231 ? c2 : c3);
 	
-	assign w240 = w228 ? w847 : 1'h0;
+	assign w240 = w240_l;
 
-	assign w241 = w225 ? w853 : 1'h0;
+	assign w241 = w241_l;
 
-	assign w242 = w224 ? w853 : 1'h0;
+	assign w242 = w242_l;
 
-	assign w243 = w227 ? w847 : 1'h0;
+	assign w243 = w243_l;
 
-	assign w244 = w226 ? w847 : 1'h0;
+	assign w244 = w244_l;
 
-	assign w245 = w223 ? w853 : 1'h0;
+	assign w245 = w245_l;
 
-	assign w246 = w216 ? w853 : 1'h0;
+	assign w246 = w246_l;
 
-	assign w247 = w222 ? w847 : 1'h0;
+	assign w247 = w247_l;
 
-	assign w248 = w221 ? w847 : 1'h0;
+	assign w248 = w248_l;
 
-	assign w249 = w215 ? w853 : 1'h0;
+	assign w249 = w249_l;
 
-	assign w250 = w214 ? w853 : 1'h0;
+	assign w250 = w250_l;
 
-	assign w251 = w220 ? w847 : 1'h0;
+	assign w251 = w251_l;
 
-	assign w252 = w219 ? w847 : 1'h0;
+	assign w252 = w252_l;
 
-	assign w253 = w213 ? w853 : 1'h0;
+	assign w253 = w253_l;
 
-	assign w254 = w212 ? w853 : 1'h0;
+	assign w254 = w254_l;
 
-	assign w255 = w218 ? w847 : 1'h0;
+	assign w255 = w255_l;
 
-	assign w256 = w217 ? w847 : 1'h0;
+	assign w256 = w256_l;
 
-	assign w257 = w211 ? w853 : 1'h0;
+	assign w257 = w257_l;
 	
 	assign w266 = 1'h0;//VPA_TEST;
 	
@@ -1696,6 +1900,7 @@ module m68kcpu
 			w277[4] <= w277[3];
 			
 			w278 <= (w275[2] & w276[2]) | (w275[2] & w395 & w277[5]);
+			w278_o <= (w275[2] & w276[2]) | (w275[2] & w395 & w277[5]);
 			
 			_w279_0 <= _w279_1;
 			_w279_2 <= _w279_1;
@@ -1912,8 +2117,8 @@ module m68kcpu
 	
 	assign w265 = ~w264 | (~w343[2] & (w435[2] | w292));
 	
-	assign RESET_pull = ~w336;
-	assign HALT_pull = ~w339;
+	assign RESET_pull = ~(w335 | w278_o);
+	assign HALT_pull = ~(w338 | w278_o);
 	
 	assign w286 = ~(w292 | w287 | w289 | clk2 | w430 | w435[2]);
 	
@@ -2287,7 +2492,7 @@ module m68kcpu
 	
 	assign w432 = ~(w269[2] | ~w270[0][0] | w268[2] | w276[2]);
 	
-	assign w433 = ~(w278 | ~w270[0][1] | ~w270[0][0]);
+	assign w433 = ~(w278_o | ~w270[0][1] | ~w270[0][0]);
 	
 	assign w434 = ~(w278 | (w440 & w437 & w436[1] & w435[2]));
 	
@@ -5241,8 +5446,8 @@ module m68kcpu
 	//		w853 <= c2;
 	end
 	
-	assign w847 = (~w845) ? c2 : ((~w844) ? c3 : 1'h0);
-	assign w853 = (~w852) ? c2 : ((~w851) ? c3 : 1'h0);
+	assign w847_g = CLK_n & ((~w845) ? c2_l : ((~w844) ? c3_l : 1'h0));
+	assign w853_g = CLK_n & ((~w852) ? c2_l : ((~w851) ? c3_l : 1'h0));
 	
 	assign w854 = w850;
 	
@@ -5252,24 +5457,72 @@ module m68kcpu
 	
 	assign w857 = w846 ? 1'h0 : c6;
 	
-	assign w843 = w192 ? w853 : 1'h0;
-	assign w858 = w198 ? w847 : 1'h0;
-	assign w859 = w197 ? w847 : 1'h0;
-	assign w860 = w191 ? w853 : 1'h0;
-	assign w861 = w190 ? w853 : 1'h0;
-	assign w862 = w196 ? w847 : 1'h0;
-	assign w863 = w195 ? w847 : 1'h0;
-	assign w864 = w189 ? w853 : 1'h0;
-	assign w865 = w188 ? w853 : 1'h0;
-	assign w866 = w194 ? w847 : 1'h0;
-	assign w867 = w193 ? w847 : 1'h0;
-	assign w868 = w187 ? w853 : 1'h0;
-	assign w869 = w184 ? w853 : 1'h0;
-	assign w870 = w186 ? w847 : 1'h0;
-	assign w871 = w185 ? w847 : 1'h0;
-	assign w872 = w183 ? w853 : 1'h0;
-	assign w873 = w669 ? w853 : 1'h0;
-	assign w874 = w676 ? w847 : 1'h0;
+	assign w843 = w843_l;
+	assign w858 = w858_l;
+	assign w859 = w859_l;
+	assign w860 = w860_l;
+	assign w861 = w861_l;
+	assign w862 = w862_l;
+	assign w863 = w863_l;
+	assign w864 = w864_l;
+	assign w865 = w865_l;
+	assign w866 = w866_l;
+	assign w867 = w867_l;
+	assign w868 = w868_l;
+	assign w869 = w869_l;
+	assign w870 = w870_l;
+	assign w871 = w871_l;
+	assign w872 = w872_l;
+	assign w873 = w873_l;
+	assign w874 = w874_l;
+	
+	// w853 select registers cut the c2_l/c3_l -> w853 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
+	always @(posedge MCLK)
+	begin
+		w156_l <= w668 ? 1'h0 : w853_g;
+		w241_l <= w225 ? w853_g : 1'h0;
+		w242_l <= w224 ? w853_g : 1'h0;
+		w245_l <= w223 ? w853_g : 1'h0;
+		w246_l <= w216 ? w853_g : 1'h0;
+		w249_l <= w215 ? w853_g : 1'h0;
+		w250_l <= w214 ? w853_g : 1'h0;
+		w253_l <= w213 ? w853_g : 1'h0;
+		w254_l <= w212 ? w853_g : 1'h0;
+		w257_l <= w211 ? w853_g : 1'h0;
+		w843_l <= w192 ? w853_g : 1'h0;
+		w860_l <= w191 ? w853_g : 1'h0;
+		w861_l <= w190 ? w853_g : 1'h0;
+		w864_l <= w189 ? w853_g : 1'h0;
+		w865_l <= w188 ? w853_g : 1'h0;
+		w868_l <= w187 ? w853_g : 1'h0;
+		w869_l <= w184 ? w853_g : 1'h0;
+		w872_l <= w183 ? w853_g : 1'h0;
+		w873_l <= w669 ? w853_g : 1'h0;
+	end
+	
+	// w847 select registers cut the c2_l/c3_l -> w847 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
+	always @(posedge MCLK)
+	begin
+		w155_l <= w675 ? 1'h0 : w847_g;
+		w240_l <= w228 ? w847_g : 1'h0;
+		w243_l <= w227 ? w847_g : 1'h0;
+		w244_l <= w226 ? w847_g : 1'h0;
+		w247_l <= w222 ? w847_g : 1'h0;
+		w248_l <= w221 ? w847_g : 1'h0;
+		w251_l <= w220 ? w847_g : 1'h0;
+		w252_l <= w219 ? w847_g : 1'h0;
+		w255_l <= w218 ? w847_g : 1'h0;
+		w256_l <= w217 ? w847_g : 1'h0;
+		w858_l <= w198 ? w847_g : 1'h0;
+		w859_l <= w197 ? w847_g : 1'h0;
+		w862_l <= w196 ? w847_g : 1'h0;
+		w863_l <= w195 ? w847_g : 1'h0;
+		w866_l <= w194 ? w847_g : 1'h0;
+		w867_l <= w193 ? w847_g : 1'h0;
+		w870_l <= w186 ? w847_g : 1'h0;
+		w871_l <= w185 ? w847_g : 1'h0;
+		w874_l <= w676 ? w847_g : 1'h0;
+	end
 	
 	assign w875 = w836 ? c3 : 1'h0;
 	

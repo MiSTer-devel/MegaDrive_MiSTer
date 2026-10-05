@@ -202,6 +202,7 @@ module z80cpu
 	reg [7:0] w146 = 8'h0; // bus 1
 	reg [7:0] w147_prev = 8'h0;
 	wire [7:0] w147;
+	reg [7:0] w147_l = 8'h0; // one-MCLK copy of the w147 latch for the pla, takes the w146 latch hop off the pla path
 	wire w148;
 	wire w149;
 	wire w150;
@@ -1787,110 +1788,111 @@ module z80cpu
 	always @(posedge MCLK)
 	begin
 		w147_prev <= w147;
+		w147_l <= w147;
 	end
 	
 	assign w147 = w49 ? w147_prev : ~w146;
 	
 	// pla
-	assign pla[0] = (w147 & 8'hf7) == 8'hd3 & w90; // out(n), a; in(n), a
-	assign pla[1] = (w147 & 8'hf7) == 8'hf3 & w90; // di; ei
-	assign pla[2] = (w147 & 8'hc7) == 8'h46 & w92; // im 0; im 1; im 2
-	assign pla[3] = w147 == 8'h76 & w90; // halt
-	assign pla[4] = (w147 & 8'he7) == 8'ha0 & w92; // ldi; ldd; ldir; lddr
-	assign pla[5] = (w147 & 8'he7) == 8'ha1 & w92; // cpi; cpd; cpir; cpdr
-	assign pla[6] = w147 == 8'h37 & w90; // scf
-	assign pla[7] = (w147 & 8'he6) == 8'ha2 & w92; // ini; outi; ind; outd; inir; otir; indr; otdr
-	assign pla[8] = w147 == 8'h10 & w90; // djnz d
-	assign pla[9] = w147 == 8'h3f & w90; // ccf
-	assign pla[10] = (w147 & 8'h38) == 8'h28 & ~w82; // xor
-	assign pla[11] = (w147 & 8'hf7) == 8'h57 & w92; // ld a,i; ld a,r
-	assign pla[12] = (w147 & 8'h38) == 8'h30 & ~w82; // or
-	assign pla[13] = (w147 & 8'h38) == 8'h20 & ~w82; // and
-	assign pla[14] = (w147 & 8'h38) == 8'h00 & ~w82; // add
-	assign pla[15] = (w147 & 8'hf7) == 8'h57 & w92 & w74; // ???
-	assign pla[16] = (w147 & 8'hc7) == 8'h44 & w92; // neg
-	assign pla[17] = w147 == 8'h2f & w90; // cpl
-	assign pla[18] = (w147 & 8'h38) == 8'h08 & ~w82; // adc
-	assign pla[19] = (w147 & 8'h38) == 8'h18 & ~w82; // sbc
-	assign pla[20] = (w147 & 8'h38) == 8'h10 & ~w82; // sub
-	assign pla[21] = w147 == 8'h27 & w90; // daa
-	assign pla[22] = (w147 & 8'h38) == 8'h38 & ~w82; // cp
-	assign pla[23] = (w147 & 8'hc7) == 8'h05 & w90; // dec byte
-	assign pla[24] = (w147 & 8'hc0) == 8'hc0 & ~w96; // set
-	assign pla[25] = (w147 & 8'hc0) == 8'h80 & ~w96; // res
-	assign pla[26] = (w147 & 8'hc0) == 8'h40 & ~w96; // bit
-	assign pla[27] = (w147 & 8'he7) == 8'h07 & w90; // rlca; rrca; rla; rra
-	assign pla[28] = (w147 & 8'hc0) == 8'h00 & ~w96; // rlc; rrc; rl; rr; sla; sra; sll; srl
-	assign pla[29] = (w147 & 8'hcf) == 8'h09 & w90; // add hl, bc; de ; hl ;sp
-	assign pla[30] = (w147 & 8'hc7) == 8'h42 & w92; // sbc hl, adc hl
-	assign pla[31] = (w147 & 8'hc7) == 8'h40 & w92; // in (c)
-	assign pla[32] = (w147 & 8'hc6) == 8'h04 & w90; // inc dec byte
-	assign pla[33] = (w147 & 8'hc0) == 8'h80 & w90; // 8'h80-8'hbf alu opcode
-	assign pla[34] = (w147 & 8'hc7) == 8'hc6 & w90; // n alu opcodes
-	assign pla[35] = (w147 & 8'hc7) == 8'h06 & w90; // ld n opcodes
+	assign pla[0] = (w147_l & 8'hf7) == 8'hd3 & w90; // out(n), a; in(n), a
+	assign pla[1] = (w147_l & 8'hf7) == 8'hf3 & w90; // di; ei
+	assign pla[2] = (w147_l & 8'hc7) == 8'h46 & w92; // im 0; im 1; im 2
+	assign pla[3] = w147_l == 8'h76 & w90; // halt
+	assign pla[4] = (w147_l & 8'he7) == 8'ha0 & w92; // ldi; ldd; ldir; lddr
+	assign pla[5] = (w147_l & 8'he7) == 8'ha1 & w92; // cpi; cpd; cpir; cpdr
+	assign pla[6] = w147_l == 8'h37 & w90; // scf
+	assign pla[7] = (w147_l & 8'he6) == 8'ha2 & w92; // ini; outi; ind; outd; inir; otir; indr; otdr
+	assign pla[8] = w147_l == 8'h10 & w90; // djnz d
+	assign pla[9] = w147_l == 8'h3f & w90; // ccf
+	assign pla[10] = (w147_l & 8'h38) == 8'h28 & ~w82; // xor
+	assign pla[11] = (w147_l & 8'hf7) == 8'h57 & w92; // ld a,i; ld a,r
+	assign pla[12] = (w147_l & 8'h38) == 8'h30 & ~w82; // or
+	assign pla[13] = (w147_l & 8'h38) == 8'h20 & ~w82; // and
+	assign pla[14] = (w147_l & 8'h38) == 8'h00 & ~w82; // add
+	assign pla[15] = (w147_l & 8'hf7) == 8'h57 & w92 & w74; // ???
+	assign pla[16] = (w147_l & 8'hc7) == 8'h44 & w92; // neg
+	assign pla[17] = w147_l == 8'h2f & w90; // cpl
+	assign pla[18] = (w147_l & 8'h38) == 8'h08 & ~w82; // adc
+	assign pla[19] = (w147_l & 8'h38) == 8'h18 & ~w82; // sbc
+	assign pla[20] = (w147_l & 8'h38) == 8'h10 & ~w82; // sub
+	assign pla[21] = w147_l == 8'h27 & w90; // daa
+	assign pla[22] = (w147_l & 8'h38) == 8'h38 & ~w82; // cp
+	assign pla[23] = (w147_l & 8'hc7) == 8'h05 & w90; // dec byte
+	assign pla[24] = (w147_l & 8'hc0) == 8'hc0 & ~w96; // set
+	assign pla[25] = (w147_l & 8'hc0) == 8'h80 & ~w96; // res
+	assign pla[26] = (w147_l & 8'hc0) == 8'h40 & ~w96; // bit
+	assign pla[27] = (w147_l & 8'he7) == 8'h07 & w90; // rlca; rrca; rla; rra
+	assign pla[28] = (w147_l & 8'hc0) == 8'h00 & ~w96; // rlc; rrc; rl; rr; sla; sra; sll; srl
+	assign pla[29] = (w147_l & 8'hcf) == 8'h09 & w90; // add hl, bc; de ; hl ;sp
+	assign pla[30] = (w147_l & 8'hc7) == 8'h42 & w92; // sbc hl, adc hl
+	assign pla[31] = (w147_l & 8'hc7) == 8'h40 & w92; // in (c)
+	assign pla[32] = (w147_l & 8'hc6) == 8'h04 & w90; // inc dec byte
+	assign pla[33] = (w147_l & 8'hc0) == 8'h80 & w90; // 8'h80-8'hbf alu opcode
+	assign pla[34] = (w147_l & 8'hc7) == 8'hc6 & w90; // n alu opcodes
+	assign pla[35] = (w147_l & 8'hc7) == 8'h06 & w90; // ld n opcodes
 	assign pla[36] = ~w96;
-	assign pla[37] = (w147 & 8'hc0) == 8'h40 & w90; // ld reg opcodes
-	assign pla[38] = (w147 & 8'hf7) == 8'h67 & w92; // rrd, rld
-	assign pla[39] = (w147 & 8'hf8) == 8'h70 & w90 & ~pla[3]; // ld to (hl) opcodes
-	assign pla[40] = (w147 & 8'hc7) == 8'h46 & w90 & ~pla[3]; // ld from (hl) opcodes
-	assign pla[41] = (w147 & 8'hf7) == 8'h47 & w92; // ld i,a ; ld r,a
-	assign pla[42] = (w147 & 8'hc7) == 8'hc7 & w90; // rst n
-	assign pla[43] = (w147 & 8'h07) == 8'h06 & ~w96; // bit opcode (hl)
+	assign pla[37] = (w147_l & 8'hc0) == 8'h40 & w90; // ld reg opcodes
+	assign pla[38] = (w147_l & 8'hf7) == 8'h67 & w92; // rrd, rld
+	assign pla[39] = (w147_l & 8'hf8) == 8'h70 & w90 & ~pla[3]; // ld to (hl) opcodes
+	assign pla[40] = (w147_l & 8'hc7) == 8'h46 & w90 & ~pla[3]; // ld from (hl) opcodes
+	assign pla[41] = (w147_l & 8'hf7) == 8'h47 & w92; // ld i,a ; ld r,a
+	assign pla[42] = (w147_l & 8'hc7) == 8'hc7 & w90; // rst n
+	assign pla[43] = (w147_l & 8'h07) == 8'h06 & ~w96; // bit opcode (hl)
 	assign pla[44] = ~w96 & ~w100; // 
-	assign pla[45] = (w147 & 8'hfe) == 8'h34 & w90; // inc dec (hl)
-	assign pla[46] = (w147 & 8'hc7) == 8'h86 & w90; // alu (hl)
-	assign pla[47] = w147 == 8'hed & w90; // misc opcode prefix
-	assign pla[48] = w147 == 8'h36 & w90; // ld (hl), n
-	assign pla[49] = w147 == 8'hcb & ~w100; // ix, iy bit instutruction ?
-	assign pla[50] = (w147 & 8'he7) == 8'h20 & w90; // jr nz, z, nc, c
-	assign pla[51] = w147 == 8'h18 & w90; // jr d
-	assign pla[52] = (w147 & 8'hc7) == 8'h45 & w92; // retn, reti
-	assign pla[53] = (w147 & 8'hc7) == 8'hc0 & w90; // ret condition
-	assign pla[54] = w147 == 8'hcb & w90; // bit opcode prefix
-	assign pla[55] = (w147 & 8'hc7) == 8'hc2 & w90; // jp n condition
-	assign pla[56] = (w147 & 8'hc7) == 8'hc4 & w90; // call n condition
-	assign pla[57] = (w147 & 8'hdf) == 8'hdd & w90; // ix, iy
-	assign pla[58] = w147 == 8'h36 & w90 & ~w100; // ld (ix/y), n
-	assign pla[59] = w147 == 8'h08 & w90; // ex af, af'
-	assign pla[60] = (w147 & 8'hf7) == 8'h32 & w90; // ld (nn), a; ld a, (nn)
-	assign pla[61] = (w147 & 8'hf7) == 8'hd3 & w90; // out (n), a; in a, (n)
-	assign pla[62] = (w147 & 8'he7) == 8'h02 & w90; // ld (bc), a; ld (de), a; ld a, (bc); ld a(de)
-	assign pla[63] = w147 == 8'hc9 & w90; // ret
-	assign pla[64] = (w147 & 8'hc7) == 8'h41 & w92; // out (c), reg
-	assign pla[65] = (w147 & 8'hcf) == 8'h43 & w92; // ld (nn), word reg
-	assign pla[66] = (w147 & 8'he7) == 8'h47 & w92; // ld i, a; ld r, a; ld a, i; ld a, r
-	assign pla[67] = (w147 & 8'hc7) == 8'h43 & w92; // ld (nn), word reg, ld word reg, (nn)
-	assign pla[68] = (w147 & 8'hf7) == 8'h22 & w90; // ld (nn), hl; ld hl, (nn)
-	assign pla[69] = w147 == 8'hc3 & w90; // jp nn
-	assign pla[70] = w147 == 8'hd3 & w90; // out (n), a
-	assign pla[71] = (w147 & 8'hc6) == 8'h40 & w92; // in/ out (c), byte
-	assign pla[72] = w147 == 8'h10 & w90; // djnz d
-	assign pla[73] = (w147 & 8'he7) == 8'h07 & w90; // rlca; rrca; rla; rra
-	assign pla[74] = w147 == 8'hcd & w90; // call nn
-	assign pla[75] = (w147 & 8'hcb) == 8'hc1 & w90; // pop, push
-	assign pla[76] = w147 == 8'hcb & ~w100; // ix, iy bit instutruction ?
-	assign pla[77] = (w147 & 8'he7) == 8'ha2 & w92; // ini; ind; inir; indr
-	assign pla[78] = (w147 & 8'he7) == 8'ha3 & w92; // outi; outd; otir; otdr
-	assign pla[79] = (w147 & 8'he7) == 8'ha1 & w92; // cpi; cpd; cpir; cpdr
-	assign pla[80] = (w147 & 8'he7) == 8'ha0 & w92; // ldi; ldd; ldir; lddr
-	assign pla[81] = (w147 & 8'hc7) == 8'h06 & w90; // ld byte n
-	assign pla[82] = (w147 & 8'hcf) == 8'hc5 & w90; // push
-	assign pla[83] = (w147 & 8'hf7) == 8'h67 & w92; // rrd, rld
-	assign pla[84] = (w147 & 8'hcf) == 8'h0b & w90; // dec word
-	assign pla[85] = (w147 & 8'hcf) == 8'h02 & w90; // load from address
-	assign pla[86] = (w147 & 8'he7) == 8'ha0 & w92; // ldi; ldd; ldir; lddr
-	assign pla[87] = (w147 & 8'he7) == 8'ha1 & w92; // cpi; cpd; cpir; cpdr
-	assign pla[88] = w147 == 8'he3 & w90; // ex (sp), hl
-	assign pla[89] = (w147 & 8'hc7) == 8'h03 & w90; // inc, dec word
-	assign pla[90] = (w147 & 8'he7) == 8'h02 & w90; // ld address from register
-	assign pla[91] = (w147 & 8'hcf) == 8'h01 & w90; // ld nn word
-	assign pla[92] = w147 == 8'he9 & w90; // jp (hl)
-	assign pla[93] = w147 == 8'hf9 & w90; // ld sp, hl
-	assign pla[94] = (w147 & 8'he7) == 8'h47 & w92; // ld i,a; ld r,a; ld a,i; ld a,r
-	assign pla[95] = (w147 & 8'hdf) == 8'hdd & w90; // ix, iy
-	assign pla[96] = w147 == 8'heb & w90; // ex de, hl
-	assign pla[97] = w147 == 8'hd9 & w90; // exx
-	assign pla[98] = (w147 & 8'hf4) == 8'ha0 & w92; // 
+	assign pla[45] = (w147_l & 8'hfe) == 8'h34 & w90; // inc dec (hl)
+	assign pla[46] = (w147_l & 8'hc7) == 8'h86 & w90; // alu (hl)
+	assign pla[47] = w147_l == 8'hed & w90; // misc opcode prefix
+	assign pla[48] = w147_l == 8'h36 & w90; // ld (hl), n
+	assign pla[49] = w147_l == 8'hcb & ~w100; // ix, iy bit instutruction ?
+	assign pla[50] = (w147_l & 8'he7) == 8'h20 & w90; // jr nz, z, nc, c
+	assign pla[51] = w147_l == 8'h18 & w90; // jr d
+	assign pla[52] = (w147_l & 8'hc7) == 8'h45 & w92; // retn, reti
+	assign pla[53] = (w147_l & 8'hc7) == 8'hc0 & w90; // ret condition
+	assign pla[54] = w147_l == 8'hcb & w90; // bit opcode prefix
+	assign pla[55] = (w147_l & 8'hc7) == 8'hc2 & w90; // jp n condition
+	assign pla[56] = (w147_l & 8'hc7) == 8'hc4 & w90; // call n condition
+	assign pla[57] = (w147_l & 8'hdf) == 8'hdd & w90; // ix, iy
+	assign pla[58] = w147_l == 8'h36 & w90 & ~w100; // ld (ix/y), n
+	assign pla[59] = w147_l == 8'h08 & w90; // ex af, af'
+	assign pla[60] = (w147_l & 8'hf7) == 8'h32 & w90; // ld (nn), a; ld a, (nn)
+	assign pla[61] = (w147_l & 8'hf7) == 8'hd3 & w90; // out (n), a; in a, (n)
+	assign pla[62] = (w147_l & 8'he7) == 8'h02 & w90; // ld (bc), a; ld (de), a; ld a, (bc); ld a(de)
+	assign pla[63] = w147_l == 8'hc9 & w90; // ret
+	assign pla[64] = (w147_l & 8'hc7) == 8'h41 & w92; // out (c), reg
+	assign pla[65] = (w147_l & 8'hcf) == 8'h43 & w92; // ld (nn), word reg
+	assign pla[66] = (w147_l & 8'he7) == 8'h47 & w92; // ld i, a; ld r, a; ld a, i; ld a, r
+	assign pla[67] = (w147_l & 8'hc7) == 8'h43 & w92; // ld (nn), word reg, ld word reg, (nn)
+	assign pla[68] = (w147_l & 8'hf7) == 8'h22 & w90; // ld (nn), hl; ld hl, (nn)
+	assign pla[69] = w147_l == 8'hc3 & w90; // jp nn
+	assign pla[70] = w147_l == 8'hd3 & w90; // out (n), a
+	assign pla[71] = (w147_l & 8'hc6) == 8'h40 & w92; // in/ out (c), byte
+	assign pla[72] = w147_l == 8'h10 & w90; // djnz d
+	assign pla[73] = (w147_l & 8'he7) == 8'h07 & w90; // rlca; rrca; rla; rra
+	assign pla[74] = w147_l == 8'hcd & w90; // call nn
+	assign pla[75] = (w147_l & 8'hcb) == 8'hc1 & w90; // pop, push
+	assign pla[76] = w147_l == 8'hcb & ~w100; // ix, iy bit instutruction ?
+	assign pla[77] = (w147_l & 8'he7) == 8'ha2 & w92; // ini; ind; inir; indr
+	assign pla[78] = (w147_l & 8'he7) == 8'ha3 & w92; // outi; outd; otir; otdr
+	assign pla[79] = (w147_l & 8'he7) == 8'ha1 & w92; // cpi; cpd; cpir; cpdr
+	assign pla[80] = (w147_l & 8'he7) == 8'ha0 & w92; // ldi; ldd; ldir; lddr
+	assign pla[81] = (w147_l & 8'hc7) == 8'h06 & w90; // ld byte n
+	assign pla[82] = (w147_l & 8'hcf) == 8'hc5 & w90; // push
+	assign pla[83] = (w147_l & 8'hf7) == 8'h67 & w92; // rrd, rld
+	assign pla[84] = (w147_l & 8'hcf) == 8'h0b & w90; // dec word
+	assign pla[85] = (w147_l & 8'hcf) == 8'h02 & w90; // load from address
+	assign pla[86] = (w147_l & 8'he7) == 8'ha0 & w92; // ldi; ldd; ldir; lddr
+	assign pla[87] = (w147_l & 8'he7) == 8'ha1 & w92; // cpi; cpd; cpir; cpdr
+	assign pla[88] = w147_l == 8'he3 & w90; // ex (sp), hl
+	assign pla[89] = (w147_l & 8'hc7) == 8'h03 & w90; // inc, dec word
+	assign pla[90] = (w147_l & 8'he7) == 8'h02 & w90; // ld address from register
+	assign pla[91] = (w147_l & 8'hcf) == 8'h01 & w90; // ld nn word
+	assign pla[92] = w147_l == 8'he9 & w90; // jp (hl)
+	assign pla[93] = w147_l == 8'hf9 & w90; // ld sp, hl
+	assign pla[94] = (w147_l & 8'he7) == 8'h47 & w92; // ld i,a; ld r,a; ld a,i; ld a,r
+	assign pla[95] = (w147_l & 8'hdf) == 8'hdd & w90; // ix, iy
+	assign pla[96] = w147_l == 8'heb & w90; // ex de, hl
+	assign pla[97] = w147_l == 8'hd9 & w90; // exx
+	assign pla[98] = (w147_l & 8'hf4) == 8'ha0 & w92; // 
 	
 	assign w148 = ~(pla[11] | pla[16] | pla[17] |
 		pla[21] | pla[27] | pla[33] | pla[34]
