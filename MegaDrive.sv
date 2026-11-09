@@ -144,14 +144,9 @@ localparam CONF_STR = {
 	"jn,A,B,R,Start,Select,X,Y,L;", // name map to SNES layout.
 	"jp,Y,B,A,Start,Select,L,X,R;", // positional map to SNES layout (3 button friendly)
 	// main indexes this comma-separated line by the info number the core sends;
-	// see show_core_info() in user_io.cpp. numbering: 2 + slot on a slot change,
-	// 6 + {slot, load} on a save or restore.
+	// see show_core_info() in user_io.cpp. numbering: 1 + {slot, load} on a save
+	// or restore.
 	"I,",
-	"Slot=DPAD|Save/Load=Start+DPAD,",
-	"Active Slot 1,",
-	"Active Slot 2,",
-	"Active Slot 3,",
-	"Active Slot 4,",
 	"Save to state 1,",
 	"Restore state 1,",
 	"Save to state 2,",
@@ -300,8 +295,8 @@ hps_io #(.CONF_STR(CONF_STR), .WIDE(1)) hps_io
 	.new_vmode(new_vmode),
 
 	.status(status),
-	// the slot lives in savestate_ui now, so it has to be written back into the
-	// status word main holds, alongside the region the core picks for itself
+	// savestate_ui holds the slot the keys and the OSD choose, so every status
+	// write carries it, alongside the region the core picks for itself
 	.status_in({status[127:27], ss_ui_slot, status[24:8], region_set ? region_req : status[7:6], status[5:0]}),
 	.status_set(region_set | ss_status_update),
 	// bit 8 drives H8 below: whether the chain was measured on this chip. LED_USER
@@ -548,23 +543,13 @@ wire        res_z80;
 wire        VCLK, ZCLK;
 wire        VCLK_next, ZCLK_next;
 
-// savestate: scan chain plus memory walk, see rtl/savestate.sv. keyboard/gamepad
+// savestate: scan chain plus memory walk, see rtl/savestate.sv. the keyboard
 // front end is the SNES core's; runs on clk_sys, where ps2_key and hps_io already are.
-savestate_ui #(.INFO_TIMEOUT_BITS(25)) savestate_ui
+savestate_ui savestate_ui
 (
 	.clk          (clk_sys),
 	.ps2_key      (ps2_key),
 	.allow_ss     (~ss_unavailable),
-	// gamepad half tied off: needs a tenth J1 entry and a free button, which
-	// the keyboard and menu already reach without remapping anyone's controller
-	.joySS        (1'b0),
-	.joyRight     (1'b0),
-	.joyLeft      (1'b0),
-	.joyDown      (1'b0),
-	.joyUp        (1'b0),
-	.joyStart     (1'b0),
-	.joyRewind    (1'b0),
-	.rewindEnable (1'b0),
 	.status_slot  (status[26:25]),
 	.OSD_saveload ({status[31], status[23]}),
 	.ss_save      (ss_ui_save),
@@ -598,16 +583,19 @@ wire  [7:0] ss_vram_q;
 reg         ss_wram_wr_q = 0;
 always @(posedge clk_md) ss_wram_wr_q <= ss_mem_wr & (ss_mem_sel == 4'd0);
 wire        ss_zram_wr = ss_mem_wr & (ss_mem_sel == 4'd1);
-// VRAM has no spare port, so the walk takes the machine's over for the duration.
-// It is paused and the chain is not shifting, so nothing else is asking for it.
-wire        ss_vram_sel = ss_busy & (ss_mem_sel == 4'd2);
+// a restore holds these up for its whole walk: the VDP keeps running and its
+// writes would land in memories already put back. Walk strobes stay per memory.
+wire        ss_load_walk;
+// the walk has VRAM's second port; the VDP keeps running on the first, and its
+// writes there are dropped while this select is up
+wire        ss_vram_sel = ss_busy & ((ss_mem_sel == 4'd2) | ss_load_walk);
 // the VDP's palette and vertical scroll, on a port of their own inside ym7101
-wire        ss_arr_sel  = ss_busy & (ss_mem_sel == 4'd3);
+wire        ss_arr_sel  = ss_busy & ((ss_mem_sel == 4'd3) | ss_load_walk);
 wire [15:0] ss_arr_q;
 // the cartridge's live state: mapper banks, the EEPROM lines, the SMS paging
 wire        ss_cart_sel = ss_busy & (ss_mem_sel == 4'd4);
 wire [15:0] ss_cart_q;
-wire        ss_sat_sel  = ss_busy & (ss_mem_sel == 4'd5);
+wire        ss_sat_sel  = ss_busy & ((ss_mem_sel == 4'd5) | ss_load_walk);
 wire [15:0] ss_sat_q;
 
 // the walked memories answer on one shared bus; only one is selected at a time
@@ -641,9 +629,8 @@ wire        mdp_ddr_idle;
 wire        ddr_hold = ss_save_pending | ss_load_pending | dg_busy;
 wire        port_ok  = mdp_ddr_idle;
 
-// one master for this port now that the controller no longer drives it itself:
 // everything savestate needs goes through ss_ddr, on the clock DDRAM_CLK comes
-// from. the CDDA reader gets the port back the moment ss_ddr is idle.
+// from; the CDDA reader gets the port back the moment ss_ddr is idle.
 assign DDRAM_ADDR     = dg_busy ? dg_ddr_addr     : cdda_ddr_addr;
 assign DDRAM_DIN      = dg_busy ? dg_ddr_din      : cdda_ddr_din;
 assign DDRAM_RD       = dg_busy ? dg_ddr_rd       : cdda_ddr_rd;
@@ -693,11 +680,12 @@ savestate savestate
 	.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
 	.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
 	.save_req(ss_save_pending), .load_req(ss_load_pending), .xfer_ack(ss_xfer_ack),
+	.xfer_busy(dg_busy),
 	.blk_off(ss_blk_off), .blk_len(ss_blk_len), .blk_base(ss_blk_base),
 	.blk_hdr(ss_blk_hdr), .blk_id(ss_blk_id), .hdr_words32(ss_hdr_words32), .hdr_present(ss_hdr_present),
 	.hdr_chain(ss_hdr_chain),
 	.mem_addr(ss_mem_addr), .mem_sel(ss_mem_sel), .mem_din(ss_mem_din),
-	.mem_wr(ss_mem_wr), .mem_wr_hold(ss_mem_wr_hold), .mem_dout(ss_mem_dout)
+	.mem_wr(ss_mem_wr), .load_walk(ss_load_walk), .mem_wr_hold(ss_mem_wr_hold), .mem_dout(ss_mem_dout)
 );
 
 md_board #(.SS_EN_SPLIT(1)) md_board
@@ -706,12 +694,12 @@ md_board #(.SS_EN_SPLIT(1)) md_board
 	.ss_en(ss_en), .ss_in(zclk_r), .ss_out(ss_out),
 	.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
 	.ss_mem_sel(ss_vram_sel), .ss_mem_addr(ss_mem_addr),
-	.ss_mem_din(ss_mem_din[7:0]), .ss_mem_wr(ss_mem_wr & ss_vram_sel),
+	.ss_mem_din(ss_mem_din[7:0]), .ss_mem_wr(ss_mem_wr & (ss_mem_sel == 4'd2)),
 	.ss_mem_dout(ss_vram_q),
 	.ss_arr_sel(ss_arr_sel), .ss_arr_addr(ss_mem_addr), .ss_arr_din(ss_mem_din),
-	.ss_arr_wr(ss_mem_wr & ss_arr_sel), .ss_arr_dout(ss_arr_q),
+	.ss_arr_wr(ss_mem_wr & (ss_mem_sel == 4'd3)), .ss_arr_dout(ss_arr_q),
 	.ss_sat_sel(ss_sat_sel), .ss_sat_addr(ss_mem_addr), .ss_sat_din(ss_mem_din),
-	.ss_sat_wr(ss_mem_wr & ss_sat_sel), .ss_sat_dout(ss_sat_q),
+	.ss_sat_wr(ss_mem_wr & (ss_mem_sel == 4'd5)), .ss_sat_dout(ss_sat_q),
 
 	.ext_reset(md_reset),
 	.reset_button(btn_reset), // edge triggered, requires some activity time to get detected.

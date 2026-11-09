@@ -1,4 +1,3 @@
-// destructive read: some stages are combinational, so ss_out can't loop back to ss_in.
 module savestate #(
 	// at least 17: ST_PAUSE reads guard[16]
 	parameter GUARD_BITS = 24
@@ -41,6 +40,9 @@ module savestate #(
 	output reg        save_req = 0,
 	output reg        load_req = 0,
 	input             xfer_ack,
+	// ss_ddr's own busy: a transfer the request timeout gave up on may still
+	// run there, and a new save or load waits until it ends
+	input             xfer_busy,
 	// header main polls at the slot start: a change detector plus payload size.
 	// See process_ss() in Main_MiSTer's user_io.cpp.
 	output reg        blk_hdr = 0,
@@ -58,6 +60,7 @@ module savestate #(
 	output reg  [3:0] mem_sel = 0,
 	output reg [15:0] mem_din = 0,
 	output reg        mem_wr = 0,
+	output reg        load_walk = 0,
 	// the same strobe held for the whole three clock phase, for the one memory
 	// that does not run on this clock: see the block below
 	output            mem_wr_hold,
@@ -79,7 +82,6 @@ module savestate #(
 	localparam ST_IN      = 5'd5;
 	localparam ST_DONE    = 5'd6;
 	localparam ST_PRE     = 5'd7;
-	localparam ST_FILL1   = 5'd8;
 	localparam ST_PAUSE   = 5'd9;
 	localparam ST_FETCH   = 5'd11;   // waiting for ss_ddr to fill the buffer from a slot
 	localparam ST_MREAD   = 5'd12;   // filling the top of the buffer from a memory
@@ -101,9 +103,6 @@ module savestate #(
 	localparam BUF_WORDS = 1024;
 	localparam MAX_WORDS = BUF_WORDS/2;
 
-	// a hardware chain that comes back a different length than simulation measured
-	// means synthesis built something other than what was tested
-
 	// reading a single bit straight out of buf_mem forces the whole word out
 	// combinationally, and Quartus builds it from flip-flops and muxes instead
 	// of M10K: measured cost of getting this wrong, 122 percent of the device.
@@ -111,7 +110,7 @@ module savestate #(
 
 	// every reg here needs its own power-up value: a testbench always resets first,
 	// so simulation can never show what hardware does before a reset pulse arrives.
-	reg  [4:0] state = ST_FILL1;
+	reg  [4:0] state = ST_FLUSH;
 	reg        calibrated = 0;
 	reg [15:0] bitcnt = 0;
 	reg  [8:0] widx = 0;
@@ -132,11 +131,10 @@ module savestate #(
 	reg  [2:0] mphase = 0;      // which 16-bit word of the 64-bit buffer word
 	reg  [8:0] mword = 0;       // buffer word inside the chunk
 	reg  [2:0] mrd = 0;         // a walk read: address, port register, RAM, column, byte, data register, sample
-	reg [15:0] hit_cnt = 0;   // raw bitcnt when the marker arrived, before any clamping
 
 	reg        fsm_busy = 0;
-	// busy stays up through the DDR3 copy as well: the buffer must not be
-	// overwritten by a new snapshot while ss_ddr is still reading it out.
+	// the requests outlast fsm_busy only after the watchdog, which leaves its
+	// transfer in flight: a new operation waits until that one is answered.
 	assign busy = fsm_busy | save_req | load_req;
 	assign cal_busy = ~calibrated;
 	assign cal_failed = calibrated & (chain_len == 0);
@@ -146,6 +144,8 @@ module savestate #(
 	reg        hdr_ok = 0;
 	reg  [1:0] ack_sync = 0;
 	always @(posedge clk) ack_sync <= {ack_sync[0], xfer_ack};
+	reg  [1:0] xbusy_sync = 0;   // ss_ddr's busy, from clk_sys
+	always @(posedge clk) xbusy_sync <= {xbusy_sync[0], xfer_busy};
 	// the machine's bus decode reaches bus_free through the VDP chip-select funnel
 	reg        bus_free_q = 0;
 	always @(posedge clk) bus_free_q <= bus_free;
@@ -221,7 +221,7 @@ module savestate #(
 	always @(posedge clk) begin
 		ss_en_next = ss_en;
 		if (reset) begin
-			state      <= ST_FILL1;
+			state      <= ST_FLUSH;
 			ss_en_next = 0;
 			ss_in      <= 0;
 			fsm_busy       <= 0;
@@ -261,18 +261,6 @@ module savestate #(
 
 			case (state)
 
-			// continuity check before anything else: drive ones the whole length of
-			// the chain and see whether one arrives. a chain cut anywhere by synthesis
-			// looks exactly like a lost marker later on, and the two need different fixes.
-			ST_FILL1: begin
-				ss_en_next = 1;
-				ss_in  <= 1;
-				bitcnt <= bitcnt + 1'b1;
-				// only believe it once ones have had time to cross: at reset the chain
-				// still holds machine state, which is full of ones on its own
-				if (bitcnt > 16'd40000) begin bitcnt <= 0; state <= ST_FLUSH; end
-			end
-
 			// push zeros through first: the chain powers up holding reset values and
 			// if ss_out already reads 1 the marker looks like it arrived immediately
 			ST_FLUSH: begin
@@ -298,7 +286,6 @@ module savestate #(
 					// a marker present on the first measuring clock means the chain never
 					// shifted (ss_out is the Z80's IORQ, held high in reset), not a short
 					// chain; both cases store zero, which is why they read alike.
-					hit_cnt    <= bitcnt;
 					calibrated <= 1;
 					widx       <= 0;
 					guard      <= 0;
@@ -324,7 +311,7 @@ module savestate #(
 				// a restore fetches its slot into the buffer before anything is frozen:
 				// the machine should stand still for the shift, not for a memory read
 				// that can be done while it is running.
-				if (ss_load & calibrated & (chain_len != 0)) begin
+				if (ss_load & calibrated & (chain_len != 0) & ~xbusy_sync[1]) begin
 					saving      <= 0;
 					loading     <= 1;
 					fsm_busy    <= 1;
@@ -344,10 +331,14 @@ module savestate #(
 					load_req    <= 1;
 					state       <= ST_HDRCHK;
 				end
-				else if (ss_save & calibrated & (chain_len != 0)) begin
+				else if (ss_save & calibrated & (chain_len != 0) & ~xbusy_sync[1]) begin
 					saving  <= ss_save;
 					loading <= 0;
 					fsm_busy   <= 1;
+					// cleared here, not by the watchdog: its transfer may still be in flight
+					// and ss_ddr reads these live, while a save starts only with ss_ddr idle.
+					blk_hdr <= 0;
+					blk_id  <= 0;
 
 					guard  <= 0;
 					bitcnt <= 0;
@@ -396,10 +387,18 @@ module savestate #(
 			// before the header: main must not see the counter move before the payload is in
 			ST_ID: begin
 				if (xfer_idle) begin
-					blk_id   <= 0;
-					blk_hdr  <= 1;
-					save_req <= 1;
-					state    <= ST_HDR;
+					// kept on a timeout: ss_ddr may still finish that write and sizes it from blk_id
+					if (xfer_ok) begin
+						blk_id   <= 0;
+						blk_hdr  <= 1;
+						save_req <= 1;
+						state    <= ST_HDR;
+					end
+					else begin
+						pause_req <= 0;
+						fsm_busy  <= 0;
+						state     <= ST_IDLE;
+					end
 				end
 			end
 
@@ -407,7 +406,8 @@ module savestate #(
 			// to a file, so it goes last and on its own.
 			ST_HDR: begin
 				if (xfer_idle) begin
-					blk_hdr   <= 0;
+					// kept on a timeout, as blk_id in ST_ID
+					if (xfer_ok) blk_hdr <= 0;
 					pause_req <= 0;
 					fsm_busy  <= 0;
 					state     <= ST_IDLE;
@@ -467,7 +467,8 @@ module savestate #(
 				end
 			end
 
-			// the machine is left holding zeros here, only sane again after ST_IN
+			// the read is destructive: some stages are combinational, so ss_out cannot
+			// loop back to ss_in. the machine holds zeros here until ST_IN.
 			ST_OUT: begin
 				ss_in  <= 0;
 				shreg  <= nextword;
@@ -699,7 +700,6 @@ module savestate #(
 				end
 			end
 
-			default: state <= ST_IDLE;
 			endcase
 
 
@@ -712,7 +712,7 @@ module savestate #(
 					// unfreezing here leaves the machine holding a half-restored chain,
 					// which is just as dead as staying frozen. clear calibrated so
 					// cal_busy holds the core in reset and the whole sequence restarts.
-					state      <= ST_FILL1;
+					state      <= ST_FLUSH;
 					ss_en_next = 0;
 					fsm_busy   <= 0;
 					bitcnt     <= 0;
@@ -722,6 +722,9 @@ module savestate #(
 			end
 		end
 		hdr_ok       <= (hdr_chain == chain_len);
+		// only a restore walks in these states; a register of its own keeps the
+		// state compare off the memory write enables it gates
+		load_walk    <= (state == ST_MIN) | (state == ST_MWRITE);
 		ss_en        <= ss_en_next;
 		ss_en_cpu    <= ss_en_next;
 		ss_en_vdp_fm <= ss_en_next;

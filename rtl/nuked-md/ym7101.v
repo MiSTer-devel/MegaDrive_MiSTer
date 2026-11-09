@@ -5322,7 +5322,7 @@ end
 		begin
 			if (ss_arr_sel & ss_arr_wr & ss_arr_addr[6])
 				vsram[vsram_index] <= ss_arr_din[10:0];
-			else if (hclk1) // write cycle
+			else if (hclk1 & ~ss_arr_sel) // write cycle
 			begin
 				if (l211)
 					vsram[vsram_index][7:0] <= l181[7:0];
@@ -6826,7 +6826,7 @@ end
 				else if (ss_sat_addr[1:0] == 2'd1)
 					sat[sat_index][20:16] <= ss_sat_din[4:0];
 			end
-			else if (hclk1) // write cycle
+			else if (hclk1 & ~ss_sat_sel) // write cycle
 			begin
 				if (w687)
 					sat[sat_index][6:0] <= sat_data_in[6:0];
@@ -7688,7 +7688,7 @@ end
 
 		if (ss_arr_sel & ss_arr_wr & ~ss_arr_addr[6])
 			color_ram[color_ram_index] <= ss_arr_din[8:0];
-		else if (hclk1) // write cycle
+		else if (hclk1 & ~ss_arr_sel) // write cycle
 		begin
 			if (l602)
 				color_ram[color_ram_index][5:0] <= color_ram_data_in[5:0];

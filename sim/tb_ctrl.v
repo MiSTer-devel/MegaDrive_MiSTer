@@ -1,6 +1,3 @@
-// exercises the savestate controller against the real core, driving ss_en itself
-// rather than by hand: a snapshot must leave the machine still fetching, or it
-// stops generating video, which on a TV looks like snow.
 `timescale 1ns/1ps
 
 module tb_ctrl;
@@ -46,7 +43,7 @@ module tb_ctrl;
 	wire  [9:0] blk_len;
 	wire  [9:0] blk_base;
 	wire [15:0] mem_addr, mem_din;
-	wire        mem_wr, mem_wr_hold;
+	wire        mem_wr, mem_wr_hold, load_walk;
 	wire [15:0] mem_dout;
 	wire  [3:0] mem_sel;
 	wire [15:0] ss_wq;
@@ -92,11 +89,17 @@ module tb_ctrl;
 	wire r68_we = rw & ~ss_en;
 	// and ram_z80k's port A the same way
 	wire rz_we = zw & ~ss_en;
+	// what each memory's write ports take on this edge: the two port A gates above
+	// are copies of MegaDrive.sv's; VRAM's gate and the walk strobes come from the RTL
+	wire [19:0] mem_we = {r68.wren_a, r68.wren_b, rz.wren_a, rz.wren_b,
+		dut.vram1.l2[0].mem.wren_a, dut.vram1.l2[0].mem.wren_b, dut.vram1.l2[1].mem.wren_a, dut.vram1.l2[1].mem.wren_b,
+		dut.vram1.l2[2].mem.wren_a, dut.vram1.l2[2].mem.wren_b, dut.vram1.l2[3].mem.wren_a, dut.vram1.l2[3].mem.wren_b,
+		dut.vram1.l2[4].mem.wren_a, dut.vram1.l2[4].mem.wren_b, dut.vram1.l2[5].mem.wren_a, dut.vram1.l2[5].mem.wren_b,
+		dut.vram1.l2[6].mem.wren_a, dut.vram1.l2[6].mem.wren_b, dut.vram1.l2[7].mem.wren_a, dut.vram1.l2[7].mem.wren_b};
 	always @(posedge MCLK2) if (ss_en) begin
 		if (rw) rw_strobes_scan = rw_strobes_scan + 1;
 		if (zw) zw_strobes_scan = zw_strobes_scan + 1;
-		if (r68_we) wr_during_scan = wr_during_scan + 1;
-		if (rz_we) wr_during_scan = wr_during_scan + 1;
+		if (|mem_we) wr_during_scan = wr_during_scan + 1;
 	end
 
 	// VDP arrays can't be checked here: iverilog won't bind a hierarchical reference
@@ -115,11 +118,11 @@ module tb_ctrl;
 		.ext_vres(ext_vres), .ext_zres(ext_zres),
 		.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
 		.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
-		.ss_arr_sel(mem_sel == 4'd3), .ss_arr_addr(mem_addr), .ss_arr_din(mem_din),
+		.ss_arr_sel((mem_sel == 4'd3) | load_walk), .ss_arr_addr(mem_addr), .ss_arr_din(mem_din),
 		.ss_arr_wr(mem_wr & (mem_sel == 4'd3)), .ss_arr_dout(arr_q),
-		.ss_sat_sel(mem_sel == 4'd5), .ss_sat_addr(mem_addr), .ss_sat_din(mem_din),
+		.ss_sat_sel((mem_sel == 4'd5) | load_walk), .ss_sat_addr(mem_addr), .ss_sat_din(mem_din),
 		.ss_sat_wr(mem_wr & (mem_sel == 4'd5)), .ss_sat_dout(sat_q),
-		.ss_mem_sel(mem_sel == 4'd2), .ss_mem_addr(mem_addr),
+		.ss_mem_sel((mem_sel == 4'd2) | load_walk), .ss_mem_addr(mem_addr),
 		.ss_mem_din(mem_din[7:0]), .ss_mem_wr(mem_wr & (mem_sel == 4'd2)),
 		.ss_mem_dout(vram_q),
 		.ram_68k_address(ra), .ram_68k_byteena(rb), .ram_68k_data(rd), .ram_68k_wren(rw), .ram_68k_o(ro),
@@ -191,10 +194,9 @@ module tb_ctrl;
 	reg [7:0] vmodel [0:65535];
 	reg [7:0] vq1 = 0, vq2 = 0, vq3 = 0, vq = 0;
 	integer vi;
-	// filled with a pattern so the data comparison bites: the other two models are
-	// dpram instances this bench cannot preload, and an x on both sides compares
-	// equal, which makes their data check vacuous. The high byte is mixed in so a
-	// read from the wrong RAM row (a select one clock late) cannot compare equal.
+	// a pattern so the data check bites: the other two models are dpram this bench
+	// cannot preload, and x compares equal to x. The high byte is mixed in so a read
+	// from the wrong RAM row (a select one clock late) cannot compare equal.
 	initial for (vi = 0; vi < 65536; vi = vi + 1) vmodel[vi] = vi[7:0] ^ vi[15:8] ^ 8'hA5;
 	// four clocks, like the real path: md_board's addr_q, the RAM, the column
 	// bytes (ss_q_col), then the byte (ss_q)
@@ -431,11 +433,12 @@ module tb_ctrl;
 		.bufb_clk(MCLK2), .bufb_addr(dmp_addr), .bufb_q(dmp_q),
 		.bufb_we(dmp_we), .bufb_din(dmp_din),
 		.save_req(save_req), .load_req(load_req), .xfer_ack(xfer_ack),
+		.xfer_busy(1'b0),
 		.blk_off(blk_off), .blk_len(blk_len), .blk_base(blk_base),
 		.blk_hdr(blk_hdr), .blk_id(blk_id), .hdr_words32(hdr_words32), .hdr_present(hdr_present),
 		.hdr_chain(hdr_chain),
 		.mem_addr(mem_addr), .mem_sel(mem_sel), .mem_din(mem_din),
-		.mem_wr(mem_wr), .mem_wr_hold(mem_wr_hold), .mem_dout(mem_dout)
+		.mem_wr(mem_wr), .load_walk(load_walk), .mem_wr_hold(mem_wr_hold), .mem_dout(mem_dout)
 	);
 
 	// the first transfer of a restore must be the chain: offset 0, length 0
@@ -584,6 +587,7 @@ module tb_ctrl;
 			$finish;
 		end
 
+		// a snapshot that leaves the machine stopped stops the video too: snow on a TV
 		if (acc_after == 0) begin
 			$display("RESULT: FAIL - machine stopped after the snapshot");
 			$finish;
@@ -859,8 +863,6 @@ module tb_ctrl;
 		$finish;
 	end
 
-	// bus_free reaches the pause through one register: rising once the settle count
-	// is in, it must raise ss_en on the second clock, the sample and then the decision
 	task lat_case;
 		integer n;
 		begin
@@ -878,6 +880,8 @@ module tb_ctrl;
 			while (n == 0 || (ss_en !== 1'b1 && n < 16)) begin
 				@(posedge MCLK2); @(negedge MCLK2); n = n + 1;
 			end
+			// rising once the settle count is in, bus_free must raise ss_en on the second
+			// clock: the sample, then the decision
 			if (n != 2) $display("RED_BF_LAT got=%0d want=2", n);
 			k = 0;
 			while (ss_busy && k < 2000000) begin @(posedge MCLK2); k = k + 1; end
