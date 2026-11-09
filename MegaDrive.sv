@@ -437,6 +437,7 @@ always @(posedge clk_sys) begin
 	if(&sreset) sys_reset <= 1;
 end
 
+wire        ss_en, ss_in, ss_out, ss_busy;
 reg vclk_en, zclk_en, clk_en;
 reg vclk_r = 0, zclk_r = 0;
 always @(posedge clk_md) begin
@@ -446,8 +447,13 @@ always @(posedge clk_md) begin
 	if(VCLK & ~VCLK_next) vclk_en <= ~cart_download;
 	if(ZCLK & ~ZCLK_next) zclk_en <= ~cart_download;
 
+	if (ss_en) begin
+		vclk_r <= ss_in;
+		zclk_r <= vclk_r;
+	end else begin
 	vclk_r <= VCLK_next & vclk_en;
 	zclk_r <= ZCLK_next & zclk_en;
+	end
 end
 
 always @(posedge clk_md) begin
@@ -581,7 +587,6 @@ always @(posedge clk_md) begin
 	ss_load_req <= ~old_load & ss_ui_load & ~ss_busy & ~ss_unavailable;
 end
 
-wire        ss_en, ss_in, ss_out, ss_busy;
 wire        ss_en_cpu, ss_en_vdp_fm, ss_en_vram;
 wire [15:0] ss_mem_addr, ss_mem_din, ss_mem_dout;
 wire  [3:0] ss_mem_sel;
@@ -589,7 +594,9 @@ wire        ss_mem_wr, ss_mem_wr_hold;
 wire [15:0] ss_wram_q;
 wire  [7:0] ss_zram_q;
 wire  [7:0] ss_vram_q;
-wire        ss_wram_wr = ss_mem_wr & (ss_mem_sel == 4'd0);
+// the walk write lands a clock later; address and data hold for three clocks around it
+reg         ss_wram_wr_q = 0;
+always @(posedge clk_md) ss_wram_wr_q <= ss_mem_wr & (ss_mem_sel == 4'd0);
 wire        ss_zram_wr = ss_mem_wr & (ss_mem_sel == 4'd1);
 // VRAM has no spare port, so the walk takes the machine's over for the duration.
 // It is paused and the chain is not shifting, so nothing else is asking for it.
@@ -696,7 +703,7 @@ savestate savestate
 md_board #(.SS_EN_SPLIT(1)) md_board
 (
 	.MCLK2(clk_md),
-	.ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_out),
+	.ss_en(ss_en), .ss_in(zclk_r), .ss_out(ss_out),
 	.ss_en_cpu(ss_en_cpu), .ss_en_vdp_fm(ss_en_vdp_fm), .ss_en_vram(ss_en_vram),
 	.ss_mem_sel(ss_vram_sel), .ss_mem_addr(ss_mem_addr),
 	.ss_mem_din(ss_mem_din[7:0]), .ss_mem_wr(ss_mem_wr & ss_vram_sel),
@@ -809,13 +816,14 @@ dpram #(15,16) ram_68k
 
 	.address_a(ram_68k_address),
 	.data_a(ram_68k_data),
-	.wren_a(ram_68k_wren & ~ss_en),
+	.enable_a(~ss_en), // port A stops while the chain shifts, so the scrambled bus cannot write the RAM
+	.wren_a(ram_68k_wren),
 	.byteena_a(ram_68k_byteena),
 	.q_a(ram_68k_o),
 
 	.address_b(ss_busy ? ss_mem_addr[14:0] : ram_rst_a),
-	.data_b(ss_mem_din),
-	.wren_b(ss_busy ? ss_wram_wr : md_reset),
+	.data_b(ss_busy ? ss_mem_din : 16'd0),
+	.wren_b(ss_busy ? ss_wram_wr_q : md_reset),
 	.q_b(ss_wram_q)
 );
 
@@ -825,7 +833,8 @@ dpram #(13,8) ram_z80k
 
 	.address_a(ram_z80_address),
 	.data_a(ram_z80_data),
-	.wren_a(ram_z80_wren & ~ss_en),
+	.enable_a(~ss_en),
+	.wren_a(ram_z80_wren),
 	.q_a(ram_z80_o),
 
 	.address_b(ss_busy ? ss_mem_addr[12:0] : ram_rst_a),

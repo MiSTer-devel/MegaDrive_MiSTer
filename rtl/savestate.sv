@@ -107,7 +107,6 @@ module savestate #(
 	// reading a single bit straight out of buf_mem forces the whole word out
 	// combinationally, and Quartus builds it from flip-flops and muxes instead
 	// of M10K: measured cost of getting this wrong, 122 percent of the device.
-	reg [63:0] outsh = 0;
 	reg  [8:0] rdaddr = 0;
 
 	// every reg here needs its own power-up value: a testbench always resets first,
@@ -132,8 +131,7 @@ module savestate #(
 	reg  [5:0] mchunk = 0;      // which chunk of it is in flight
 	reg  [2:0] mphase = 0;      // which 16-bit word of the 64-bit buffer word
 	reg  [8:0] mword = 0;       // buffer word inside the chunk
-	reg  [1:0] mrd = 0;         // the two clocks a block RAM read takes to answer
-	reg [63:0] mpack = 0;
+	reg  [2:0] mrd = 0;         // a walk read: address, port register, RAM, column, byte, data register, sample
 	reg [15:0] hit_cnt = 0;   // raw bitcnt when the marker arrived, before any clamping
 
 	reg        fsm_busy = 0;
@@ -148,6 +146,12 @@ module savestate #(
 	reg        hdr_ok = 0;
 	reg  [1:0] ack_sync = 0;
 	always @(posedge clk) ack_sync <= {ack_sync[0], xfer_ack};
+	// the machine's bus decode reaches bus_free through the VDP chip-select funnel
+	reg        bus_free_q = 0;
+	always @(posedge clk) bus_free_q <= bus_free;
+
+	reg [15:0] mem_dout_q = 0;
+	always @(posedge clk) mem_dout_q <= mem_dout;
 
 	// the cartridge runs on clk_sys, half of clk_md: a one-clock strobe at 107 MHz
 	// falls between clk_sys edges on words that start on an even clock, so those
@@ -180,6 +184,8 @@ module savestate #(
 	                       (mem_idx == 3'd2) ? 6'd63     : 6'd0;
 	wire [15:0] nxt_off  = (mem_idx == 3'd0) ? 16'd9216  : (mem_idx == 3'd1) ? 16'd11264 :
 	                       (mem_idx == 3'd2) ? 16'd27648 : (mem_idx == 3'd3) ? 16'd28672 : 16'd28928;
+	wire  [3:0] nxt_sel  = (mem_idx == 3'd0) ? 4'd1      : (mem_idx == 3'd1) ? 4'd2     :
+	                       (mem_idx == 3'd2) ? 4'd3      : (mem_idx == 3'd3) ? 4'd4     : 4'd5;
 	// mem_sel is registered with the address, not derived from mem_idx: mem_idx
 	// advances on the last write, so a combinational selector sent that word
 	// to the next memory instead.
@@ -190,11 +196,11 @@ module savestate #(
 
 	// four 16-bit words shifted in from the top make one buffer word, so the word
 	// at the lowest memory address ends up in the lowest bits
-	wire [63:0] mpack_next = {mem_dout, mpack[63:16]};
+	wire [63:0] mpack_next = {mem_dout_q, shreg[63:16]};
 	wire [63:0] bufword  = mem_phase ? mpack_next : nextword;
 	wire        in_phase = (state == ST_PRE) || (state == ST_IN);
 	wire        buf_we   = ((state == ST_OUT) && (&bidx))
-	                     || ((state == ST_MREAD) && (mrd == 2'd2) && (mphase == 3'd3));
+	                     || ((state == ST_MREAD) && (mrd == 3'd6) && (mphase == 3'd3));
 	wire  [9:0] addra = mem_phase ? (CHUNK_BASE + {1'b0, mword})
 	                              : {1'b0, in_phase ? rdaddr : widx};
 
@@ -427,7 +433,7 @@ module savestate #(
 			// acknowledge of its own the way the Z80 side does
 			ST_PAUSE: begin
 				guard <= guard + 1'b1;
-				if (bus_free && guard[16]) begin
+				if (bus_free_q && guard[16]) begin
 					guard  <= 0;
 					bitcnt <= 0;
 					widx   <= 0;
@@ -494,7 +500,7 @@ module savestate #(
 				mem_sel <= 4'd15;
 				bidx <= bidx + 1'b1;
 				if (bidx == 6'd2) begin
-					outsh  <= rdword;
+					shreg  <= rdword;
 					rdaddr <= 1;
 					bidx   <= 0;
 					bitcnt <= 0;
@@ -505,15 +511,15 @@ module savestate #(
 			// put it back, same order it came out: a shift register reloaded with
 			// its own contents in read order ends up exactly as it started
 			ST_IN: begin
-				// shift out of outsh, refilled once per word from the single registered
+				// shift out of shreg, refilled once per word from the single registered
 				// read of buf_mem below. reading the array from more than one place
 				// stops Quartus inferring M10K and the buffer lands in logic instead.
-				ss_in <= outsh[63];
+				ss_in <= shreg[63];
 				if (&bidx) begin
-					outsh  <= rdword;
+					shreg  <= rdword;
 					rdaddr <= rdaddr + 1'b1;
 				end
-				else outsh <= {outsh[62:0], 1'b0};
+				else shreg <= {shreg[62:0], 1'b0};
 				bidx   <= bidx + 1'b1;
 				bitcnt <= bitcnt + 1'b1;
 				if (&bidx) widx <= widx + 1'b1;
@@ -547,7 +553,12 @@ module savestate #(
 			// the chain is on its way to the slot; the memories follow it
 			ST_CHOUT: begin
 				if (xfer_idle) begin
-					if (xfer_ok) state <= ST_MREAD;
+					// md_board registers the selects, a clock behind mem_sel: set it now so
+					// the first address already reaches the memory selected
+					if (xfer_ok) begin
+						mem_sel <= cur_sel;
+						state   <= ST_MREAD;
+					end
 					else begin
 						pause_req <= 0;
 						fsm_busy  <= 0;
@@ -558,13 +569,13 @@ module savestate #(
 
 			ST_MREAD: begin
 				mrd <= mrd + 1'b1;
-				if (mrd == 2'd0) begin
+				if (mrd == 3'd0) begin
 					mem_addr <= {mchunk, mword[7:0], mphase[1:0]};
 					mem_sel  <= cur_sel;
 				end
-				if (mrd == 2'd2) begin
+				if (mrd == 3'd6) begin
 					mrd   <= 0;
-					mpack <= mpack_next;
+					shreg <= mpack_next;
 					if (mphase == 3'd3) begin
 						mphase <= 0;
 						if (mword == CHUNK[8:0] - 1'b1) begin
@@ -596,6 +607,7 @@ module savestate #(
 					else if (mem_idx != N_MEM - 1'b1) begin
 						mem_idx <= mem_idx + 1'b1;
 						mchunk  <= 0;
+						mem_sel <= nxt_sel;
 						state   <= ST_MREAD;
 					end
 					else begin
@@ -618,6 +630,7 @@ module savestate #(
 						mword  <= 0;
 						mphase <= 0;
 						mrd    <= 0;
+						mem_sel <= cur_sel;
 						state  <= ST_MWRITE;
 					end
 					else begin
@@ -631,19 +644,19 @@ module savestate #(
 
 			ST_MWRITE: begin
 				mrd <= mrd + 1'b1;
-				if (mrd == 2'd2) begin
+				if (mrd == 3'd2) begin
 					mrd <= 0;
 					// phase 0 only waits for the buffer word the address has been
 					// presenting; phases 1 to 4 push its four halves into the memory
 					if (mphase == 3'd0) begin
-						mpack  <= rdword;
+						shreg  <= rdword;
 						mphase <= 1;
 					end
 					else begin
 						mem_addr <= {mchunk, mword[7:0], mphase[1:0] - 2'd1};
 						mem_sel  <= cur_sel;
-						mem_din  <= mpack[15:0];
-						mpack    <= {16'd0, mpack[63:16]};
+						mem_din  <= shreg[15:0];
+						shreg    <= {16'd0, shreg[63:16]};
 						mem_wr   <= 1;
 						if (mphase == 3'd4) begin
 							mphase <= 0;

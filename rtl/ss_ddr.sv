@@ -11,7 +11,7 @@ module ss_ddr #(
 	output reg        busy = 0,
 	input             ddr_busy,
 	output reg [28:0] ddr_addr = 0,
-	output reg [63:0] ddr_din = 0,
+	output     [63:0] ddr_din,
 	output reg        ddr_we = 0,
 	output reg  [7:0] ddr_burstcnt = 0,
 	output reg  [7:0] ddr_be = 8'hFF,
@@ -21,7 +21,7 @@ module ss_ddr #(
 	output      [9:0] buf_addr,
 	input      [63:0] buf_q,
 	output reg        buf_we = 0,
-	output reg [63:0] buf_din = 0,
+	output     [63:0] buf_din,
 
 	input             req_save,
 	input             req_load,
@@ -64,6 +64,9 @@ module ss_ddr #(
 	reg  [9:0] wa = 0;             // address held for the buffer write
 	reg        rd_pend = 0;        // a read was accepted and its data has not arrived
 	reg  [1:0] mode = 0;           // 0 idle, 1 save, 2 load
+	reg [63:0] xdat = 0;
+	assign ddr_din = xdat;
+	assign buf_din = xdat;
 
 	// combinational: a registered address plus registered memory read is two
 	// clocks of latency, and one settle cycle only covers one; the dump came out
@@ -122,7 +125,7 @@ module ss_ddr #(
 			if (settle) settle <= 0;
 			else if (!ddr_we) begin
 				ddr_addr     <= xbase + xw;
-				ddr_din      <= blk_hdr ? hdr_word : (blk_id ? id_word : buf_q);
+				xdat         <= blk_hdr ? hdr_word : (blk_id ? id_word : buf_q);
 				ddr_burstcnt <= 8'd1;
 				ddr_be       <= (blk_hdr && !save_sd) ? 8'hF0 : 8'hFF;
 				ddr_we       <= 1;
@@ -167,7 +170,7 @@ module ss_ddr #(
 					hdr_chain <= (ddr_dout[63:32] == ID_MAGIC) ? ddr_dout[15:0] : 16'd0;
 				end
 				else begin
-					buf_din <= ddr_dout;
+					xdat    <= ddr_dout;
 					wa      <= blk_base + xw;
 					buf_we  <= 1;
 				end

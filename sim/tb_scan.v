@@ -7,6 +7,7 @@ module tb_scan;
 	parameter BOOT   = 200;
 	parameter RUNCYC = 1600000;  // cpu_reset releases ~1396275 cyc in; must run past that
 	parameter STEP   = 5000;     // cycles between captures
+	parameter HZMAX  = 20000;
 
 	reg MCLK2 = 0; always #4.657 MCLK2 = ~MCLK2;
 	reg ext_reset = 1, ext_vres = 1, ext_zres = 1;
@@ -60,6 +61,9 @@ module tb_scan;
 
 	reg [`SS_CHAIN_LEN-1:0] s1, s2, s3, s1b;
 	integer n, diff, first, last, runs, xcnt;
+	integer hz;
+	reg hit;
+	reg [271:0] uo1, no1;
 
 	task run_cycles(input integer c);
 		integer k;
@@ -87,6 +91,17 @@ module tb_scan;
 		end
 	endtask
 
+	task rom_check(input integer c);
+		begin
+			if (dut.m68k.ucode_out !== uo1) $display("RED_ROM_RESTORE ucode check %0d", c);
+			if (dut.m68k.ncode_out !== no1) $display("RED_ROM_RESTORE ncode check %0d", c);
+			if (dut.m68k.ucode_out !== uo1 || dut.m68k.ncode_out !== no1) begin
+				$display("RESULT: FAIL - the ROM outputs do not come back after a restore");
+				$finish;
+			end
+		end
+	endtask
+
 	task restore(input reg [`SS_CHAIN_LEN-1:0] buf_i);
 		integer k;
 		begin
@@ -107,7 +122,21 @@ module tb_scan;
 		ext_reset = 0; ext_vres = 0; ext_zres = 0;
 		run_cycles(RUNCYC);
 
+		hz = 0; hit = 0;
+		while (!hit && hz < HZMAX) begin
+			@(negedge MCLK2); hz = hz + 1;
+			hit = dut.m68k.ucode_out !== dut.m68k.ucode[dut.m68k.ucode_addr] ||
+				dut.m68k.ncode_out !== dut.m68k.ncode[dut.m68k.ncode_addr];
+		end
+		if (!hit) begin
+			$display("RESULT: FAIL - ROM hazard window not reached");
+			$finish;
+		end
+		$display("ROM hazard window reached: %0d falling edges after RUNCYC, t=%0t", hz, $time);
+		uo1 = dut.m68k.ucode_out; no1 = dut.m68k.ncode_out;
+		ss_en = 1;
 		capture(s1); restore(s1);
+		rom_check(1);
 
 		// sub-test: is the chain itself lossless? read it straight back with no
 		// cycles in between. any difference here is a capture/restore defect,
@@ -123,6 +152,8 @@ module tb_scan;
 		capture(s2); restore(s2);
 
 		restore(s1);
+		rom_check(2);
+		$display("ROM restore check: PASS (checks 1 and 2)");
 		ss_en = 0;
 		run_cycles(STEP);
 		capture(s3);

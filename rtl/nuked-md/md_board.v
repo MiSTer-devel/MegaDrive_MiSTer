@@ -344,6 +344,35 @@ module md_board #(parameter SS_EN_SPLIT = 0)
 			end
 end
 	
+	// registered here so each select leaves savestate.sv as one flop; savestate.sv
+	// settles mem_sel a clock before its first use, so the lag never reaches one
+	reg ss_mem_sel_q = 0, ss_arr_sel_q = 0, ss_sat_sel_q = 0;
+	// the walk ports too, one copy per destination, so the savestate address and
+	// strobe reach the VDP index muxes and the VRAM port from a flop of their own
+	(* dont_merge *) reg [15:0] ss_mem_addr_q = 0;
+	(* dont_merge *) reg  [7:0] ss_mem_din_q = 0;
+	(* dont_merge *) reg        ss_mem_wr_q = 0;
+	(* dont_merge *) reg [15:0] ss_arr_addr_q = 0;
+	(* dont_merge *) reg [15:0] ss_arr_din_q = 0;
+	(* dont_merge *) reg        ss_arr_wr_q = 0;
+	(* dont_merge *) reg [15:0] ss_sat_addr_q = 0;
+	(* dont_merge *) reg [15:0] ss_sat_din_q = 0;
+	(* dont_merge *) reg        ss_sat_wr_q = 0;
+	always @(posedge MCLK2)
+	begin
+		ss_mem_sel_q <= ss_mem_sel;
+		ss_arr_sel_q <= ss_arr_sel;
+		ss_sat_sel_q <= ss_sat_sel;
+		ss_mem_addr_q <= ss_mem_addr;
+		ss_mem_din_q <= ss_mem_din;
+		ss_mem_wr_q <= ss_mem_wr;
+		ss_arr_addr_q <= ss_arr_addr;
+		ss_arr_din_q <= ss_arr_din;
+		ss_arr_wr_q <= ss_arr_wr;
+		ss_sat_addr_q <= ss_sat_addr;
+		ss_sat_din_q <= ss_sat_din;
+		ss_sat_wr_q <= ss_sat_wr;
+	end
 	wire ss_step2_ym;
 	fc1004 ym
 		(
@@ -535,10 +564,10 @@ end
 		.vdp_dma_oe_early(vdp_dma_oe_early),
 		.vdp_dma(vdp_dma)
 		, .ss_en(scan_vdp_fm), .ss_in(MCLK_e), .ss_out(ss_step2_ym)
-		, .ss_arr_sel(ss_arr_sel), .ss_arr_addr(ss_arr_addr), .ss_arr_din(ss_arr_din)
-		, .ss_arr_wr(ss_arr_wr), .ss_arr_dout(ss_arr_dout)
-		, .ss_sat_sel(ss_sat_sel), .ss_sat_addr(ss_sat_addr), .ss_sat_din(ss_sat_din)
-		, .ss_sat_wr(ss_sat_wr), .ss_sat_dout(ss_sat_dout));
+		, .ss_arr_sel(ss_arr_sel_q), .ss_arr_addr(ss_arr_addr_q), .ss_arr_din(ss_arr_din_q)
+		, .ss_arr_wr(ss_arr_wr_q), .ss_arr_dout(ss_arr_dout)
+		, .ss_sat_sel(ss_sat_sel_q), .ss_sat_addr(ss_sat_addr_q), .ss_sat_din(ss_sat_din_q)
+		, .ss_sat_wr(ss_sat_wr_q), .ss_sat_dout(ss_sat_dout));
 	
 	assign fm_sel23 = TEST0_o;
 	
@@ -698,8 +727,8 @@ end
 		.SD_o(vram1_SD_o),
 		.SD_d(vram1_SD_d)
 		, .ss_en(scan_vram), .ss_in(ss_step4_z80), .ss_out(ss_step5_vram1)
-		, .ss_mem_sel(ss_mem_sel), .ss_mem_addr(ss_mem_addr), .ss_mem_din(ss_mem_din)
-		, .ss_mem_wr(ss_mem_wr), .ss_mem_dout(ss_mem_dout));
+		, .ss_mem_sel(ss_mem_sel_q), .ss_mem_addr(ss_mem_addr_q), .ss_mem_din(ss_mem_din_q)
+		, .ss_mem_wr(ss_mem_wr_q), .ss_mem_dout(ss_mem_dout));
 
 `ifdef VRAM_128K
 	wire [7:0] vram2_RD_o;
@@ -728,11 +757,11 @@ end
 	assign ram_68k_address = { VA[14], IA14, VA[12:0] };
 	assign ram_68k_byteena = { ~UWR, ~LWR };
 	assign ram_68k_data = VD;
-	assign ram_68k_wren = (~UWR | ~LWR) & ~RAS0 & ~ss_en;
+	assign ram_68k_wren = (~UWR | ~LWR) & ~RAS0;
 	
 	assign ram_z80_address = ZA[12:0];
 	assign ram_z80_data = ZD;
-	assign ram_z80_wren = ~ZRAM & ~ZWR & ~ss_en;
+	assign ram_z80_wren = ~ZRAM & ~ZWR;
 	
 	//wire [14:0] ram_68k_address = { VA[14], IA14, VA[12:0] };
 	//

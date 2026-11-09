@@ -54,6 +54,7 @@ module tb_ctrl;
 	wire [15:0] arr_q;
 	wire [15:0] cart_q;
 	wire [15:0] sat_q;
+	wire  [7:0] vram_q;
 	reg  [15:0] cartmodel [0:15];
 	integer ci;
 	initial for (ci = 0; ci < 16; ci = ci + 1) cartmodel[ci] = ci * 16'h1111 + 16'h37;
@@ -85,9 +86,17 @@ module tb_ctrl;
 	// all come back exactly, but the memories are not in the chain, so a stray
 	// write survives the restore and the game dies on it seconds later.
 	integer wr_during_scan = 0;
+	integer rw_strobes_scan = 0;
+	integer zw_strobes_scan = 0;
+	// MegaDrive.sv blocks port A with the RAM clock enable
+	wire r68_we = rw & ~ss_en;
+	// and ram_z80k's port A the same way
+	wire rz_we = zw & ~ss_en;
 	always @(posedge MCLK2) if (ss_en) begin
-		if (rw) wr_during_scan = wr_during_scan + 1;
-		if (zw) wr_during_scan = wr_during_scan + 1;
+		if (rw) rw_strobes_scan = rw_strobes_scan + 1;
+		if (zw) zw_strobes_scan = zw_strobes_scan + 1;
+		if (r68_we) wr_during_scan = wr_during_scan + 1;
+		if (rz_we) wr_during_scan = wr_during_scan + 1;
 	end
 
 	// VDP arrays can't be checked here: iverilog won't bind a hierarchical reference
@@ -112,7 +121,7 @@ module tb_ctrl;
 		.ss_sat_wr(mem_wr & (mem_sel == 4'd5)), .ss_sat_dout(sat_q),
 		.ss_mem_sel(mem_sel == 4'd2), .ss_mem_addr(mem_addr),
 		.ss_mem_din(mem_din[7:0]), .ss_mem_wr(mem_wr & (mem_sel == 4'd2)),
-		.ss_mem_dout(),
+		.ss_mem_dout(vram_q),
 		.ram_68k_address(ra), .ram_68k_byteena(rb), .ram_68k_data(rd), .ram_68k_wren(rw), .ram_68k_o(ro),
 		.ram_z80_address(za), .ram_z80_data(zd), .ram_z80_wren(zw), .ram_z80_o(zo),
 		.M3(1'b1), .cart_data(cart_data), .cart_data_en(1'b1),
@@ -130,34 +139,81 @@ module tb_ctrl;
 		.dma_68k_req(1'b0), .dma_z80_req(1'b0), .dma_z80_ack(), .res_z80(),
 		.vdp_dma_oe_early(), .vdp_dma()
 	);
-	dpram #(15,16) r68 (.clock(MCLK2), .address_a(ra), .data_a(rd), .wren_a(rw), .byteena_a(rb), .q_a(ro),
+	// MegaDrive.sv registers the work RAM walk strobe; address and data hold around it
+	reg r68_wr_b = 0;
+	always @(posedge MCLK2) r68_wr_b <= mem_wr & (mem_sel == 4'd0);
+	dpram #(15,16) r68 (.clock(MCLK2), .address_a(ra), .data_a(rd), .wren_a(r68_we), .byteena_a(rb), .q_a(ro),
 		.address_b(mem_addr[14:0]), .data_b(mem_din),
-		.wren_b(mem_wr & (mem_sel == 4'd0)), .byteena_b(2'b11), .q_b(ss_wq));
-	dpram #(13,8) rz (.clock(MCLK2), .address_a(za), .data_a(zd), .wren_a(zw), .byteena_a(1'b1), .q_a(zo),
+		.wren_b(r68_wr_b), .byteena_b(2'b11), .q_b(ss_wq));
+	dpram #(13,8) rz (.clock(MCLK2), .address_a(za), .data_a(zd), .wren_a(rz_we), .byteena_a(1'b1), .q_a(zo),
 		.address_b(mem_addr[12:0]), .data_b(mem_din[7:0]),
 		.wren_b(mem_wr & (mem_sel == 4'd1)), .byteena_b(1'b1), .q_b(ss_zq));
+
+	// with port A stopped during the shift, q_a is stale on the first edge after ss_en
+	// falls: md_board must not load VD or ZD from the RAMs there. Muxes sampled at the
+	// falling edge, before the rising edge that uses them.
+	reg  [15:0] qa_vd = 16'hFFFF;
+	reg   [7:0] qa_zd = 8'hFF;
+	reg         qa_en_p = 0;
+	integer     qa_use = 0, qa_falls = 0, qa_falls_rst = 0, qa_vd_n = 0, qa_zd_n = 0;
+	always @(negedge MCLK2) begin
+		qa_vd <= dut.ram_VD_d;
+		qa_zd <= dut.ram_ZD_d;
+	end
+	always @(posedge MCLK2) begin
+		qa_en_p <= ss_en;
+		if (!ss_en) begin
+			if ((&qa_vd) === 1'b0) qa_vd_n = qa_vd_n + 1;
+			if ((&qa_zd) === 1'b0) qa_zd_n = qa_zd_n + 1;
+		end
+		if (!ss_en && qa_en_p) begin
+			if (ext_reset) qa_falls_rst = qa_falls_rst + 1;
+			else begin
+				qa_falls = qa_falls + 1;
+				if ((&qa_vd) !== 1'b1 || (&qa_zd) !== 1'b1) begin
+					if (qa_use == 0) $display("RED_QA_USE %0t %h %h", $time, qa_vd, qa_zd);
+					qa_use = qa_use + 1;
+				end
+			end
+		end
+	end
+	task qa_show;
+		begin
+			$display("q_a reads right after a shift: %0d (must be 0)", qa_use);
+			$display("ss_en falls checked: %0d (under ext_reset, not checked: %0d), ss_en = 0 edges with VD from ram_68k_o: %0d, ZD from ram_z80_o: %0d",
+			         qa_falls, qa_falls_rst, qa_vd_n, qa_zd_n);
+		end
+	endtask
 
 	// VRAM stands in as a plain byte memory here: the real one shares the machine's
 	// single port, which this bench has no way to exercise, but the walk over it is
 	// the same and that is what is under test.
 	reg [7:0] vmodel [0:65535];
-	reg [7:0] vq = 0;
+	reg [7:0] vq1 = 0, vq2 = 0, vq3 = 0, vq = 0;
 	integer vi;
 	// filled with a pattern so the data comparison bites: the other two models are
 	// dpram instances this bench cannot preload, and an x on both sides compares
-	// equal, which makes their data check vacuous.
-	initial for (vi = 0; vi < 65536; vi = vi + 1) vmodel[vi] = vi[7:0] ^ 8'hA5;
+	// equal, which makes their data check vacuous. The high byte is mixed in so a
+	// read from the wrong RAM row (a select one clock late) cannot compare equal.
+	initial for (vi = 0; vi < 65536; vi = vi + 1) vmodel[vi] = vi[7:0] ^ vi[15:8] ^ 8'hA5;
+	// four clocks, like the real path: md_board's addr_q, the RAM, the column
+	// bytes (ss_q_col), then the byte (ss_q)
 	always @(posedge MCLK2) begin
 		if (mem_wr && mem_sel == 4'd2) vmodel[mem_addr] <= mem_din[7:0];
-		vq <= vmodel[mem_addr];
+		vq1 <= vmodel[mem_addr];
+		vq2 <= vq1;
+		vq3 <= vq2;
+		vq  <= vq3;
 	end
+	// the last save reads the real VRAM, which the restores before it filled
+	reg real_vram = 0;
 
 	// the VDP's palette/scroll and sprite cache answer through the real ym7101
 	// port, not a model: both sides see what the chip holds, so the comparison
 	// stays honest even though most of each 1024-word window reads zero.
 	assign mem_dout = (mem_sel == 4'd0) ? ss_wq :
 	                  (mem_sel == 4'd1) ? {8'd0, ss_zq} :
-	                  (mem_sel == 4'd2) ? {8'd0, vq} :
+	                  (mem_sel == 4'd2) ? {8'd0, real_vram ? vram_q : vq} :
 	                  (mem_sel == 4'd3) ? arr_q :
 	                  (mem_sel == 4'd4) ? cart_q : sat_q;
 
@@ -259,10 +315,19 @@ module tb_ctrl;
 	reg [19:0] ld_a  [0:131071];
 	reg [15:0] ld_d  [0:131071];
 	integer    sav_n = 0, ld_n = 0;
+
+	// the sample clock is found a clock late, from mrd wrapping to 0, and the word
+	// recorded is the one the controller packs, so both probes below follow its own
+	// read length instead of assuming one.
+	reg  [4:0] sp_st = 0;
+	reg  [2:0] sp_mrd = 0;
+	reg  [3:0] sp_sel = 0;
+	reg [15:0] sp_addr = 0;
+	reg [15:0] sp_word = 0;
 	always @(posedge MCLK2) begin
-		if (ctrl.state == 5'd12 && ctrl.mrd == 2'd2) begin
-			sav_a[sav_n] = {mem_sel, mem_addr};
-			sav_d[sav_n] = mem_dout;
+		if (sp_st == 5'd12 && sp_mrd != 3'd0 && ctrl.mrd == 3'd0 && !real_vram) begin
+			sav_a[sav_n] = {sp_sel, sp_addr};
+			sav_d[sav_n] = sp_word;
 			sav_n = sav_n + 1;
 		end
 		if (mem_wr) begin
@@ -270,6 +335,67 @@ module tb_ctrl;
 			ld_d[ld_n] = mem_din;
 			ld_n = ld_n + 1;
 		end
+	end
+
+	// every VRAM byte the controller takes must be the one at its address
+	integer    vs_n = 0, vs_bad = 0, vr_n = 0, vr_bad = 0;
+	always @(posedge MCLK2) begin
+		if (sp_st == 5'd12 && sp_mrd != 3'd0 && ctrl.mrd == 3'd0 && sp_sel == 4'd2) begin
+			if (real_vram) vr_n = vr_n + 1; else vs_n = vs_n + 1;
+			if (sp_word[7:0] !== vmodel[sp_addr]) begin
+				if ((real_vram ? vr_bad : vs_bad) == 0)
+					$display("RED_VRAM_SAMPLE real=%0b addr=%h mrd=%0d got=%h want=%h",
+					         real_vram, sp_addr, sp_mrd, sp_word[7:0], vmodel[sp_addr]);
+				if (real_vram) vr_bad = vr_bad + 1; else vs_bad = vs_bad + 1;
+			end
+		end
+		sp_st   <= ctrl.state;
+		sp_mrd  <= ctrl.mrd;
+		sp_sel  <= mem_sel;
+		sp_addr <= mem_addr;
+		sp_word <= ctrl.mpack_next[63:48];
+	end
+
+	// md_board registers the walk ports once, like the selects: each must hold
+	// what this bench drove on md_board's port one clock earlier
+	reg [15:0] wb_addr_d = 0, wb_din_d = 0;
+	reg  [2:0] wb_wr_d = 0;   // sat, arr, vram
+	integer    wb_lag = 0;
+	always @(posedge MCLK2) begin
+		wb_addr_d <= mem_addr;
+		wb_din_d  <= mem_din;
+		wb_wr_d   <= {mem_wr & (mem_sel == 4'd5), mem_wr & (mem_sel == 4'd3), mem_wr & (mem_sel == 4'd2)};
+	end
+	task wb_chk(input [8*12:1] port, input [15:0] got, input [15:0] want);
+		if (got !== want) begin
+			if (wb_lag == 0) $display("RED_WB_LAG %0s got=%h want=%h", port, got, want);
+			wb_lag = wb_lag + 1;
+		end
+	endtask
+	always @(negedge MCLK2) begin
+		wb_chk("vram addr", dut.vram1.ss_mem_addr, wb_addr_d);
+		wb_chk("vram din", dut.vram1.ss_mem_din, wb_din_d[7:0]);
+		wb_chk("vram wr", dut.vram1.ss_mem_wr, wb_wr_d[0]);
+		wb_chk("arr addr", dut.ym.vdp.ss_arr_addr, wb_addr_d);
+		wb_chk("arr din", dut.ym.vdp.ss_arr_din, wb_din_d);
+		wb_chk("arr wr", dut.ym.vdp.ss_arr_wr, wb_wr_d[1]);
+		wb_chk("sat addr", dut.ym.vdp.ss_sat_addr, wb_addr_d);
+		wb_chk("sat din", dut.ym.vdp.ss_sat_din, wb_din_d);
+		wb_chk("sat wr", dut.ym.vdp.ss_sat_wr, wb_wr_d[2]);
+	end
+
+	// the selects are registered once more on their way to the memories, so
+	// mem_sel must already hold when a memory's first address or write goes out
+	reg  [3:0] sel_d = 0;
+	integer    sel_bad = 0;
+	always @(posedge MCLK2) begin
+		if ((mem_wr || (ctrl.state == 5'd12 && ctrl.mrd == 3'd1)) && mem_sel !== sel_d) begin
+			if (sel_bad == 0)
+				$display("RED_SEL_SETTLE state=%0d mem_wr=%0b sel %0h -> %0h addr=%h",
+				         ctrl.state, mem_wr, sel_d, mem_sel, mem_addr);
+			sel_bad = sel_bad + 1;
+		end
+		sel_d <= mem_sel;
 	end
 
 	// golden sat values go into the real register, so a walk that skips sat cannot pass
@@ -396,6 +522,10 @@ module tb_ctrl;
 		repeat (BOOT) @(posedge MCLK2);
 		$display("calibrated chain length : %0d", ctrl.chain_len);
 		$display("calibrated flag         : %0d", ctrl.calibrated);
+		if ($test$plusargs("lat_only")) begin
+			lat_case;
+			$finish;
+		end
 		acc_before = 0; rw_before = 0;
 		repeat (20000) @(posedge MCLK2);
 		$display("bus cycles before save  : %0d", acc_before);
@@ -437,7 +567,10 @@ module tb_ctrl;
 			$display("RESULT: FAIL - the snapshot never asked for its slot, or never let go");
 			$finish;
 		end
+		$display("68000 RAM write strobes while scanning, blocked by the port A clock enable: %0d", rw_strobes_scan);
+		$display("Z80 RAM write strobes while scanning, blocked by the port A clock enable: %0d", zw_strobes_scan);
 		$display("memory writes while scanning: %0d (must be 0)", wr_during_scan);
+		qa_show;
 		if (wr_during_scan != 0) begin
 			$display("RESULT: FAIL - a memory was written while the chain was shifting");
 			$finish;
@@ -498,6 +631,7 @@ module tb_ctrl;
 			$finish;
 		end
 		$display("RESULT: PASS - the restore shifts the buffer back in, in order");
+		qa_show;
 
 		bad = 0;
 		for (i = 0; i < 16; i = i + 1)
@@ -569,6 +703,14 @@ module tb_ctrl;
 			$display("RESULT: PASS - every memory goes out and comes back word for word");
 		else
 			$display("RESULT: FAIL - the memory walk does not round trip");
+
+		$display("VRAM bytes sampled on save: %0d (expect 65536), not their address's: %0d", vs_n, vs_bad);
+		$display("selects changing on a first address or write: %0d (must be 0)", sel_bad);
+		$display("walk port clocks not one clock behind the bench: %0d (must be 0)", wb_lag);
+		if (vs_n == 65536 && vs_bad == 0 && sel_bad == 0 && wb_lag == 0)
+			$display("RESULT: PASS - the walk samples a read once it answers, selects settle first");
+		else
+			$display("RESULT: FAIL - the walk samples a read too early or moves a select under it");
 
 		// sat, the VDP's sprite cache, was poisoned above after the save: read the
 		// real register back and compare it to what was written before the save.
@@ -689,6 +831,61 @@ module tb_ctrl;
 			$finish;
 		end
 		$display("RESULT: PASS - a reset mid-restore does not corrupt the walk, machine resumes");
+
+		// the restores above wrote the saved model image into the real VRAM too, so
+		// a save that reads it through md_board's port must get that image back
+		real_vram = 1;
+		@(negedge MCLK2); ss_save = 1;
+		repeat (4) @(negedge MCLK2); ss_save = 0;
+		k = 0;
+		while (!ss_busy && k < 1000) begin @(posedge MCLK2); k = k + 1; end
+		if (!ss_busy) begin
+			$display("RESULT: FAIL - the save of the real VRAM was never accepted");
+			$finish;
+		end
+		k = 0;
+		while (ss_busy && k < 2000000) begin @(posedge MCLK2); k = k + 1; end
+		$display("save of the real VRAM took: %0d cycles", k);
+		$display("real VRAM bytes read: %0d (expect 65536), not their address's: %0d", vr_n, vr_bad);
+		$display("selects changing on a first address or write: %0d (must be 0)", sel_bad);
+		$display("walk port clocks not one clock behind the bench: %0d (must be 0)", wb_lag);
+		if (ss_busy || vr_n != 65536 || vr_bad != 0 || sel_bad != 0 || wb_lag != 0) begin
+			$display("RESULT: FAIL - a save does not read the real VRAM back as it was restored");
+			$finish;
+		end
+		$display("RESULT: PASS - a save reads the real VRAM back as it was restored");
+		lat_case;
+		qa_show;
 		$finish;
 	end
+
+	// bus_free reaches the pause through one register: rising once the settle count
+	// is in, it must raise ss_en on the second clock, the sample and then the decision
+	task lat_case;
+		integer n;
+		begin
+			bus_free_r = 0;
+			@(negedge MCLK2); ss_save = 1;
+			repeat (4) @(negedge MCLK2); ss_save = 0;
+			k = 0;
+			while (!(ctrl.state == 5'd9 && ctrl.guard[16]) && k < 200000) begin @(negedge MCLK2); k = k + 1; end
+			if (!(ctrl.state == 5'd9 && ctrl.guard[16])) begin
+				$display("RESULT: FAIL - the pause never reached its settle count");
+				$finish;
+			end
+			@(negedge MCLK2); bus_free_r = 1;
+			n = 0;
+			while (n == 0 || (ss_en !== 1'b1 && n < 16)) begin
+				@(posedge MCLK2); @(negedge MCLK2); n = n + 1;
+			end
+			if (n != 2) $display("RED_BF_LAT got=%0d want=2", n);
+			k = 0;
+			while (ss_busy && k < 2000000) begin @(posedge MCLK2); k = k + 1; end
+			$display("clocks from bus_free to scan enable: %0d (expect 2), busy after: %0b", n, ss_busy);
+			if (n != 2 || ss_busy)
+				$display("RESULT: FAIL - the pause does not read bus_free through one register");
+			else
+				$display("RESULT: PASS - the pause reads bus_free through one register");
+		end
+	endtask
 endmodule

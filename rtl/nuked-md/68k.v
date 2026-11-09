@@ -1525,6 +1525,30 @@ end
 	// w2 select registers cut the c2_l/c3_l -> w2 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w4_l <= data_io[15];
+			w5_l <= w4_l;
+			w8_l <= w5_l;
+			w9_l <= w8_l;
+			w12_l <= w9_l;
+			w13_l <= w12_l;
+			w16_l <= w13_l;
+			w17_l <= w16_l;
+			w20_l <= w17_l;
+			w21_l <= w20_l;
+			w24_l <= w21_l;
+			w25_l <= w24_l;
+			w28_l <= w25_l;
+			w29_l <= w28_l;
+			w32_l <= w29_l;
+			w33_l <= w32_l;
+			w36_l <= w33_l;
+			w37_l <= w36_l;
+			w86_l <= w37_l;
+		end
+		else
+		begin
 		w4_l <= (v2_1 & ~w64) ? w2_g : 1'h0;
 		w5_l <= (v2_1 & w64) ? w2_g : 1'h0;
 		w8_l <= (v2_2 & ~w64) ? w2_g : 1'h0;
@@ -1544,11 +1568,36 @@ end
 		w36_l <= (v2_8 & w64 & w88) ? w2_g : 1'h0;
 		w37_l <= (~w55 & ~w77) ? w2_g : 1'h0;
 		w86_l <= w56 ? 1'h0 : w2_g;
+		end
 	end
 	
 	// w1 select registers cut the c2_l/c3_l -> w1 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w3_l <= w86_l;
+			w6_l <= w3_l;
+			w7_l <= w6_l;
+			w10_l <= w7_l;
+			w11_l <= w10_l;
+			w14_l <= w11_l;
+			w15_l <= w14_l;
+			w18_l <= w15_l;
+			w19_l <= w18_l;
+			w22_l <= w19_l;
+			w23_l <= w22_l;
+			w26_l <= w23_l;
+			w27_l <= w26_l;
+			w30_l <= w27_l;
+			w31_l <= w30_l;
+			w34_l <= w31_l;
+			w35_l <= w34_l;
+			w38_l <= w35_l;
+			w87_l <= w38_l;
+		end
+		else
+		begin
 		w3_l <= (v1_1 & ~w65) ? w1_g : 1'h0;
 		w6_l <= (v1_1 & w65) ? w1_g : 1'h0;
 		w7_l <= (v1_2 & ~w65) ? w1_g : 1'h0;
@@ -1568,6 +1617,7 @@ end
 		w35_l <= (v1_8 & w65 & w88) ? w1_g : 1'h0;
 		w38_l <= (~w58 & ~w75) ? w1_g : 1'h0;
 		w87_l <= w59 ? 1'h0 : w1_g;
+		end
 	end
 	
 	assign w88 = ~w634;
@@ -2048,6 +2098,7 @@ end
 			w277[4] <= w277[3];
 			w277[5] <= w277[4];
 			w278 <= w277[5];
+			w278_o <= w277[5];
 			_w279_0 <= w278;
 			_w279_2 <= _w279_0;
 			_w281_0 <= _w279_2;
@@ -3944,6 +3995,8 @@ end
 	
 	reg [271:0] ucode_out = 0;
 	reg [271:0] ncode_out = 0;
+	reg [5:0] ucode_raddr = 0;
+	reg [7:0] ncode_raddr = 0;
 	
 	wire [67:0] ucode_out_m1_0;
 	wire [67:0] ucode_out_m1_1;
@@ -4013,8 +4066,8 @@ end
 			ncode_addr <= {ncode_addr[6:0], ucode_addr[5]};
 			w522 <= {w522[15:0], ncode_addr[7]};
 			w529 <= {w529[66:0], w522[16]};
-			ucode_out <= {ucode_out[270:0], w529[67]};
-			ncode_out <= {ncode_out[270:0], ucode_out[271]};
+			ucode_raddr <= {ucode_raddr[4:0], w529[67]};
+			ncode_raddr <= {ncode_raddr[6:0], ucode_raddr[5]};
 		end
 		else
 		begin
@@ -4152,8 +4205,8 @@ end
 		
 		if (c3)
 		begin
-			ucode_out <= ucode[ucode_addr];
-			ncode_out <= ncode[ncode_addr];
+			ucode_raddr <= ucode_addr;
+			ncode_raddr <= ncode_addr;
 		end
 		
 		if (c3)
@@ -4174,11 +4227,21 @@ end
 			end
 end
 	
+	wire [5:0] ucode_rd = ss_en ? {ucode_raddr[4:0], w529[67]} : ucode_addr;
+	wire [7:0] ncode_rd = ss_en ? {ncode_raddr[6:0], ucode_raddr[5]} : ncode_addr;
+	// the outputs are not in the chain: each shift clock re-reads the ROM at the address the chain holds after it
+	always @(posedge MCLK)
+		if (c3 | ss_en)
+		begin
+			ucode_out <= ucode[ucode_rd];
+			ncode_out <= ncode[ncode_rd];
+		end
+	
 	always @(posedge MCLK)
 	begin
 		if (ss_en)
 		begin
-			w530 <= {w530[14:0], ncode_out[271]};
+			w530 <= {w530[14:0], ncode_raddr[7]};
 		end
 		else
 		begin
@@ -6343,6 +6406,30 @@ end
 	// w853 select registers cut the c2_l/c3_l -> w853 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w156_l <= w87_l;
+			w241_l <= w156_l;
+			w242_l <= w241_l;
+			w245_l <= w242_l;
+			w246_l <= w245_l;
+			w249_l <= w246_l;
+			w250_l <= w249_l;
+			w253_l <= w250_l;
+			w254_l <= w253_l;
+			w257_l <= w254_l;
+			w843_l <= w257_l;
+			w860_l <= w843_l;
+			w861_l <= w860_l;
+			w864_l <= w861_l;
+			w865_l <= w864_l;
+			w868_l <= w865_l;
+			w869_l <= w868_l;
+			w872_l <= w869_l;
+			w873_l <= w872_l;
+		end
+		else
+		begin
 		w156_l <= w668 ? 1'h0 : w853_g;
 		w241_l <= w225 ? w853_g : 1'h0;
 		w242_l <= w224 ? w853_g : 1'h0;
@@ -6362,11 +6449,36 @@ end
 		w869_l <= w184 ? w853_g : 1'h0;
 		w872_l <= w183 ? w853_g : 1'h0;
 		w873_l <= w669 ? w853_g : 1'h0;
+		end
 	end
 	
 	// w847 select registers cut the c2_l/c3_l -> w847 fanout path; inputs load only while CLK is low, so a select differs from the old one only if its D changed at the MCLK edge where CLK rises.
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			w155_l <= w873_l;
+			w240_l <= w155_l;
+			w243_l <= w240_l;
+			w244_l <= w243_l;
+			w247_l <= w244_l;
+			w248_l <= w247_l;
+			w251_l <= w248_l;
+			w252_l <= w251_l;
+			w255_l <= w252_l;
+			w256_l <= w255_l;
+			w858_l <= w256_l;
+			w859_l <= w858_l;
+			w862_l <= w859_l;
+			w863_l <= w862_l;
+			w866_l <= w863_l;
+			w867_l <= w866_l;
+			w870_l <= w867_l;
+			w871_l <= w870_l;
+			w874_l <= w871_l;
+		end
+		else
+		begin
 		w155_l <= w675 ? 1'h0 : w847_g;
 		w240_l <= w228 ? w847_g : 1'h0;
 		w243_l <= w227 ? w847_g : 1'h0;
@@ -6386,6 +6498,7 @@ end
 		w870_l <= w186 ? w847_g : 1'h0;
 		w871_l <= w185 ? w847_g : 1'h0;
 		w874_l <= w676 ? w847_g : 1'h0;
+		end
 	end
 	
 	assign w875 = w836 ? c3 : 1'h0;
@@ -7711,5 +7824,5 @@ end
 end
 	
 
-	assign ss_out = data_io[15];
+	assign ss_out = w874_l;
 endmodule

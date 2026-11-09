@@ -16,25 +16,35 @@ module ym_sr_bit #(parameter SR_LENGTH = 1)
 	reg [SR_LENGTH-1:0] v1 = 0;
 	reg [SR_LENGTH-1:0] v2 = 0;
 
+	wire [SR_LENGTH-1:0] v2_assign = c2 ? v1 : v2;
+
 	assign sr_out = v2[SR_LENGTH-1];
 	assign ss_out = v2[SR_LENGTH-1];
 
 	// scan rides this cell's own network, one 2:1 mux per cell (a mux per stage
 	// cost 2.3 ALMs/bit vs 0.42 overall). interleaves v1/v2 instead of walking one
 	// bank then the other, so older snapshots see a different length and are refused.
-	wire in_bit = ss_en ? ss_in : bit_in;
-
 	always @(posedge MCLK)
 	begin
-		if (c1 | ss_en)
+		if (ss_en)
 		begin
 			if (SR_LENGTH == 1)
-				v1 <= in_bit;
+				v1 <= ss_in;
 			else
-				v1 <= { v2[SR_LENGTH-2:0], in_bit };
-		end
-		if (c2 | ss_en)
+				v1 <= { v2[SR_LENGTH-2:0], ss_in };
 			v2 <= v1;
+		end
+		else
+		begin
+		if (c1)
+		begin
+			if (SR_LENGTH == 1)
+				v1 <= bit_in;
+			else
+				v1 <= { v2[SR_LENGTH-2:0], bit_in };
+		end
+		v2 <= v2_assign;
+		end
 	end
 endmodule
 
@@ -289,10 +299,8 @@ module ym_slatch_t #(parameter DATA_WIDTH = 1)
 		end
 	end
 
-	// the transparent path left live would let the surrounding network oscillate
-	// around the latch while frozen: a non-converging loop, and a real hazard too
-	assign val = ss_en ? mem : mem_assign;
-	assign nval = ~val;
+	assign val = mem_assign;
+	assign nval = ~mem_assign;
 
 endmodule
 

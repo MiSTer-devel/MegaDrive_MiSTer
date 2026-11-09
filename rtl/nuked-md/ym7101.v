@@ -2334,13 +2334,21 @@ module ym7101
 	reg clk1_a_r = 0, clk1_h_r = 0;
 	always @(posedge MCLK)
 	begin
+		if (ss_en)
+		begin
+			clk1_a_r <= cpu_clk0_r;
+			clk1_h_r <= clk1_a_r;
+		end
+		else
+		begin
 		clk1_a_r <= ~mclk_and1_next & prescaler_dff10_l2 & (~MCLK_e | prescaler_dff11_l2);
 		clk1_h_r <= MCLK_e & prescaler_dff1_l2;
+		end
 	end
 	assign CLK1_next = clk1_a_r & ~(clk1_h_r & ~reset_comb);
 	assign CLK0_next = cpu_clk0_next;
 	wire ss_step4_prescaler_dff3;
-	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2), .ss_en(ss_en), .ss_in(cpu_clk0_r), .ss_out(ss_step4_prescaler_dff3));
+	ym7101_dff prescaler_dff3(.MCLK(MCLK), .clk(MCLK_e), .inp(prescaler_dff4_l2), .rst(mclk_and1), .outp(prescaler_dff3_l2), .ss_en(ss_en), .ss_in(clk1_h_r), .ss_out(ss_step4_prescaler_dff3));
 	wire ss_step5_prescaler_dff4;
 	ym7101_dff prescaler_dff4(.MCLK(MCLK), .clk(MCLK_e), .inp(~prescaler_dff3_l2), .rst(mclk_and1), .outp(prescaler_dff4_l2), .ss_en(ss_en), .ss_in(ss_step4_prescaler_dff3), .ss_out(ss_step5_prescaler_dff4));
 	wire ss_step6_prescaler_dff5;
@@ -8348,8 +8356,8 @@ module ym7101_dff #(parameter DATA_WIDTH = 1)
 	
 	wire [DATA_WIDTH-1:0] l2_assign = rst ? {DATA_WIDTH{1'h0}} : (clk ? l1 : l2);
 	
-	assign outp = ss_en ? l2 : l2_assign;
-	assign outp_nr = ss_en ? l2 : (clk ? l1 : l2);
+	assign outp = l2_assign;
+	assign outp_nr = clk ? l1 : l2;
 	//assign outp = l2;
 	
 	always @(posedge MCLK)
