@@ -38,7 +38,6 @@ module tb_mdp;
 		begin if (!ok) begin $display("FAIL: %0s", what); errs = errs + 1; end end
 	endtask
 
-	// wait for the FSM to reach DDR_WAIT with a read accepted
 	task to_wait; integer g; begin
 		g = 0; while (dut.ddr_state !== 3'd2 && g < 20000) begin @(posedge clk); g = g + 1; end
 	end endtask

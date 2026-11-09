@@ -1,5 +1,3 @@
-// structural test, no machine state: shift a known pattern in, shift it straight
-// back out, and expect the exact pattern back from a plain SS_CHAIN_LEN-bit shift.
 `timescale 1ns/1ps
 `include "ss_params.vh"
 

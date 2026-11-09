@@ -1,6 +1,4 @@
 `timescale 1ns/1ps
-// does a one-clock strobe at 107.37 MHz reach a register on the 53.69 MHz clock
-// beside it? reproduces the walk's three-clocks-per-word timing.
 module tb_phase;
 	reg md = 0; always #4.657 md = ~md;
 	reg sys = 0;

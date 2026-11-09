@@ -1,9 +1,8 @@
-// runs on clk_sys, DDRAM_CLK's own clock: issuing requests from clk_md dropped words.
 module ss_ddr #(
 	parameter [28:0] DDR_BASE = 29'h7C00000  // byte 0x3E000000
 )
 (
-	input             clk,          // must be the clock DDRAM_CLK is driven from
+	input             clk,  // must be DDRAM_CLK's own clock (clk_sys); requests issued from clk_md dropped words
 
 	input      [15:0] chain_len,
 
@@ -16,8 +15,8 @@ module ss_ddr #(
 	output reg  [7:0] ddr_burstcnt = 0,
 	output reg  [7:0] ddr_be = 8'hFF,
 
-	// port B: the captured chain goes out after the status words, so the
-	// machine state can be diffed from Linux
+	// port B: the capture and the memory chunks go out to the slot from here,
+	// and come back through it on a restore
 	output      [9:0] buf_addr,
 	input      [63:0] buf_q,
 	output reg        buf_we = 0,

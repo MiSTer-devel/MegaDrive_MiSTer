@@ -2421,8 +2421,8 @@ end
 	assign clk2 = mclk_dclk & ~dclk_l;
 	
 	/*reg dclk_l;
-	reg tclk1_l = 0;
-	reg tclk2_l = 0;
+	reg tclk1_l;
+	reg tclk2_l;
 	
 	wire tclk1 = ~mclk_dclk & dclk_l;
 	wire tclk2 = mclk_dclk & ~dclk_l;
@@ -5322,7 +5322,7 @@ end
 		begin
 			if (ss_arr_sel & ss_arr_wr & ss_arr_addr[6])
 				vsram[vsram_index] <= ss_arr_din[10:0];
-			else if (hclk1 && !ss_en) // write cycle
+			else if (hclk1) // write cycle
 			begin
 				if (l211)
 					vsram[vsram_index][7:0] <= l181[7:0];
@@ -6826,7 +6826,7 @@ end
 				else if (ss_sat_addr[1:0] == 2'd1)
 					sat[sat_index][20:16] <= ss_sat_din[4:0];
 			end
-			else if (hclk1 && !ss_en) // write cycle
+			else if (hclk1) // write cycle
 			begin
 				if (w687)
 					sat[sat_index][6:0] <= sat_data_in[6:0];
@@ -6889,7 +6889,7 @@ end
 
 		if (sprdata_index < 5'd20)
 		begin
-			if (hclk1 && !ss_en) // write cycle
+			if (hclk1) // write cycle
 			begin
 				if (w712)
 					sprdata[sprdata_index][10:0] <= sprdata_in[10:0];
@@ -6974,7 +6974,7 @@ end
 
 		if (linebuffer_index < 6'd40)
 		begin
-			if (w817 && !ss_en) // write cycle
+			if (w817) // write cycle
 			begin
 				if (w910)
 					linebuffer[linebuffer_index][6:0] <= linebuffer_data_in[6:0];
@@ -7688,7 +7688,7 @@ end
 
 		if (ss_arr_sel & ss_arr_wr & ~ss_arr_addr[6])
 			color_ram[color_ram_index] <= ss_arr_din[8:0];
-		else if (hclk1 && !ss_en) // write cycle
+		else if (hclk1) // write cycle
 		begin
 			if (l602)
 				color_ram[color_ram_index][5:0] <= color_ram_data_in[5:0];
@@ -8317,10 +8317,6 @@ endmodule
 
 /*module ym7101_rs_trig
 	(
-	input ss_en,
-	input ss_in,
-	output ss_out,
-
 	input MCLK,
 	input set,
 	input rst,
@@ -8333,8 +8329,6 @@ endmodule
 	assign q = set | ~nq;
 	assign nq = rst | ~q; 
 	
-
-	assign ss_out = ss_in;
 endmodule*/
 
 
@@ -8397,10 +8391,6 @@ endmodule
 
 /*module ym7101_dff #(parameter DATA_WIDTH = 1)
 	(
-	input ss_en,
-	input ss_in,
-	output ss_out,
-
 	input MCLK,
 	input clk,
 	input [DATA_WIDTH-1:0] inp,
@@ -8415,14 +8405,6 @@ endmodule
 	
 	always @(*)
 	begin
-		if (ss_en)
-		begin
-			l1 <= ss_in;
-			l2 <= l1;
-		end
-		else
-		begin
-
 		if (rst)
 		begin
 			l1 <= {DATA_WIDTH{1'h0}};
@@ -8435,19 +8417,12 @@ endmodule
 			else
 				l2 <= l1;
 		end
-			end
-end
+	end
 	
-
-	assign ss_out = l2;
 endmodule*/
 
 /*module ym7101_dff #(parameter DATA_WIDTH = 1)
 	(
-	input ss_en,
-	input ss_in,
-	output ss_out,
-
 	input MCLK,
 	input clk,
 	input [DATA_WIDTH-1:0] inp,
@@ -8461,20 +8436,10 @@ endmodule*/
 	
 	always @(posedge clk or posedge rst)
 	begin
-		if (ss_en)
-		begin
-			l2 <= ss_in;
-		end
-		else
-		begin
-
 		if (rst)
 			l2 <= {DATA_WIDTH{1'h0}};
 		else
 			l2 <= inp;
-			end
-end
+	end
 	
-
-	assign ss_out = l2;
 endmodule*/

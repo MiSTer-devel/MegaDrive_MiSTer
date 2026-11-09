@@ -1,5 +1,4 @@
 // ym3438, ym7101, fc1004 common cells
-// scan chain added: ss_en/ss_in/ss_out on every cell, ss_en==0 keeps original behavior
 
 module ym_sr_bit #(parameter SR_LENGTH = 1)
 	(
@@ -22,8 +21,7 @@ module ym_sr_bit #(parameter SR_LENGTH = 1)
 	assign ss_out = v2[SR_LENGTH-1];
 
 	// scan rides this cell's own network, one 2:1 mux per cell (a mux per stage
-	// cost 2.3 ALMs/bit vs 0.42 overall). interleaves v1/v2 instead of walking one
-	// bank then the other, so older snapshots see a different length and are refused.
+	// cost 2.3 ALMs/bit vs 0.42 overall).
 	always @(posedge MCLK)
 	begin
 		if (ss_en)

@@ -1,5 +1,3 @@
-// proof obligation: run R, capture S1; run M, capture S2; restore S1, run M,
-// capture S3; S3 must equal S2, i.e. the scanned bits fully determine the future.
 `timescale 1ns/1ps
 `include "ss_params.vh"
 
@@ -70,15 +68,12 @@ module tb_scan;
 		begin for (k=0;k<c;k=k+1) @(posedge MCLK2); end
 	endtask
 
-	// falling edge, not rising: event ordering on the chain's own sampling edge
-	// is undefined. destructive read: zeros fill the chain as it shifts out, so
-	// every capture must be followed by a restore.
 	task capture(output reg [`SS_CHAIN_LEN-1:0] buf_o);
 		integer k;
 		begin
-			// align to a falling edge only when not already shifting: a wait between
-			// two back-to-back tasks would let one more clock through with ss_en
-			// high, shifting the chain by a bit and losing the last one.
+			// falling edge: event order on the chain's own sampling edge is undefined. not
+			// when already shifting: a wait between back-to-back tasks shifts one bit too many.
+			// the read is destructive (zeros fill in), so every capture needs a restore.
 			if (!ss_en) @(negedge MCLK2);
 			ss_en = 1; ss_in = 0;
 			for (k=0;k<`SS_CHAIN_LEN;k=k+1) begin
@@ -179,6 +174,8 @@ module tb_scan;
 		end
 		$display("state moved over %0d cycles: %0d/%0d bits", STEP, diff, `SS_CHAIN_LEN);
 
+		// S3 (restore S1, run) must equal S2 (run from S1): the scanned bits fully
+		// determine the future
 		diff = 0;
 		for (n=0;n<`SS_CHAIN_LEN;n=n+1) if (s2[n] !== s3[n]) diff = diff + 1;
 

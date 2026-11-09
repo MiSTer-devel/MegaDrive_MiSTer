@@ -1,4 +1,3 @@
-// simulation-only behavioral models of the MiSTer sys memory primitives
 `timescale 1ns/1ps
 
 module spram #(parameter ADDRWIDTH=8, DATAWIDTH=8, MIF="")

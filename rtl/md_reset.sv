@@ -1,6 +1,3 @@
-// cnt resets the whole core (through sys_reset); cal_cnt holds the machine only
-// after the scan chain is measured. Keep them separate: mixing them lets the
-// machine's own controller reset the rest of the core and calibration loops forever.
 module md_reset #(parameter DIV = 15)
 (
 	input                clk,
@@ -20,6 +17,9 @@ module md_reset #(parameter DIV = 15)
 );
 
 reg [4:0] cnt = 0;
+// cnt resets the whole core (through sys_reset); cal_cnt holds only the machine after
+// the chain is measured. Mixing them lets the machine's own controller reset the rest of
+// the core and calibration loops forever.
 reg [1:0] cal_cnt = 3;   // 3 means the window is closed
 reg       cold = 1;      
 reg       old_reset = 0;

@@ -1,10 +1,5 @@
 `timescale 1ns/1ps
 
-// checks that every word is written, in order, once, with the right contents,
-// and that the memory controller's busy line is respected
-
-// one DDR port, two masters' requests in FIFO order, one shared ddr_dout_ready:
-// a read in flight when the mux switches answers to the wrong master
 module ddr_arb(
 	input         clk,
 	input         gate,      // 1 = master A's request lines reach the port
@@ -17,6 +12,8 @@ module ddr_arb(
 	localparam LATENCY = 10;
 	reg [28:0] q_addr [0:DEPTH-1];
 	integer    head = 0, tail = 0, count = 0, wait_left = LATENCY;
+	// one shared ddr_dout_ready: a read in flight when the mux switches answers to
+	// the wrong master
 	reg        dr = 0;
 	reg [63:0] dw = 0;
 	assign dout_ready = dr;
@@ -46,8 +43,6 @@ module ddr_arb(
 	end
 endmodule
 
-// GATED=0 ties port_ok high (the race), GATED=1 takes the second master's idle line;
-// TRACK_FIX=0 drops the in-flight read on a track change, 1 keeps it until the answer
 module race_rig #(parameter GATED = 0, parameter TRACK_FIX = 1, parameter [9:0] NW = 10'd8)
 (
 	input             clk,

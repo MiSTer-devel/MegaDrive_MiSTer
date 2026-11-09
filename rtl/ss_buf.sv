@@ -1,4 +1,3 @@
-// dump runs on clk_sys, DDRAM_CLK's own clock; crossing by hand drops requests.
 module ss_buf #(parameter WORDS = 1024)
 (
 	input             clka,
@@ -7,7 +6,7 @@ module ss_buf #(parameter WORDS = 1024)
 	input      [63:0] dina,
 	output reg [63:0] qa = 0,
 
-	input             clkb,
+	input             clkb,  // clk_sys, DDRAM_CLK's own clock; crossing it by hand drops requests
 	input             web,
 	input      [63:0] dinb,
 	input       [9:0] addrb,

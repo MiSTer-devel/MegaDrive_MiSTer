@@ -61,8 +61,8 @@ module vram
 		end
 		for (i = 0; i < 8; i = i + 1)
 		begin : l2
-			// port A is the VDP's, port B the walk's; the VDP's writes stay dropped
-			// while the walk owns the RAM (R33), its reads are its own now
+			// port A is the VDP's, port B the walk's (reads and writes); the VDP's writes
+			// stay dropped while the walk owns the RAM
 			vram_ip2 mem
 				(
 				.clock(MCLK),

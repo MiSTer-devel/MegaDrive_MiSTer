@@ -77,7 +77,7 @@ module tb_vram;
 
 	task walk_word(input [15:0] ad, output [7:0] dq);
 		begin
-			// D61: addr_q at the end of mrd1, mem_dout_q samples at the end of mrd5,
+			// addr_q at the end of mrd1, mem_dout_q samples at the end of mrd5,
 			// the address stands for seven clocks
 			@(posedge MCLK); ss_addr <= ad;
 			@(posedge MCLK);
@@ -209,7 +209,7 @@ module tb_vram;
 		else          $display("RESULT: FAIL - WALK: the walk does not read back what it wrote");
 
 		// STREAM: a new address on every edge; right after edge e ss_dout must be
-		// the byte of the address presented at edge e - 4 (D61's two stages) and
+		// the byte of the address presented at edge e - 4 (two stages) and
 		// mostly not the one at e - 3, which the single-stage walk gave
 		st_bad4 = 0; st_eq3 = 0;
 		for (n = 1; n <= 2000; n = n + 1) begin

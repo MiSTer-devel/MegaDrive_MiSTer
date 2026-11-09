@@ -1,6 +1,3 @@
-// tests rtl/md_reset.sv, the shipped module, not a copy. md_reset_v43 below is
-// a deliberately broken control: one counter for both machine and core reset,
-// so s_reset can retrigger the savestate controller's own calibration forever.
 `timescale 1ns/1ps
 
 module md_reset_v43 #(parameter DIV = 15)
@@ -14,6 +11,8 @@ module md_reset_v43 #(parameter DIV = 15)
 	output reg           btn_reset = 0,
 	output reg [DIV:1]   ram_rst_a = 0
 );
+	// one counter for both machine and core reset, deliberately: s_reset can then
+	// retrigger the savestate controller's own calibration forever
 	reg [4:0] cnt = 0;
 	reg       old_reset = 0;
 	reg       old_cal = 1;
@@ -38,7 +37,6 @@ module md_reset_v43 #(parameter DIV = 15)
 	end
 endmodule
 
-// VER 0 is the shipped module, 1 is the broken control
 module rig #(parameter VER = 0, parameter DIV = 4, parameter CAL_LEN = 100)
 (
 	input      clk,
@@ -183,12 +181,11 @@ module tb_reset;
 
 	integer cals_at_boot, cals_after_load, cals_after_btn;
 
-	// counts how long btn_h and s_h are high over a fixed window: long enough
-	// to cover btn_reset's full stock width (cnt runs 0 to 31, TICK clocks
-	// each), so a single pass measures both pulses without racing each other
 	task measure(output integer wb, output integer ws);
 		integer i;
 		begin
+			// the window covers btn_reset's full stock width (cnt runs 0 to 31, TICK clocks
+			// each), so one pass measures both pulses
 			wb = 0; ws = 0;
 			for (i = 0; i < WINDOW * 20; i = i + 1) begin
 				@(posedge clk);
