@@ -26,3 +26,8 @@ set_global_assignment -name SYSTEMVERILOG_FILE hps_ext.sv
 set_global_assignment -name SYSTEMVERILOG_FILE rtl/saturn_keyboard.sv
 set_global_assignment -name SDC_FILE MegaDrive.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE MegaDrive.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/savestate.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/md_reset.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/savestate_ui.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ss_ddr.sv
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ss_buf.sv
