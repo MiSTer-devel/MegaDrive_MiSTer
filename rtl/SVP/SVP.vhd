@@ -262,7 +262,11 @@ begin
 									BUS_DO <= XST;
 								when "010" =>
 									BUS_DO <= "00000000000000" & CA & SA;
-									SA <= '0';
+									-- The read clears SA, except on the clock the SSP writes XST: that write sets SA
+									-- above, and this later assignment would otherwise discard it.
+									if not (SSP_ESB = '1' and EN = '1' and SSP_R_NW = '0' and SSP_EA = "011" and SSP_ST56(1) = '0') then
+										SA <= '0';
+									end if;
 								when others =>
 									BUS_DO <= (others => '0');
 							end case; 
