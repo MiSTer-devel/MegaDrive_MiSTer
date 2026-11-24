@@ -24,6 +24,10 @@
 
 module tmss
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input [15:0] VD_i,
 	input [2:0] test,
@@ -81,8 +85,10 @@ module tmss
 	wire w59;
 	wire w62;
 	
-	ym_sdffr dff1(.MCLK(MCLK), .clk(w40), .val(w3), .reset(SRES), .q(dff1_q));
-	ym_sdffs dff2(.MCLK(MCLK), .clk(w10), .val(dff1_q), .set(SRES), .nq(dff2_nq));
+	wire ss_step1_dff1;
+	ym_sdffr dff1(.MCLK(MCLK), .clk(w40), .val(w3), .reset(SRES), .q(dff1_q), .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_dff1));
+	wire ss_step2_dff2;
+	ym_sdffs dff2(.MCLK(MCLK), .clk(w10), .val(dff1_q), .set(SRES), .nq(dff2_nq), .ss_en(ss_en), .ss_in(ss_step1_dff1), .ss_out(ss_step2_dff2));
 	
 	assign w3 = l1 == 16'h5345 & l2 == 16'h4741;
 	
@@ -98,7 +104,8 @@ module tmss
 	assign w40 = ~(~RW & w15);
 	assign w41 = ~(RW & w15);
 	
-	ym_sdffr dff3(.MCLK(MCLK), .clk(~w23 | RW), .val(VD_i[0]), .reset(SRES), .q(dff3_q));
+	wire ss_step3_dff3;
+	ym_sdffr dff3(.MCLK(MCLK), .clk(~w23 | RW), .val(VD_i[0]), .reset(SRES), .q(dff3_q), .ss_en(ss_en), .ss_in(ss_step2_dff2), .ss_out(ss_step3_dff3));
 	//ym_sdffs dff3(.MCLK(MCLK), .clk(~w23 | RW), .val(VD_i[0]), .set(SRES), .q(dff3_q));
 	
 	assign w31 = CART | ~M3;
@@ -106,9 +113,11 @@ module tmss
 	assign CE0_o = tmss_enable ? (~(dff3_q | w31) | CE0_i) : CE0_i;
 	
 	assign w38 = ~VA[0] & ~RW & w15;
-	ym_slatch #(.DATA_WIDTH(16)) sl1(.MCLK(MCLK), .en(w38), .inp(VD_i), .val(l1));
+	wire ss_step4_sl1;
+	ym_slatch #(.DATA_WIDTH(16)) sl1(.MCLK(MCLK), .en(w38), .inp(VD_i), .val(l1), .ss_en(ss_en), .ss_in(ss_step3_dff3), .ss_out(ss_step4_sl1));
 	assign w39 = VA[0] & ~RW & w15;
-	ym_slatch #(.DATA_WIDTH(16)) sl2(.MCLK(MCLK), .en(w39), .inp(VD_i), .val(l2));
+	wire ss_step5_sl2;
+	ym_slatch #(.DATA_WIDTH(16)) sl2(.MCLK(MCLK), .en(w39), .inp(VD_i), .val(l2), .ss_en(ss_en), .ss_in(ss_step4_sl1), .ss_out(ss_step5_sl2));
 	
 	assign w20 = VA[0] ? l2 : l1;
 	assign VD_o = tmss_enable ? (w28 ? w20 : tmss_data) : 16'h0;
@@ -136,4 +145,6 @@ module tmss
 	assign test_3 = ~w59;
 	assign test_4 = ~w62;
 
+
+	assign ss_out = ss_step5_sl2;
 endmodule

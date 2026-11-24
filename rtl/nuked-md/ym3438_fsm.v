@@ -1,5 +1,9 @@
 module ym3438_fsm
 	(
+	input ss_en,
+	input ss_in,
+	output ss_out,
+
 	input MCLK,
 	input c1,
 	input c2,
@@ -31,6 +35,7 @@ module ym3438_fsm
 	
 	wire reset_low_cnt = fsm_reset | cnt_low_out[1];
 	
+	wire ss_step1_cnt_low;
 	ym_cnt_bit #(.DATA_WIDTH(2)) cnt_low
 		(
 		.MCLK(MCLK),
@@ -40,8 +45,9 @@ module ym3438_fsm
 		.reset(reset_low_cnt),
 		.val(cnt_low_out),
 		.c_out()
-		);
+		, .ss_en(ss_en), .ss_in(ss_in), .ss_out(ss_step1_cnt_low));
 	
+	wire ss_step2_cnt_high;
 	ym_cnt_bit #(.DATA_WIDTH(3)) cnt_high
 		(
 		.MCLK(MCLK),
@@ -51,7 +57,7 @@ module ym3438_fsm
 		.reset(fsm_reset),
 		.val(cnt_high_out),
 		.c_out()
-		);
+		, .ss_en(ss_en), .ss_in(ss_step1_cnt_low), .ss_out(ss_step2_cnt_high));
 		
 	assign fsm_cnt = { cnt_high_out, cnt_low_out };
 	
@@ -85,17 +91,19 @@ module ym3438_fsm
 	
 	wire fsm_timer_ed;
 	
+	wire ss_step3_ed;
 	ym_edge_detect ed
 		(
 		.MCLK(MCLK),
 		.c1(c1),
 		.inp(fsm_sel[2]),
 		.outp(fsm_timer_ed)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step2_cnt_high), .ss_out(ss_step3_ed));
 	
 	wire alg_fb_sel_sr_out;
 	wire alg_fb_sel = ~alg_fb_sel_sr_out;
 		
+	wire ss_step4_alg_fb_sel_sr;
 	ym_sr_bit alg_fb_sel_sr
 		(
 		.MCLK(MCLK),
@@ -103,7 +111,7 @@ module ym3438_fsm
 		.c2(c2),
 		.bit_in(fsm_op2_sel),
 		.sr_out(alg_fb_sel_sr_out)
-		);
+		, .ss_en(ss_en), .ss_in(ss_step3_ed), .ss_out(ss_step4_alg_fb_sel_sr));
 
 	wire [7:0] alg_sel;
 	
@@ -143,4 +151,6 @@ module ym3438_fsm
 	assign alg_op1_0_o = alg_op1_0;
 	assign alg_out_o = alg_out;
 	
+
+	assign ss_out = ss_step4_alg_fb_sel_sr;
 endmodule
